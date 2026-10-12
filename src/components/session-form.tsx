@@ -133,6 +133,31 @@ export function SessionForm({ initialData, onSuccess, theme = 'light' }: Session
     },
   });
 
+  // Reset form when initialData changes (e.g. editing a session)
+  useEffect(() => {
+    if (initialData) {
+      form.reset({
+        client_id: initialData.client_id || "",
+        client_name: initialData.client_name || "",
+        client_phone: initialData.client_phone || "",
+        client_email: initialData.client_email || "",
+        session_date: initialData.session_date ? String(initialData.session_date).split('T')[0] : new Date().toISOString().split('T')[0],
+        session_type: initialData.session_type || "photo",
+        category: initialData.category || "portrait",
+        subcategory: initialData.subcategory || "",
+        status: initialData.status || "pending",
+        comments: initialData.comments || "",
+        tags: Array.isArray(initialData.tags) ? initialData.tags.join(', ') : (initialData.tags || ""),
+        portal_pin: initialData.portal_pin || "",
+        folder_link: initialData.folder_link || "",
+        final_link: initialData.final_link || "",
+      });
+      if (initialData.client_name) {
+        setClientMode('new');
+      }
+    }
+  }, [initialData, form]);
+
   // Fetch existing clients on mount
   useEffect(() => {
     let isMounted = true;
@@ -284,14 +309,39 @@ export function SessionForm({ initialData, onSuccess, theme = 'light' }: Session
     } else {
       payload.client_id = payload.client_id.trim();
     }
-    if (!payload.portal_pin) delete payload.portal_pin;
-    if (!payload.subcategory) delete payload.subcategory;
-    if (!payload.client_email) delete payload.client_email;
-    if (!payload.client_phone) delete payload.client_phone;
-    if (!payload.comments) delete payload.comments;
-    if (!payload.tags) delete payload.tags;
-    if (!payload.folder_link) delete payload.folder_link;
-    if (!payload.final_link) delete payload.final_link;
+
+    if (!payload.portal_pin) {
+      if (initialData?.id) payload.portal_pin = null;
+      else delete payload.portal_pin;
+    }
+    if (!payload.subcategory) {
+      if (initialData?.id) payload.subcategory = null;
+      else delete payload.subcategory;
+    }
+    if (!payload.client_email) {
+      if (initialData?.id) payload.client_email = null;
+      else delete payload.client_email;
+    }
+    if (!payload.client_phone) {
+      if (initialData?.id) payload.client_phone = null;
+      else delete payload.client_phone;
+    }
+    if (!payload.comments) {
+      if (initialData?.id) payload.comments = null;
+      else delete payload.comments;
+    }
+    if (!payload.tags) {
+      if (initialData?.id) payload.tags = [];
+      else delete payload.tags;
+    }
+    if (!payload.folder_link) {
+      if (initialData?.id) payload.folder_link = null;
+      else delete payload.folder_link;
+    }
+    if (!payload.final_link) {
+      if (initialData?.id) payload.final_link = null;
+      else delete payload.final_link;
+    }
 
     if (initialData?.id) {
       res = await updateSession(initialData.id, payload);
@@ -767,7 +817,7 @@ export function SessionForm({ initialData, onSuccess, theme = 'light' }: Session
             )}>
               <button
                 type="button"
-                onClick={() => form.setValue('session_type', 'photo')}
+                onClick={() => form.setValue('session_type', 'photo', { shouldDirty: true, shouldValidate: true })}
                 className={cn(
                   "flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer",
                   form.watch('session_type') === 'photo'
@@ -782,7 +832,7 @@ export function SessionForm({ initialData, onSuccess, theme = 'light' }: Session
               </button>
               <button
                 type="button"
-                onClick={() => form.setValue('session_type', 'video')}
+                onClick={() => form.setValue('session_type', 'video', { shouldDirty: true, shouldValidate: true })}
                 className={cn(
                   "flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer",
                   form.watch('session_type') === 'video'
@@ -849,7 +899,7 @@ export function SessionForm({ initialData, onSuccess, theme = 'light' }: Session
                       onChange={(e) => {
                         field.onChange(e.target.value);
                         // Limpiar subcategoría cuando cambia la categoría principal
-                        form.setValue('subcategory', '');
+                        form.setValue('subcategory', '', { shouldDirty: true });
                       }}
                       className={cn(
                         "w-full h-9 px-3 rounded-xl border text-xs outline-none",
@@ -859,31 +909,51 @@ export function SessionForm({ initialData, onSuccess, theme = 'light' }: Session
                       )}
                     >
                       {dbCategories.length > 0 ? (
-                        dbCategories.map(c => {
-                          const label = language === 'fr' && c.name_fr ? c.name_fr 
-                            : language === 'en' && c.name_en ? c.name_en 
-                            : language === 'ar' && c.name_ar ? c.name_ar 
-                            : c.name;
-                          return (
+                        <>
+                          {dbCategories.map(c => {
+                            const label = language === 'fr' && c.name_fr ? c.name_fr 
+                              : language === 'en' && c.name_en ? c.name_en 
+                              : language === 'ar' && c.name_ar ? c.name_ar 
+                              : c.name;
+                            return (
+                              <option 
+                                key={c.slug} 
+                                value={c.slug} 
+                                className={isLight ? "bg-white text-[#1c1815]" : "bg-[#141210] text-[#f5f2eb]"}
+                              >
+                                {label}
+                              </option>
+                            );
+                          })}
+                          {field.value && !dbCategories.some(c => c.slug === field.value) && (
                             <option 
-                              key={c.slug} 
-                              value={c.slug} 
+                              value={field.value} 
                               className={isLight ? "bg-white text-[#1c1815]" : "bg-[#141210] text-[#f5f2eb]"}
                             >
-                              {label}
+                              {field.value}
                             </option>
-                          );
-                        })
+                          )}
+                        </>
                       ) : (
-                        CATEGORIES.map(c => (
-                          <option 
-                            key={c.value} 
-                            value={c.value} 
-                            className={isLight ? "bg-white text-[#1c1815]" : "bg-[#141210] text-[#f5f2eb]"}
-                          >
-                            {c.label}
-                          </option>
-                        ))
+                        <>
+                          {CATEGORIES.map(c => (
+                            <option 
+                              key={c.value} 
+                              value={c.value} 
+                              className={isLight ? "bg-white text-[#1c1815]" : "bg-[#141210] text-[#f5f2eb]"}
+                            >
+                              {c.label}
+                            </option>
+                          ))}
+                          {field.value && !CATEGORIES.some(c => c.value === field.value) && (
+                            <option 
+                              value={field.value} 
+                              className={isLight ? "bg-white text-[#1c1815]" : "bg-[#141210] text-[#f5f2eb]"}
+                            >
+                              {field.value}
+                            </option>
+                          )}
+                        </>
                       )}
                     </select>
                   </FormControl>
@@ -894,7 +964,7 @@ export function SessionForm({ initialData, onSuccess, theme = 'light' }: Session
           </div>
 
           {/* Subcategory (Se muestra si la categoría activa tiene subcategorías en la BD) */}
-          {(activeSubcategories.length > 0 || (dbCategories.length === 0 && form.watch('category') === 'portrait')) && (
+          {(activeSubcategories.length > 0 || (dbCategories.length === 0 && form.watch('category') === 'portrait') || form.watch('subcategory')) && (
             <FormField
               control={form.control}
               name="subcategory"
@@ -921,31 +991,51 @@ export function SessionForm({ initialData, onSuccess, theme = 'light' }: Session
                         -- {t.selectSubCategory || "Sélectionner sous-catégorie (optionnel)"} --
                       </option>
                       {activeSubcategories.length > 0 ? (
-                        activeSubcategories.map(s => {
-                          const subLabel = language === 'fr' && s.name_fr ? s.name_fr 
-                            : language === 'en' && s.name_en ? s.name_en 
-                            : language === 'ar' && s.name_ar ? s.name_ar 
-                            : s.name;
-                          return (
+                        <>
+                          {activeSubcategories.map(s => {
+                            const subLabel = language === 'fr' && s.name_fr ? s.name_fr 
+                              : language === 'en' && s.name_en ? s.name_en 
+                              : language === 'ar' && s.name_ar ? s.name_ar 
+                              : s.name;
+                            return (
+                              <option 
+                                key={s.slug} 
+                                value={s.slug} 
+                                className={isLight ? "bg-white text-[#1c1815]" : "bg-[#141210] text-[#f5f2eb]"}
+                              >
+                                {subLabel}
+                              </option>
+                            );
+                          })}
+                          {field.value && !activeSubcategories.some(s => s.slug === field.value) && (
                             <option 
-                              key={s.slug} 
-                              value={s.slug} 
+                              value={field.value} 
                               className={isLight ? "bg-white text-[#1c1815]" : "bg-[#141210] text-[#f5f2eb]"}
                             >
-                              {subLabel}
+                              {field.value}
                             </option>
-                          );
-                        })
+                          )}
+                        </>
                       ) : (
-                        SUBCATEGORIES_PORTRAIT.map(s => (
-                          <option 
-                            key={s.value} 
-                            value={s.value} 
-                            className={isLight ? "bg-white text-[#1c1815]" : "bg-[#141210] text-[#f5f2eb]"}
-                          >
-                            {s.label}
-                          </option>
-                        ))
+                        <>
+                          {SUBCATEGORIES_PORTRAIT.map(s => (
+                            <option 
+                              key={s.value} 
+                              value={s.value} 
+                              className={isLight ? "bg-white text-[#1c1815]" : "bg-[#141210] text-[#f5f2eb]"}
+                            >
+                              {s.label}
+                            </option>
+                          ))}
+                          {field.value && !SUBCATEGORIES_PORTRAIT.some(s => s.value === field.value) && (
+                            <option 
+                              value={field.value} 
+                              className={isLight ? "bg-white text-[#1c1815]" : "bg-[#141210] text-[#f5f2eb]"}
+                            >
+                              {field.value}
+                            </option>
+                          )}
+                        </>
                       )}
                     </select>
                   </FormControl>

@@ -54,16 +54,15 @@ export function SessionDialog({
       ) : (
         <DialogTrigger
           className={
-            buttonVariants({ 
-              variant: triggerType === 'add' ? 'default' : 'ghost', 
-              size: triggerType === 'add' ? 'default' : 'sm' 
-            }) + (triggerType !== 'add' ? " h-8 w-8 p-0" : "")
+            triggerType === 'add'
+              ? buttonVariants({ variant: 'default', size: 'default' })
+              : "h-8 w-8 p-0 rounded-lg bg-[#181613] hover:bg-[#201c18] border border-[#2e261f] hover:border-[#c69f68]/40 text-[#c69f68] inline-flex items-center justify-center transition-colors cursor-pointer"
           }
         >
           {triggerType === 'add' ? (
             <><Plus className="w-4 h-4 mr-2" /> {t.addSessionBtn}</>
           ) : (
-            <Pencil className="h-4 w-4 text-blue-600" />
+            <Pencil className="h-3.5 w-3.5 text-[#c69f68]" />
           )}
         </DialogTrigger>
       )}

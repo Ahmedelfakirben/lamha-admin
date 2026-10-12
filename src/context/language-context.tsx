@@ -91,10 +91,12 @@ export interface Translations {
   newSession: string
   addSessionBtn: string
   editSessionBtn: string
+  editProject: string
   ingestSd: string
   ingestShortBtn: string
   searchPlaceholder: string
   allCategories: string
+  allSubcategories: string
   allStatuses: string
   clearFilters: string
   showing: string
@@ -727,10 +729,12 @@ const translations: Record<Language, Translations> = {
     newSession: "Nueva Sesión",
     addSessionBtn: "Añadir Sesión",
     editSessionBtn: "Editar Sesión",
+    editProject: "Editar Proyecto",
     ingestSd: "Ingesta SD / NAS",
     ingestShortBtn: "Ingesta",
     searchPlaceholder: "Buscar...",
     allCategories: "Todas las Categorías",
+    allSubcategories: "Todas las Subcategorías",
     allStatuses: "Todos los Estados",
     clearFilters: "Limpiar Filtros",
     showing: "Mostrando",
@@ -1350,10 +1354,12 @@ const translations: Record<Language, Translations> = {
     newSession: "Nouvelle Session",
     addSessionBtn: "Ajouter Session",
     editSessionBtn: "Modifier Session",
+    editProject: "Modifier le Projet",
     ingestSd: "Ingestion SD / NAS",
     ingestShortBtn: "Ingestion",
     searchPlaceholder: "Rechercher...",
     allCategories: "Toutes les Catégories",
+    allSubcategories: "Toutes les Sous-catégories",
     allStatuses: "Tous les Statuts",
     clearFilters: "Réinitialiser Filtres",
     showing: "Affichage de",
@@ -1973,10 +1979,12 @@ const translations: Record<Language, Translations> = {
     newSession: "New Session",
     addSessionBtn: "Add Session",
     editSessionBtn: "Edit Session",
+    editProject: "Edit Project",
     ingestSd: "Ingest SD / NAS",
     ingestShortBtn: "Ingest",
     searchPlaceholder: "Search...",
     allCategories: "All Categories",
+    allSubcategories: "All Subcategories",
     allStatuses: "All Statuses",
     clearFilters: "Clear Filters",
     showing: "Showing",
@@ -2596,10 +2604,12 @@ const translations: Record<Language, Translations> = {
     newSession: "جلسة جديدة",
     addSessionBtn: "إضافة جلسة",
     editSessionBtn: "تعديل الجلسة",
+    editProject: "تعديل المشروع",
     ingestSd: "استيراد الذاكرة SD",
     ingestShortBtn: "استيراد",
     searchPlaceholder: "بحث...",
     allCategories: "جميع التصنيفات",
+    allSubcategories: "جميع الفئات الفرعية",
     allStatuses: "جميع الحالات",
     clearFilters: "تصفير الفلاتر",
     showing: "عرض",

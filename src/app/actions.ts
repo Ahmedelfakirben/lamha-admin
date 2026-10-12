@@ -253,6 +253,60 @@ export async function updateSession(id: string, data: any, userContext?: UserAud
 
     if (error) throw error;
 
+    if (folder_link !== undefined) {
+      try {
+        const { data: existing } = await supabase
+          .from('media_deliveries')
+          .select('id')
+          .eq('session_id', id)
+          .eq('delivery_type', 'folder_link')
+          .maybeSingle();
+        if (existing) {
+          if (folder_link) {
+            await supabase.from('media_deliveries').update({ url: folder_link }).eq('id', existing.id);
+          } else {
+            await supabase.from('media_deliveries').delete().eq('id', existing.id);
+          }
+        } else if (folder_link) {
+          await supabase.from('media_deliveries').insert({
+            session_id: id,
+            delivery_type: 'folder_link',
+            url: folder_link,
+            label: 'Carpeta Drive RAW',
+          });
+        }
+      } catch (errDelivery) {
+        console.warn('Could not update folder_link delivery:', errDelivery);
+      }
+    }
+
+    if (final_link !== undefined) {
+      try {
+        const { data: existing } = await supabase
+          .from('media_deliveries')
+          .select('id')
+          .eq('session_id', id)
+          .eq('delivery_type', 'final_link')
+          .maybeSingle();
+        if (existing) {
+          if (final_link) {
+            await supabase.from('media_deliveries').update({ url: final_link }).eq('id', existing.id);
+          } else {
+            await supabase.from('media_deliveries').delete().eq('id', existing.id);
+          }
+        } else if (final_link) {
+          await supabase.from('media_deliveries').insert({
+            session_id: id,
+            delivery_type: 'final_link',
+            url: final_link,
+            label: 'Entrega Final',
+          });
+        }
+      } catch (errDelivery) {
+        console.warn('Could not update final_link delivery:', errDelivery);
+      }
+    }
+
     // Registrar en auditoría estricta la actualización del proyecto
     await recordAuditLog({
       action: 'SESSION_UPDATED',

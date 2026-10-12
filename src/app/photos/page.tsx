@@ -1,9 +1,9 @@
 "use client"
 
-import { useEffect, useState, useMemo } from "react"
+import { useEffect, useState, useMemo, useCallback } from "react"
 import { createClient } from "@/lib/supabase"
 import { SessionSummary, STATUS_COLORS, STATUS_LABELS } from "@/types/database"
-import { Camera, Search, ArrowRight, Key, CheckCircle2, ExternalLink, Copy, Check, RotateCcw, Folder } from "lucide-react"
+import { Camera, Search, ArrowRight, Key, CheckCircle2, ExternalLink, Copy, Check, RotateCcw, Folder, Pencil } from "lucide-react"
 import { format } from "date-fns"
 import { SessionDialog } from "@/components/session-dialog"
 import { Pagination } from "@/components/pagination"
@@ -13,41 +13,121 @@ import Link from "next/link"
 const ITEMS_PER_PAGE = 20
 
 export default function PhotosPage() {
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const [sessions, setSessions] = useState<SessionSummary[]>([])
+  const [dbCategories, setDbCategories] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   
   // Filter States
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [categoryFilter, setCategoryFilter] = useState("all")
+  const [subcategoryFilter, setSubcategoryFilter] = useState("all")
   const [pinFilter, setPinFilter] = useState("all")
   const [sortOrder, setSortOrder] = useState<"recent" | "oldest" | "name_asc">("recent")
   const [currentPage, setCurrentPage] = useState(1)
   
   const [copiedPin, setCopiedPin] = useState<string | null>(null)
 
-  useEffect(() => {
-    async function loadSessions() {
-      const supabase = createClient()
-      try {
-        const { data, error } = await supabase
+  const loadSessions = useCallback(async () => {
+    const supabase = createClient()
+    try {
+      const [catsRes, sessionsRes] = await Promise.all([
+        supabase
+          .from("categories")
+          .select("*, subcategories(*)")
+          .eq("is_active", true)
+          .order("display_order", { ascending: true }),
+        supabase
           .from("sessions")
           .select("*, media_deliveries(*)")
           .eq("session_type", "photo")
           .order("session_date", { ascending: false })
+      ])
 
-        if (error) throw error
-        setSessions(data || [])
-      } catch (err) {
-        console.error("Error cargando sesiones de fotos:", err)
-        setSessions([])
-      } finally {
-        setLoading(false)
+      if (catsRes.data) setDbCategories(catsRes.data)
+      if (sessionsRes.data) setSessions(sessionsRes.data)
+    } catch (err) {
+      console.error("Error cargando sesiones de fotos:", err)
+      setSessions([])
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadSessions()
+  }, [loadSessions])
+
+  const getCategoryLabel = useCallback((catSlug: string) => {
+    if (!catSlug) return ""
+    const found = dbCategories.find(c => c.slug === catSlug || c.name.toLowerCase() === catSlug.toLowerCase())
+    if (found) {
+      if (language === 'fr' && found.name_fr) return found.name_fr
+      if (language === 'en' && found.name_en) return found.name_en
+      if (language === 'ar' && found.name_ar) return found.name_ar
+      return found.name
+    }
+    return t[catSlug as keyof typeof t] || catSlug
+  }, [dbCategories, language, t])
+
+  const getSubcategoryLabel = useCallback((catSlug: string, subSlug: string) => {
+    if (!subSlug) return ""
+    for (const c of dbCategories) {
+      if (c.subcategories) {
+        const found = c.subcategories.find((s: any) => s.slug === subSlug || s.name.toLowerCase() === subSlug.toLowerCase())
+        if (found) {
+          if (language === 'fr' && found.name_fr) return found.name_fr
+          if (language === 'en' && found.name_en) return found.name_en
+          if (language === 'ar' && found.name_ar) return found.name_ar
+          return found.name
+        }
       }
     }
-    loadSessions()
-  }, [])
+    return subSlug.replace(/_/g, " ")
+  }, [dbCategories, language])
+
+  // Dynamic category options (combining DB categories with any existing session categories)
+  const categoryOptions = useMemo(() => {
+    const map = new Map<string, string>()
+    dbCategories.forEach(c => {
+      map.set(c.slug, getCategoryLabel(c.slug))
+    })
+    sessions.forEach((s: any) => {
+      if (s.category && !map.has(s.category)) {
+        map.set(s.category, getCategoryLabel(s.category))
+      }
+    })
+    return Array.from(map.entries()).map(([slug, label]) => ({ slug, label }))
+  }, [dbCategories, sessions, getCategoryLabel])
+
+  // Available subcategories based on current categoryFilter
+  const availableSubcategories = useMemo(() => {
+    if (categoryFilter === "all") {
+      const list: { slug: string; label: string }[] = []
+      dbCategories.forEach(c => {
+        if (c.subcategories) {
+          c.subcategories.forEach((s: any) => {
+            if (s.is_active !== false && !list.some(x => x.slug === s.slug)) {
+              list.push({
+                slug: s.slug,
+                label: language === 'fr' && s.name_fr ? s.name_fr : language === 'en' && s.name_en ? s.name_en : language === 'ar' && s.name_ar ? s.name_ar : s.name
+              })
+            }
+          })
+        }
+      })
+      return list
+    }
+    const matched = dbCategories.find(c => c.slug === categoryFilter)
+    if (!matched?.subcategories) return []
+    return matched.subcategories
+      .filter((s: any) => s.is_active !== false)
+      .map((s: any) => ({
+        slug: s.slug,
+        label: language === 'fr' && s.name_fr ? s.name_fr : language === 'en' && s.name_en ? s.name_en : language === 'ar' && s.name_ar ? s.name_ar : s.name
+      }))
+  }, [dbCategories, categoryFilter, language])
 
   // Filter & Sort Logic
   const filteredSessions = useMemo(() => {
@@ -55,11 +135,13 @@ export default function PhotosPage() {
       const matchSearch =
         s.client_name.toLowerCase().includes(search.toLowerCase()) ||
         (s.category && s.category.toLowerCase().includes(search.toLowerCase())) ||
+        (s.subcategory && s.subcategory.toLowerCase().includes(search.toLowerCase())) ||
         (s.client_phone && s.client_phone.includes(search)) ||
         (s.portal_pin && s.portal_pin.includes(search))
 
       const matchStatus = statusFilter === "all" || s.status === statusFilter
       const matchCategory = categoryFilter === "all" || s.category === categoryFilter
+      const matchSubcategory = subcategoryFilter === "all" || s.subcategory === subcategoryFilter
 
       const matchPin =
         pinFilter === "all" ||
@@ -67,7 +149,7 @@ export default function PhotosPage() {
         (pinFilter === "no_pin" && !s.portal_pin) ||
         (pinFilter === "has_selections" && s.selected_assets && s.selected_assets.length > 0)
 
-      return matchSearch && matchStatus && matchCategory && matchPin
+      return matchSearch && matchStatus && matchCategory && matchSubcategory && matchPin
     })
 
     result.sort((a: any, b: any) => {
@@ -84,12 +166,12 @@ export default function PhotosPage() {
     })
 
     return result
-  }, [sessions, search, statusFilter, categoryFilter, pinFilter, sortOrder])
+  }, [sessions, search, statusFilter, categoryFilter, subcategoryFilter, pinFilter, sortOrder])
 
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1)
-  }, [search, statusFilter, categoryFilter, pinFilter, sortOrder])
+  }, [search, statusFilter, categoryFilter, subcategoryFilter, pinFilter, sortOrder])
 
   // Pagination Slice (20 items max)
   const totalPages = Math.ceil(filteredSessions.length / ITEMS_PER_PAGE)
@@ -108,6 +190,7 @@ export default function PhotosPage() {
     setSearch("")
     setStatusFilter("all")
     setCategoryFilter("all")
+    setSubcategoryFilter("all")
     setPinFilter("all")
     setSortOrder("recent")
     setCurrentPage(1)
@@ -117,6 +200,7 @@ export default function PhotosPage() {
     (search ? 1 : 0) +
     (statusFilter !== "all" ? 1 : 0) +
     (categoryFilter !== "all" ? 1 : 0) +
+    (subcategoryFilter !== "all" ? 1 : 0) +
     (pinFilter !== "all" ? 1 : 0) +
     (sortOrder !== "recent" ? 1 : 0)
 
@@ -190,17 +274,34 @@ export default function PhotosPage() {
 
             <select
               value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
+              onChange={(e) => {
+                setCategoryFilter(e.target.value)
+                setSubcategoryFilter("all")
+              }}
               className="w-full sm:w-auto bg-[#181613] border border-[#29241f] rounded-xl px-3 py-2 text-xs text-[#a89f91] focus:outline-none focus:border-[#c69f68]"
             >
               <option value="all">{t.allCategories}</option>
-              <option value="wedding">{t.wedding}</option>
-              <option value="newborn">{t.newborn}</option>
-              <option value="portrait">{t.portrait}</option>
-              <option value="maternity">{t.maternity}</option>
-              <option value="birthday">{t.birthday}</option>
-              <option value="event">{t.event}</option>
+              {categoryOptions.map((c) => (
+                <option key={c.slug} value={c.slug}>
+                  {c.label}
+                </option>
+              ))}
             </select>
+
+            {availableSubcategories.length > 0 && (
+              <select
+                value={subcategoryFilter}
+                onChange={(e) => setSubcategoryFilter(e.target.value)}
+                className="w-full sm:w-auto bg-[#181613] border border-[#29241f] rounded-xl px-3 py-2 text-xs text-[#a89f91] focus:outline-none focus:border-[#c69f68] animate-in fade-in duration-200"
+              >
+                <option value="all">{t.allSubcategories}</option>
+                {availableSubcategories.map((s: any) => (
+                  <option key={s.slug} value={s.slug}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            )}
 
             <select
               value={pinFilter}
@@ -290,9 +391,16 @@ export default function PhotosPage() {
                       </td>
 
                       <td className="px-6 py-4">
-                        <span className="capitalize px-2.5 py-1 rounded-md bg-[#1d1a16] text-[#c69f68] border border-[#c69f68]/20 font-medium text-[11px]">
-                          {t[session.category as keyof typeof t] || session.category}
-                        </span>
+                        <div className="flex flex-col gap-1 items-start">
+                          <span className="capitalize px-2.5 py-1 rounded-md bg-[#1d1a16] text-[#c69f68] border border-[#c69f68]/20 font-medium text-[11px]">
+                            {getCategoryLabel(session.category)}
+                          </span>
+                          {session.subcategory && (
+                            <span className="capitalize px-1.5 py-0.5 rounded bg-[#25201b] text-[#dfba85] border border-[#c69f68]/30 font-medium text-[10px]">
+                              {getSubcategoryLabel(session.category, session.subcategory)}
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       <td className="px-6 py-4">
@@ -347,13 +455,20 @@ export default function PhotosPage() {
                       </td>
 
                       <td className="px-6 py-4 text-right">
-                        <Link
-                          href={`/sessions/${session.id}`}
-                          className="inline-flex items-center gap-1 text-xs text-[#c69f68] hover:text-[#e5c38e] font-semibold hover:underline"
-                        >
-                          <span>{t.manage}</span>
-                          <ArrowRight className="w-3.5 h-3.5" />
-                        </Link>
+                        <div className="flex items-center justify-end gap-2">
+                          <SessionDialog
+                            session={session}
+                            triggerType="edit"
+                            onSuccess={loadSessions}
+                          />
+                          <Link
+                            href={`/sessions/${session.id}`}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#c69f68] hover:bg-[#dfba85] text-[#0b0a09] font-bold text-xs transition-all shadow-md"
+                          >
+                            <span>{t.manage}</span>
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </Link>
+                        </div>
                       </td>
                     </tr>
                   )
