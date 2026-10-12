@@ -56,10 +56,11 @@ export function SessionPinCard({
   }
 
   const copyWhatsAppMessage = () => {
+    const basePortalUrl = process.env.NEXT_PUBLIC_PORTAL_URL || (typeof window !== "undefined" && window.location.hostname.includes("lam7a.ma") ? "https://lam7a.ma/portal" : "http://localhost:3001/portal")
     const emailParam = clientEmail ? `&email=${encodeURIComponent(clientEmail)}` : ""
     const portalUrl = pin
-      ? `http://localhost:3001/portal?pin=${pin}${emailParam}`
-      : "http://localhost:3001/portal"
+      ? `${basePortalUrl}?pin=${pin}${emailParam}`
+      : basePortalUrl
 
     let message = ""
     if (language === "es") {
@@ -106,9 +107,10 @@ export function SessionPinCard({
     }
   }
 
+  const basePortalUrl = process.env.NEXT_PUBLIC_PORTAL_URL || (typeof window !== "undefined" && window.location.hostname.includes("lam7a.ma") ? "https://lam7a.ma/portal" : "http://localhost:3001/portal")
   const portalHref = pin
-    ? `http://localhost:3001/portal?pin=${pin}${clientEmail ? `&email=${encodeURIComponent(clientEmail)}` : ""}`
-    : "http://localhost:3001/portal"
+    ? `${basePortalUrl}?pin=${pin}${clientEmail ? `&email=${encodeURIComponent(clientEmail)}` : ""}`
+    : basePortalUrl
 
   const progressPercent = Math.min(100, Math.round((selectedCount / (currentQuota || 1)) * 100))
 

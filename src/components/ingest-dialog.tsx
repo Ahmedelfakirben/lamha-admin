@@ -38,7 +38,6 @@ import { useLanguage } from "@/context/language-context"
 import { getExistingClients, ExistingClientOption } from "@/app/actions"
 import { createClient } from "@/lib/supabase"
 import { cn } from "@/lib/utils"
-import { FileExplorerModal } from "./file-explorer-modal"
 
 interface IngestDialogProps {
   defaultSessionId?: string
@@ -160,6 +159,40 @@ export function IngestDialog({
 
   const logsEndRef = useRef<HTMLDivElement>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const folderInputRef = useRef<HTMLInputElement>(null)
+
+  const handleNativeFolderSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+    const fileList = Array.from(files)
+
+    const firstRel = fileList[0].webkitRelativePath || ""
+    const folderName = firstRel.split("/")[0] || "DCIM"
+
+    let photoCount = 0
+    let videoCount = 0
+    let totalBytes = 0
+    const photoExts = new Set([".cr2", ".cr3", ".nef", ".arw", ".dng", ".jpg", ".jpeg", ".png", ".heic", ".raw", ".tif", ".tiff"])
+    const videoExts = new Set([".mp4", ".mov", ".mxf", ".avi", ".mkv", ".braw", ".r3d", ".crm"])
+
+    for (const f of fileList) {
+      totalBytes += f.size
+      const dot = f.name.lastIndexOf(".")
+      const ext = dot !== -1 ? f.name.substring(dot).toLowerCase() : ""
+      if (photoExts.has(ext)) photoCount++
+      else if (videoExts.has(ext)) videoCount++
+    }
+
+    const displayPath = `📁 [Carpeta Local / SD]: ${folderName}`
+    setSourcePath(displayPath)
+    setSourceScan({
+      exists: true,
+      path: displayPath,
+      photoCount,
+      videoCount,
+      totalSizeMB: Math.round(totalBytes / (1024 * 1024))
+    })
+  }
 
   const stopPolling = () => {
     if (pollRef.current) {
@@ -354,6 +387,13 @@ export function IngestDialog({
   }
 
   const scanSpecificPath = async (pathToScan: string) => {
+    if (!pathToScan || pathToScan.trim().length === 0) {
+      setSourceScan(null)
+      return
+    }
+    if (pathToScan.startsWith("📁")) {
+      return // Ya validado localmente desde el navegador del usuario
+    }
     setScanningSource(true)
     try {
       const res = await fetch(`/api/ingest?path=${encodeURIComponent(pathToScan)}`)
@@ -642,8 +682,7 @@ export function IngestDialog({
   }
 
   return (
-    <>
-      <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger 
         className={triggerClassName || (triggerVariant === "primary"
           ? "inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-[#c69f68] to-[#dfba85] text-[#0b0a09] font-bold text-xs shadow-md hover:shadow-[#c69f68]/20 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer"
@@ -833,8 +872,16 @@ export function IngestDialog({
               {/* Input manual de ruta de origen */}
               <div className="flex gap-2">
                 <input
+                  type="file"
+                  ref={folderInputRef}
+                  {...({ webkitdirectory: "", directory: "" } as any)}
+                  multiple
+                  className="hidden"
+                  onChange={handleNativeFolderSelect}
+                />
+                <input
                   type="text"
-                  placeholder="E:\DCIM"
+                  placeholder="E:\DCIM o /Volumes/CAMARA/DCIM"
                   value={sourcePath}
                   onChange={(e) => {
                     setSourcePath(e.target.value)
@@ -844,9 +891,9 @@ export function IngestDialog({
                 />
                 <button
                   type="button"
-                  onClick={() => setExplorerModal({ open: true, mode: "files", target: "source" })}
+                  onClick={() => folderInputRef.current?.click()}
                   className="px-3 py-2 text-xs rounded-lg bg-gradient-to-r from-[#201c18] to-[#171411] hover:from-[#2e2720] hover:to-[#221c17] border border-[#c69f68]/40 hover:border-[#c69f68] text-[#c69f68] font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 shadow-sm"
-                  title={t.browseSourceBtn}
+                  title="Abrir selector de carpeta de tu Mac o PC"
                 >
                   <FolderOpen className="w-3.5 h-3.5" />
                   <span>{t.browseSourceBtn}</span>
@@ -1020,15 +1067,40 @@ export function IngestDialog({
                     placeholder="E:\Lamha-Storage"
                     className="flex-1 px-3 py-2 text-xs font-mono rounded-lg bg-[#0b0a09] border border-[#26211c] text-[#f5f2eb] focus:border-[#c69f68] outline-none"
                   />
-                  <button
-                    type="button"
-                    onClick={() => setExplorerModal({ open: true, mode: "folder", target: "target" })}
-                    className="px-3 py-2 text-xs rounded-lg bg-gradient-to-r from-[#201c18] to-[#171411] hover:from-[#2e2720] hover:to-[#221c17] border border-[#c69f68]/40 hover:border-[#c69f68] text-[#c69f68] font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 shadow-sm"
-                    title={t.browseTargetBtn}
-                  >
-                    <FolderOpen className="w-3.5 h-3.5" />
-                    <span>{t.browseTargetBtn}</span>
-                  </button>
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleTargetBasePathChange("/Volumes/Lamha-Storage")}
+                      className="px-2 py-1 text-[11px] rounded bg-[#201c18] hover:bg-[#2e2720] border border-[#26211c] hover:border-[#c69f68] text-[#a89f91] hover:text-[#f5f2eb] flex items-center gap-1 transition-colors"
+                      title="Ruta estándar para MacBook / macOS"
+                    >
+                      <span>🍏 Mac (/Volumes)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleTargetBasePathChange("E:\\Lamha-Storage")}
+                      className="px-2 py-1 text-[11px] rounded bg-[#201c18] hover:bg-[#2e2720] border border-[#26211c] hover:border-[#c69f68] text-[#a89f91] hover:text-[#f5f2eb] flex items-center gap-1 transition-colors"
+                      title="Ruta estándar para Windows (Unidad E:)"
+                    >
+                      <span>🪟 Windows (E:)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleTargetBasePathChange("D:\\Lamha-Storage")}
+                      className="px-2 py-1 text-[11px] rounded bg-[#201c18] hover:bg-[#2e2720] border border-[#26211c] hover:border-[#c69f68] text-[#a89f91] hover:text-[#f5f2eb] flex items-center gap-1 transition-colors"
+                      title="Ruta para Windows (Unidad D:)"
+                    >
+                      <span>🪟 Windows (D:)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleTargetBasePathChange("/usb1_1/Lamha-Storage")}
+                      className="px-2 py-1 text-[11px] rounded bg-[#201c18] hover:bg-[#2e2720] border border-[#26211c] hover:border-[#c69f68] text-[#a89f91] hover:text-[#f5f2eb] flex items-center gap-1 transition-colors"
+                      title="Almacenamiento en NAS Router ZTE"
+                    >
+                      <span>🌐 NAS ZTE</span>
+                    </button>
+                  </div>
                   {connectedDrives.length > 0 && (
                     <button
                       type="button"
@@ -1327,15 +1399,5 @@ export function IngestDialog({
         )}
       </DialogContent>
     </Dialog>
-
-      <FileExplorerModal
-        open={explorerModal.open}
-        onOpenChange={(isOpen) => setExplorerModal(prev => ({ ...prev, open: isOpen }))}
-        mode={explorerModal.mode}
-        initialPath={explorerModal.target === "source" ? sourcePath : targetBasePath}
-        title={explorerModal.target === "source" ? t.explorerTitleSource : t.explorerTitleTarget}
-        onSelect={handleExplorerSelect}
-      />
-    </>
   )
 }
