@@ -1,0 +1,519 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  --background: #0b0a09;
+  --foreground: #f5f2eb;
+  --card: #141210;
+  --card-foreground: #f5f2eb;
+  --popover: #161412;
+  --popover-foreground: #f5f2eb;
+  --primary: #c69f68;
+  --primary-foreground: #0b0a09;
+  --secondary: #1e1b17;
+  --secondary-foreground: #e4decb;
+  --muted: #1a1714;
+  --muted-foreground: #9e9486;
+  --accent: #26211c;
+  --accent-foreground: #f5f2eb;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --border: #29241f;
+  --input: #29241f;
+  --ring: #c69f68;
+  --chart-1: #c69f68;
+  --chart-2: #8c7a6b;
+  --chart-3: #d4af37;
+  --chart-4: #4a3e35;
+  --chart-5: #e5c38e;
+  --radius: 0.75rem;
+  --sidebar: #0f0e0c;
+  --sidebar-foreground: #f3efec;
+  --sidebar-primary: #c69f68;
+  --sidebar-primary-foreground: #0b0a09;
+  --sidebar-accent: #1e1b17;
+  --sidebar-accent-foreground: #f5f2eb;
+  --sidebar-border: #29241f;
+  --sidebar-ring: #c69f68;
+}
+
+.dark {
+  --background: #0b0a09;
+  --foreground: #f5f2eb;
+  --card: #141210;
+  --card-foreground: #f5f2eb;
+  --popover: #161412;
+  --popover-foreground: #f5f2eb;
+  --primary: #c69f68;
+  --primary-foreground: #0b0a09;
+  --secondary: #1e1b17;
+  --secondary-foreground: #e4decb;
+  --muted: #1a1714;
+  --muted-foreground: #9e9486;
+  --accent: #26211c;
+  --accent-foreground: #f5f2eb;
+  --destructive: #dc2626;
+  --border: #29241f;
+  --input: #29241f;
+  --ring: #c69f68;
+  --chart-1: #c69f68;
+  --chart-2: #8c7a6b;
+  --chart-3: #d4af37;
+  --chart-4: #4a3e35;
+  --chart-5: #e5c38e;
+  --sidebar: #0f0e0c;
+  --sidebar-foreground: #f3efec;
+  --sidebar-primary: #c69f68;
+  --sidebar-primary-foreground: #0b0a09;
+  --sidebar-accent: #1e1b17;
+  --sidebar-accent-foreground: #f5f2eb;
+  --sidebar-border: #29241f;
+  --sidebar-ring: #c69f68;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground antialiased selection:bg-[#c69f68] selection:text-black;
+  }
+}
+
+/* Custom Scrollbar for Atelier Dark Mode */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0b0a09;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a2520;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #c69f68;
+}
+
+/* Utility to hide scrollbars for smooth mobile ribbon scrolling */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+html {
+  @apply font-sans;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   ATELIER LUXURY LIGHT MODE (Ivory, Cream & Studio Gold)
+   ══════════════════════════════════════════════════════════════════ */
+.light,
+html.light {
+  color-scheme: light;
+  --background: #fbf9f5;
+  --foreground: #1c1917;
+  --card: #ffffff;
+  --card-foreground: #1c1917;
+  --popover: #ffffff;
+  --popover-foreground: #1c1917;
+  --primary: #9e753b;
+  --primary-foreground: #ffffff;
+  --secondary: #f4efe6;
+  --secondary-foreground: #2d261e;
+  --muted: #f2ede1;
+  --muted-foreground: #786c5e;
+  --accent: #ebe3d3;
+  --accent-foreground: #1c1917;
+  --destructive: #dc2626;
+  --border: #e6dfcf;
+  --input: #e6dfcf;
+  --ring: #9e753b;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1c1917;
+  --sidebar-primary: #9e753b;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f5f0e6;
+  --sidebar-accent-foreground: #1c1917;
+  --sidebar-border: #e6dfcf;
+  --sidebar-ring: #9e753b;
+}
+
+html.light {
+  color-scheme: light;
+}
+
+html.light body {
+  background-color: #f7f5f0 !important;
+  color: #1c1917 !important;
+}
+
+/* Main workspace and containers */
+html.light main {
+  background-color: #fbf9f5 !important;
+  background-image: none !important;
+}
+
+html.light aside {
+  background-color: #ffffff !important;
+  border-color: #e5decb !important;
+}
+
+/* ── Neutralize all dark gradient overlays in light mode ── */
+html.light .bg-gradient-to-r:not([class*="from-\[#c69f68\]"]):not([class*="from-\[#b58f58\]"]):not([class*="from-\[#b89058\]"]),
+html.light .bg-gradient-to-b:not([class*="from-\[#c69f68\]"]):not([class*="from-\[#b58f58\]"]):not([class*="from-\[#b89058\]"]),
+html.light .bg-gradient-to-br:not([class*="from-\[#c69f68\]"]):not([class*="from-\[#b58f58\]"]):not([class*="from-\[#b89058\]"]),
+html.light .bg-gradient-to-l,
+html.light .bg-gradient-to-t {
+  background-image: none !important;
+}
+
+/* Keep studio gold button gradients */
+html.light .from-\[\#c69f68\],
+html.light .from-\[\#b58f58\],
+html.light .from-\[\#b89058\] {
+  background-image: linear-gradient(to right, #c69f68, #dfba89) !important;
+}
+
+/* ── Deep & Card Surface Backgrounds (Mapped to Pure White / Alabaster) ── */
+html.light .bg-\[\#050404\],
+html.light .bg-\[\#080706\],
+html.light .bg-\[\#090807\],
+html.light .bg-\[\#0a0908\],
+html.light .bg-\[\#0b0a09\],
+html.light .bg-\[\#0c0b09\],
+html.light .bg-\[\#0c0b0a\],
+html.light .bg-\[\#0d0c0a\],
+html.light .bg-\[\#0e0c0a\],
+html.light .bg-\[\#0e0d0b\],
+html.light .bg-\[\#0f0d0c\],
+html.light .bg-\[\#0f0e0c\],
+html.light .bg-\[\#0f0e0d\],
+html.light .bg-\[\#100e0c\],
+html.light .bg-\[\#100f0d\],
+html.light .bg-\[\#110f0d\],
+html.light .bg-\[\#12100e\],
+html.light .bg-\[\#12110f\],
+html.light .bg-\[\#121110\],
+html.light .bg-\[\#13100d\],
+html.light .bg-\[\#13110e\],
+html.light .bg-\[\#14110e\],
+html.light .bg-\[\#14120e\],
+html.light .bg-\[\#14120f\],
+html.light .bg-\[\#141210\],
+html.light .bg-\[\#151311\],
+html.light .bg-\[\#161310\],
+html.light .bg-\[\#161412\],
+html.light .bg-\[\#171411\],
+html.light .bg-\[\#171512\] {
+  background-color: #ffffff !important;
+}
+
+/* Card shadows */
+html.light .bg-\[\#141210\],
+html.light .bg-\[\#161412\],
+html.light .bg-\[\#12100e\] {
+  box-shadow: 0 2px 14px -2px rgba(28, 25, 23, 0.05);
+}
+
+/* ── Nested Wells, Inner Rows, Inputs, Sub-panels, Avatars & Expanded Panels ── */
+html.light .bg-\[\#0d0c0b\],
+html.light .bg-\[\#0e0c0b\],
+html.light .bg-\[\#181410\],
+html.light .bg-\[\#181411\],
+html.light .bg-\[\#181512\],
+html.light .bg-\[\#181613\],
+html.light .bg-\[\#1a1612\],
+html.light .bg-\[\#1a1713\],
+html.light .bg-\[\#1a1714\],
+html.light .bg-\[\#1a1814\],
+html.light .bg-\[\#1a1815\],
+html.light .bg-\[\#1a1816\],
+html.light .bg-\[\#1b1713\],
+html.light .bg-\[\#1b1714\],
+html.light .bg-\[\#1b1916\],
+html.light .bg-\[\#1c1813\],
+html.light .bg-\[\#1c1814\],
+html.light .bg-\[\#1c1815\],
+html.light .bg-\[\#1c1915\],
+html.light .bg-\[\#1d1915\],
+html.light .bg-\[\#1d1a16\],
+html.light .bg-\[\#1e1a16\],
+html.light .bg-\[\#1e1b17\],
+html.light .bg-\[\#1f1a15\],
+html.light .bg-\[\#1f1a16\],
+html.light .bg-\[\#1f1b16\],
+html.light .bg-\[\#1f1b17\],
+html.light .bg-\[\#1f1c18\],
+html.light .bg-\[\#201c17\],
+html.light .bg-\[\#201c18\],
+html.light .bg-\[\#201d18\],
+html.light .bg-\[\#211b15\],
+html.light .bg-\[\#221c16\],
+html.light .bg-\[\#221d18\],
+html.light .bg-\[\#221e19\],
+html.light .bg-\[\#221e1a\],
+html.light .bg-\[\#241f19\],
+html.light .bg-\[\#241f1a\],
+html.light .bg-\[\#24201b\],
+html.light .bg-\[\#25201a\],
+html.light .bg-\[\#25201b\],
+html.light .bg-\[\#26201a\],
+html.light .bg-\[\#26211a\],
+html.light .bg-\[\#26211c\],
+html.light .bg-\[\#262420\],
+html.light .bg-\[\#27211b\],
+html.light .bg-\[\#28211b\],
+html.light .bg-\[\#28231d\],
+html.light .bg-\[\#28231e\],
+html.light .bg-\[\#29231d\],
+html.light .bg-\[\#2a241e\],
+html.light .bg-\[\#2a241f\],
+html.light .bg-\[\#2b251f\],
+html.light .bg-\[\#2b2721\],
+html.light .bg-\[\#2c2620\],
+html.light .bg-\[\#2d2620\],
+html.light .bg-\[\#322a24\],
+html.light .bg-\[\#332b24\] {
+  background-color: #f7f3ea !important;
+}
+
+/* Backgrounds with opacity */
+html.light [class*="bg-\[#12100e\]/"],
+html.light [class*="bg-\[#141210\]/"],
+html.light [class*="bg-\[#0b0a09\]/"],
+html.light [class*="bg-\[#0d0c0b\]/"],
+html.light [class*="bg-\[#0f0e0d\]/"] {
+  background-color: #ffffff !important;
+}
+
+/* ── Hover States ── */
+html.light [class*="hover:bg-\[#0"]:hover,
+html.light [class*="hover:bg-\[#1"]:hover,
+html.light [class*="hover:bg-\[#2"]:hover,
+html.light [class*="hover:bg-\[#3"]:hover {
+  background-color: #ede5d5 !important;
+}
+
+/* ── Borders (Mapped to Soft Linen & Champagne) ── */
+html.light .border-\[\#0c0b0a\],
+html.light .border-\[\#1a1816\],
+html.light .border-\[\#1c1915\],
+html.light .border-\[\#1c1916\],
+html.light .border-\[\#1e1b17\],
+html.light .border-\[\#1f1a16\],
+html.light .border-\[\#1f1b17\],
+html.light .border-\[\#201c18\],
+html.light .border-\[\#221e1a\],
+html.light .border-\[\#241f1a\],
+html.light .border-\[\#26201a\],
+html.light .border-\[\#26211c\],
+html.light .border-\[\#262420\],
+html.light .border-\[\#28211b\],
+html.light .border-\[\#29231c\],
+html.light .border-\[\#29241f\],
+html.light .border-\[\#2a241d\],
+html.light .border-\[\#2a241e\],
+html.light .border-\[\#2a241f\],
+html.light .border-\[\#2a2620\],
+html.light .border-\[\#2a2622\],
+html.light .border-\[\#2b241e\],
+html.light .border-\[\#2b251f\],
+html.light .border-\[\#2c2620\],
+html.light .border-\[\#2d251e\],
+html.light .border-\[\#2d261e\],
+html.light .border-\[\#2e261f\],
+html.light .border-\[\#332a21\],
+html.light .border-\[\#332b22\],
+html.light .border-\[\#332b23\],
+html.light .border-\[\#332b24\],
+html.light .border-\[\#332c25\],
+html.light .border-\[\#382d20\],
+html.light .border-\[\#382f25\],
+html.light .border-\[\#383129\],
+html.light .border-\[\#38312a\],
+html.light .border-\[\#3a332a\],
+html.light .border-\[\#3b3730\],
+html.light .border-\[\#3d3227\],
+html.light .border-\[\#3d332a\],
+html.light .border-\[\#3d3429\],
+html.light .border-\[\#3d342a\],
+html.light .border-\[\#3d362f\],
+html.light .border-\[\#403b33\],
+html.light [class*="border-\[#2"]:not([class*="border-\[#c69f68\]"]),
+html.light [class*="border-\[#3"]:not([class*="border-\[#c69f68\]"]),
+html.light [class*="divide-\[#"] > * + * {
+  border-color: #e5decb !important;
+}
+
+/* ── Text Hierarchy ── */
+html.light .text-\[\#f5f2eb\],
+html.light .text-\[\#f3efec\],
+html.light .text-\[\#ffffff\],
+html.light .text-\[\#e4decb\],
+html.light .text-\[\#ded8ce\],
+html.light .text-\[\#dfba85\],
+html.light .text-\[\#d6cebf\],
+html.light .text-\[\#d6cdbe\],
+html.light .text-\[\#d5cfc5\],
+html.light .text-\[\#d1c7b7\] {
+  color: #1c1917 !important;
+}
+
+html.light .text-\[\#a89f91\],
+html.light .text-\[\#998f82\] {
+  color: #4a4135 !important;
+}
+
+html.light .text-\[\#9e9486\],
+html.light .text-\[\#8c7a6b\],
+html.light .text-\[\#8c7e70\],
+html.light .text-\[\#786c5e\],
+html.light .text-\[\#70665a\],
+html.light .text-\[\#5c5348\],
+html.light .text-\[\#5a544b\],
+html.light .text-\[\#5a5247\],
+html.light .text-\[\#554d43\],
+html.light .text-\[\#554c42\] {
+  color: #736758 !important;
+}
+
+html.light .text-\[\#3d362f\],
+html.light .text-\[\#443d36\],
+html.light .text-\[\#443c33\] {
+  color: #b0a494 !important;
+}
+
+/* Studio Gold Adjustments for Light Mode */
+html.light .text-\[\#c69f68\],
+html.light .text-\[\#e5c38e\],
+html.light .text-\[\#dfba89\] {
+  color: #9e753b !important;
+}
+
+html.light .bg-\[\#c69f68\]\/10,
+html.light .bg-\[\#c69f68\]\/15,
+html.light .bg-\[\#c69f68\]\/20 {
+  background-color: rgba(158, 117, 59, 0.12) !important;
+}
+
+html.light .border-\[\#c69f68\]\/20,
+html.light .border-\[\#c69f68\]\/30,
+html.light .border-\[\#c69f68\]\/40,
+html.light .border-\[\#c69f68\]\/50 {
+  border-color: rgba(158, 117, 59, 0.35) !important;
+}
+
+/* ── Sidebar Navigation Active & Hover in Light Mode ── */
+html.light aside nav a.bg-\[\#1c1815\],
+html.light aside nav a[class*="bg-\[\#1c1815\]"] {
+  background-color: #f5eedf !important;
+  color: #9e753b !important;
+  border-color: rgba(158, 117, 59, 0.4) !important;
+}
+
+html.light aside nav a:hover {
+  background-color: #f7f4ed !important;
+  color: #1c1917 !important;
+}
+
+/* ── Special Components Refinements ── */
+/* Client avatar pill */
+html.light a.rounded-2xl.bg-\[\#1c1815\],
+html.light div.rounded-2xl.bg-\[\#1c1815\] {
+  background-color: #f7f3ea !important;
+  color: #9e753b !important;
+  border-color: rgba(158, 117, 59, 0.35) !important;
+}
+
+/* Category image placeholder */
+html.light .w-16.h-16.bg-\[\#1b1714\] {
+  background-color: #f7f3ea !important;
+  border-color: #ded6be !important;
+}
+
+/* Forms, Inputs, Dropdowns, Textareas */
+html.light input,
+html.light select,
+html.light textarea {
+  color: #1c1917 !important;
+  background-color: #f7f4ed !important;
+  border-color: #ded6be !important;
+}
+
+html.light input::placeholder,
+html.light textarea::placeholder {
+  color: #9c8f80 !important;
+}
+
+/* Modals & Dialogs */
+html.light [role="dialog"],
+html.light .dialog-content {
+  background-color: #ffffff !important;
+  color: #1c1917 !important;
+  border-color: #e5decb !important;
+}
+
+/* Light Mode Scrollbar */
+html.light ::-webkit-scrollbar-track {
+  background: #f7f5f0;
+}
+
+html.light ::-webkit-scrollbar-thumb {
+  background: #ded6be;
+}
+
+html.light ::-webkit-scrollbar-thumb:hover {
+  background: #9e753b;
+}
