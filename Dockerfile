@@ -6,7 +6,7 @@ RUN apk add --no-cache libc6-compat perl
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm ci --include=dev
 
 # ── 2. BUILDER STAGE ──
 FROM node:20-alpine AS builder
@@ -16,10 +16,10 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Variables públicas requeridas por Next.js en tiempo de compilación
-ARG NEXT_PUBLIC_SUPABASE_URL
-ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
-ARG NEXT_PUBLIC_ADMIN_EMAIL
+# Variables públicas requeridas por Next.js en tiempo de compilación con fallbacks
+ARG NEXT_PUBLIC_SUPABASE_URL=http://supabasekong-t0c40gs0ks0ksc80woo8cos0.46.224.62.53.sslip.io
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJzdXBhYmFzZSIsImlhdCI6MTc4OTkxODUwMCwiZXhwIjo0OTQ1NTkyMTAwLCJyb2xlIjoiYW5vbiJ9.BO0AL139qok5hXKYeU5c7tmD2J0QroXeFuqndyhln0Y
+ARG NEXT_PUBLIC_ADMIN_EMAIL=afaf@lamhastudios.ma
 
 ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
 ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
