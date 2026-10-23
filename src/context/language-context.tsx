@@ -347,6 +347,12 @@ export interface Translations {
   hiddenStatus: string
   openWithApp: string
   revealInFolder: string
+  openInLocalFolder: string
+  openInNasFolder: string
+  rotatePhoto: string
+  zoomIn: string
+  zoomOut: string
+  resetView: string
   deleteFromSession: string
   withNoteBadge: string
   clientRetouchInstruction: string
@@ -978,6 +984,12 @@ const translations: Record<Language, Translations> = {
     hiddenStatus: "Oculta",
     openWithApp: "Abrir en software de edición",
     revealInFolder: "Mostrar en carpeta del sistema",
+    openInLocalFolder: "Abrir en Carpeta Local (SSD)",
+    openInNasFolder: "Abrir en Servidor NAS (Red / FTP)",
+    rotatePhoto: "Rotar Imagen",
+    zoomIn: "Acercar",
+    zoomOut: "Alejar",
+    resetView: "Restablecer Vista",
     deleteFromSession: "Eliminar de la sesión",
     withNoteBadge: "Con Nota",
     clientRetouchInstruction: "Instrucción de Retoque del Cliente:",
@@ -1603,6 +1615,12 @@ const translations: Record<Language, Translations> = {
     hiddenStatus: "Masquée",
     openWithApp: "Ouvrir dans le logiciel de retouche",
     revealInFolder: "Afficher dans le dossier système",
+    openInLocalFolder: "Ouvrir dans le dossier local (SSD)",
+    openInNasFolder: "Ouvrir sur le serveur NAS (Réseau / FTP)",
+    rotatePhoto: "Faire pivoter la photo",
+    zoomIn: "Zoom avant",
+    zoomOut: "Zoom arrière",
+    resetView: "Réinitialiser",
     deleteFromSession: "Supprimer de la session",
     withNoteBadge: "Avec Note",
     clientRetouchInstruction: "Instruction de Retouche du Client :",
@@ -2228,6 +2246,12 @@ const translations: Record<Language, Translations> = {
     hiddenStatus: "Hidden",
     openWithApp: "Open in editing application",
     revealInFolder: "Reveal in system folder",
+    openInLocalFolder: "Open in Local Folder (SSD)",
+    openInNasFolder: "Open on NAS Server (Network / FTP)",
+    rotatePhoto: "Rotate Photo",
+    zoomIn: "Zoom In",
+    zoomOut: "Zoom Out",
+    resetView: "Reset View",
     deleteFromSession: "Remove from session",
     withNoteBadge: "With Note",
     clientRetouchInstruction: "Client Retouch Instruction:",
@@ -2853,6 +2877,12 @@ const translations: Record<Language, Translations> = {
     hiddenStatus: "مخفي",
     openWithApp: "فتح في برنامج التعديل",
     revealInFolder: "عرض في مجلد النظام",
+    openInLocalFolder: "فتح في المجلد المحلي (SSD)",
+    openInNasFolder: "فتح على سيرفر NAS (الشبكة / FTP)",
+    rotatePhoto: "تدوير الصورة",
+    zoomIn: "تكبير",
+    zoomOut: "تصغير",
+    resetView: "إعادة ضبط العرض",
     deleteFromSession: "حذف من الجلسة",
     withNoteBadge: "مع ملاحظة",
     clientRetouchInstruction: "تعليمات التعديل من العميل:",

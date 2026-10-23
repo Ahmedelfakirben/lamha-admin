@@ -115,6 +115,109 @@ class LamhaBridgeServer {
         return
       }
 
+      // POST /open — Abrir carpeta o archivo en Explorador de Windows o NAS
+      if (req.method === "POST" && pathname === "/open") {
+        let body = ""
+        req.on("data", chunk => { body += chunk })
+        req.on("end", async () => {
+          try {
+            const params = body ? JSON.parse(body) : {}
+            const { shell } = require("electron")
+            const fs = require("fs")
+            const path = require("path")
+
+            const target = params.target || "local" // 'local' | 'nas'
+            const mode = params.mode || "reveal"    // 'reveal' | 'open'
+            let filePath = params.path || ""
+
+            if (target === "nas") {
+              // Si es NAS, abrir la URL de red FTP en Explorer
+              let nasUrl = filePath.startsWith("ftp://") 
+                ? filePath 
+                : `ftp://192.168.11.1/usb1_1/Lamha-Storage/${filePath.replace(/^[\\\/]/, "")}`
+              
+              // Si apunta a un archivo específico, abrir la carpeta contenedora en el NAS
+              if (/\.[a-zA-Z0-9]{2,5}$/.test(nasUrl)) {
+                nasUrl = nasUrl.substring(0, nasUrl.lastIndexOf("/"))
+              }
+
+              console.log("[BRIDGE] Abriendo ubicación NAS FTP:", nasUrl)
+              await shell.openExternal(nasUrl)
+              res.writeHead(200)
+              res.end(JSON.stringify({ ok: true, message: "Ubicación de red NAS abierta en el explorador", target: "nas", url: nasUrl }))
+              return
+            }
+
+            // Local folder resolution
+            let resolvedLocalPath = filePath
+
+            // Si es relativa, resolver contra C:\Lamha-Storage o unidades del PC
+            if (!path.isAbsolute(resolvedLocalPath)) {
+              const defaultRoot = "C:\\Lamha-Storage"
+              const candidate = path.join(defaultRoot, resolvedLocalPath)
+              if (fs.existsSync(candidate)) {
+                resolvedLocalPath = candidate
+              } else {
+                // Probar letras de unidad comunes (D, E, F, etc.)
+                let found = false
+                for (const drive of ["D", "E", "F", "G", "C"]) {
+                  const testP = path.join(`${drive}:\\Lamha-Storage`, resolvedLocalPath)
+                  if (fs.existsSync(testP)) {
+                    resolvedLocalPath = testP
+                    found = true
+                    break
+                  }
+                }
+                if (!found) {
+                  // Si no existe el archivo exacto, probar con la carpeta padre
+                  const dirCandidate = path.dirname(candidate)
+                  if (fs.existsSync(dirCandidate)) {
+                    resolvedLocalPath = dirCandidate
+                  } else {
+                    resolvedLocalPath = candidate
+                  }
+                }
+              }
+            }
+
+            console.log("[BRIDGE] Abriendo en Explorador local:", resolvedLocalPath, "mode:", mode)
+
+            if (fs.existsSync(resolvedLocalPath)) {
+              const stat = fs.statSync(resolvedLocalPath)
+              if (stat.isDirectory()) {
+                await shell.openPath(resolvedLocalPath)
+                res.writeHead(200)
+                res.end(JSON.stringify({ ok: true, message: "Carpeta local abierta en el Explorador", path: resolvedLocalPath }))
+              } else {
+                if (mode === "open") {
+                  await shell.openPath(resolvedLocalPath)
+                } else {
+                  shell.showItemInFolder(resolvedLocalPath)
+                }
+                res.writeHead(200)
+                res.end(JSON.stringify({ ok: true, message: "Archivo revelado en el Explorador de Windows", path: resolvedLocalPath }))
+              }
+            } else {
+              // Intentar abrir la carpeta padre si existe
+              const parentDir = path.dirname(resolvedLocalPath)
+              if (fs.existsSync(parentDir)) {
+                await shell.openPath(parentDir)
+                res.writeHead(200)
+                res.end(JSON.stringify({ ok: true, message: "Carpeta del proyecto abierta en el Explorador", path: parentDir }))
+              } else {
+                res.writeHead(404)
+                res.end(JSON.stringify({ ok: false, error: `No se encontró la ruta física: ${resolvedLocalPath}` }))
+              }
+            }
+          } catch (err) {
+            console.error("[BRIDGE] Error en POST /open:", err)
+            res.writeHead(500)
+            res.end(JSON.stringify({ ok: false, error: err.message }))
+          }
+        })
+        return
+      }
+
       // 404 No encontrado
       res.writeHead(404)
       res.end(JSON.stringify({ ok: false, error: "Not found" }))

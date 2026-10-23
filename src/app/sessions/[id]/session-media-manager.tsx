@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition, useMemo, useEffect } from "react"
+import { useState, useTransition, useMemo, useEffect, useRef } from "react"
 import { 
   Camera, 
   Film, 
@@ -22,7 +22,16 @@ import {
   RefreshCw,
   UploadCloud,
   MessageSquare,
-  Cloud
+  Cloud,
+  RotateCw,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
+  Server,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  X
 } from "lucide-react"
 import { MasterDeliveryUploadModal } from "@/components/master-delivery-upload-modal"
 import { MontageDriveSyncModal } from "@/components/montage-drive-sync-modal"
@@ -334,10 +343,102 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
     })
   }
 
-  // Abrir archivo con Windows 'Abrir con...' o Mac
-  const handleOpenFile = async (nasPath: string, mode: "open_with" | "reveal") => {
+  // Estado de la galería Lightbox avanzada
+  const [rotation, setRotation] = useState<number>(0)
+  const [zoom, setZoom] = useState<number>(1)
+  const [openMenuAssetId, setOpenMenuAssetId] = useState<string | null>(null)
+  const [isLightboxFolderMenuOpen, setIsLightboxFolderMenuOpen] = useState(false)
+  const filmstripRef = useRef<HTMLDivElement | null>(null)
+
+  // Reset rotation y zoom al cambiar de foto
+  useEffect(() => {
+    setRotation(0)
+    setZoom(1)
+  }, [lightboxIndex])
+
+  // Centrar miniatura activa en el carrusel inferior
+  useEffect(() => {
+    if (lightboxIndex !== null && filmstripRef.current) {
+      const activeThumb = filmstripRef.current.children[lightboxIndex] as HTMLElement
+      if (activeThumb) {
+        activeThumb.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" })
+      }
+    }
+  }, [lightboxIndex])
+
+  // Navegación con teclado en Lightbox (flechas izq/der, escape, rotación 'r')
+  useEffect(() => {
+    if (lightboxIndex === null) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setLightboxIndex(null)
+      } else if (e.key === "ArrowLeft") {
+        setLightboxIndex(prev => prev !== null && prev > 0 ? prev - 1 : prev)
+      } else if (e.key === "ArrowRight") {
+        setLightboxIndex(prev => prev !== null && prev < currentList.length - 1 ? prev + 1 : prev)
+      } else if (e.key === "r" || e.key === "R") {
+        setRotation(prev => (prev + 90) % 360)
+      } else if (e.key === "+" || e.key === "=") {
+        setZoom(prev => Math.min(prev + 0.25, 3))
+      } else if (e.key === "-") {
+        setZoom(prev => Math.max(prev - 0.25, 0.5))
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [lightboxIndex, currentList.length])
+
+  // Abrir archivo en Local (SSD) o NAS (FTP) comunicando con la app de escritorio o el servidor
+  const handleOpenFile = async (nasPath: string, mode: "open_with" | "reveal" | "open", target: "local" | "nas" = "local") => {
     try {
-      showNotification(mode === "open_with" ? t.openWithApp : t.revealInFolder)
+      setOpenMenuAssetId(null)
+      setIsLightboxFolderMenuOpen(false)
+
+      const targetLabel = target === "nas" ? "NAS (Red ZTE)" : "Carpeta Local (SSD)"
+      showNotification(`Abriendo en ${targetLabel}...`)
+
+      // 1. Intentar contactar primero al puente local Electron de la app de escritorio (http://127.0.0.1:41890/open)
+      // Esto funciona perfectamente tanto desde localhost como desde https://admin.lam7a.ma
+      let desktopHandled = false
+      try {
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 1200)
+
+        const bridgeRes = await fetch("http://127.0.0.1:41890/open", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ path: nasPath, target, mode }),
+          signal: controller.signal,
+        })
+        clearTimeout(timeoutId)
+
+        if (bridgeRes.ok) {
+          const bridgeData = await bridgeRes.json()
+          if (bridgeData.ok) {
+            showNotification(bridgeData.message || `Abierto en ${targetLabel}`)
+            desktopHandled = true
+          }
+        }
+      } catch (bridgeErr) {
+        // App de escritorio no activa o bloqueada por timeout, continuar con fallback
+      }
+
+      if (desktopHandled) return
+
+      // 2. Si es NAS y no hay app de escritorio, o si se desea abrir directamente desde el navegador:
+      if (target === "nas") {
+        let nasUrl = nasPath.startsWith("ftp://") 
+          ? nasPath 
+          : `ftp://192.168.11.1/usb1_1/Lamha-Storage/${nasPath.replace(/^[\\\/]/, "")}`
+        if (/\.[a-zA-Z0-9]{2,5}$/.test(nasUrl)) {
+          nasUrl = nasUrl.substring(0, nasUrl.lastIndexOf("/"))
+        }
+        window.open(nasUrl, "_blank")
+        showNotification("Enlace FTP del NAS abierto en nueva pestaña")
+        return
+      }
+
+      // 3. Fallback al servidor web Next.js API (/api/media/open-file)
       const res = await fetch("/api/media/open-file", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -347,7 +448,7 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
       if (data.success) {
         showNotification(data.message)
       } else {
-        showNotification(`Aviso: ${data.error || "No se pudo abrir el archivo"}`)
+        showNotification(`Aviso: ${data.error || "Asegúrate de que la App de Escritorio Lamha esté abierta"}`)
       }
     } catch (e: any) {
       showNotification(`Error: ${e.message}`)
@@ -742,25 +843,66 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
                       <span className="text-[10px]">{asset.is_shared ? t.sharedStatus : t.hiddenStatus}</span>
                     </button>
 
-                    {/* Open With / Reveal in Folder */}
-                    <div className="flex items-center gap-1">
+                    {/* Open With / Reveal in Folder (Local or NAS) */}
+                    <div className="flex items-center gap-1 relative">
                       <button
                         type="button"
-                        onClick={() => handleOpenFile(asset.nas_path, "open_with")}
+                        onClick={() => handleOpenFile(asset.nas_path, "open_with", "local")}
                         className="p-1.5 rounded-lg bg-[#181613] hover:bg-[#201c18] border border-[#26211c] text-[#a89f91] hover:text-[#c69f68] transition-colors cursor-pointer"
                         title={t.openWithApp}
                       >
                         <PenTool className="w-3.5 h-3.5" />
                       </button>
 
-                      <button
-                        type="button"
-                        onClick={() => handleOpenFile(asset.nas_path, "reveal")}
-                        className="p-1.5 rounded-lg bg-[#181613] hover:bg-[#201c18] border border-[#26211c] text-[#a89f91] hover:text-[#f5f2eb] transition-colors cursor-pointer"
-                        title={t.revealInFolder}
-                      >
-                        <FolderOpen className="w-3.5 h-3.5" />
-                      </button>
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() => setOpenMenuAssetId(openMenuAssetId === asset.id ? null : asset.id)}
+                          className={`p-1.5 rounded-lg border transition-all cursor-pointer flex items-center gap-0.5 ${
+                            openMenuAssetId === asset.id
+                              ? "bg-[#c69f68]/20 border-[#c69f68] text-[#f5f2eb]"
+                              : "bg-[#181613] hover:bg-[#201c18] border-[#26211c] text-[#a89f91] hover:text-[#f5f2eb]"
+                          }`}
+                          title={t.revealInFolder}
+                        >
+                          <FolderOpen className="w-3.5 h-3.5" />
+                          <ChevronDown className="w-2.5 h-2.5 opacity-70" />
+                        </button>
+
+                        {/* Dropdown de opciones: Local SSD o NAS FTP */}
+                        {openMenuAssetId === asset.id && (
+                          <div 
+                            className="absolute right-0 top-full mt-1.5 w-56 rounded-xl bg-[#171411] border border-[#383129] shadow-2xl z-40 py-1.5 text-xs animate-in fade-in zoom-in-95 backdrop-blur-xl"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="px-3 py-1 text-[10px] uppercase font-bold tracking-wider text-[#8c7a6b] border-b border-[#26211c]">
+                              {t.revealInFolder}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenFile(asset.nas_path, "reveal", "local")}
+                              className="w-full px-3 py-2 text-left flex items-center gap-2.5 hover:bg-[#26211c] text-[#f5f2eb] transition-colors cursor-pointer"
+                            >
+                              <HardDrive className="w-3.5 h-3.5 text-[#c69f68]" />
+                              <div>
+                                <div className="font-medium">{t.openInLocalFolder}</div>
+                                <div className="text-[10px] text-[#8c7a6b]">C:\Lamha-Storage\...</div>
+                              </div>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenFile(asset.nas_path, "reveal", "nas")}
+                              className="w-full px-3 py-2 text-left flex items-center gap-2.5 hover:bg-[#26211c] text-[#f5f2eb] transition-colors cursor-pointer border-t border-[#26211c]/60"
+                            >
+                              <Server className="w-3.5 h-3.5 text-sky-400" />
+                              <div>
+                                <div className="font-medium">{t.openInNasFolder}</div>
+                                <div className="text-[10px] text-[#8c7a6b]">Router ZTE (192.168.11.1)</div>
+                              </div>
+                            </button>
+                          </div>
+                        )}
+                      </div>
 
                       <form action={deleteAssetAction} className="inline">
                         <input type="hidden" name="id" value={asset.id} />
@@ -784,60 +926,251 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
       </>
     )}
 
-      {/* Lightbox Modal */}
+      {/* Lightbox Modal — Teléfono / Visor Pro Avanzado */}
       {lightboxIndex !== null && currentList[lightboxIndex] && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-md animate-in fade-in">
-          <button 
-            className="absolute top-4 right-4 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors z-50 cursor-pointer"
-            onClick={() => setLightboxIndex(null)}
-          >
-            ✕
-          </button>
-          
-          <button 
-            className="absolute left-4 top-1/2 -translate-y-1/2 p-4 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors z-50 disabled:opacity-30 cursor-pointer"
-            onClick={() => setLightboxIndex(prev => prev !== null && prev > 0 ? prev - 1 : prev)}
-            disabled={lightboxIndex === 0}
-          >
-            ◀
-          </button>
-          
-          <div className="max-w-6xl max-h-[90vh] flex items-center justify-center w-full px-20 relative">
-            {currentList[lightboxIndex].asset_type.includes("video") ? (
-              <video 
-                src={currentList[lightboxIndex].preview_url || ""} 
-                controls 
-                autoPlay 
-                className="max-w-full max-h-[85vh] rounded-lg shadow-2xl ring-1 ring-white/10"
-              />
-            ) : (
-              <img 
-                src={currentList[lightboxIndex].preview_url || ""} 
-                alt={currentList[lightboxIndex].filename || "Preview"} 
-                className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl ring-1 ring-white/10"
-              />
-            )}
-            
-            <div className="absolute bottom-[-55px] left-0 right-0 text-center flex flex-col items-center gap-1.5">
-              <div className="text-white/80 text-xs font-mono font-bold tracking-wider">
-                {currentList[lightboxIndex].filename} &nbsp; ({lightboxIndex + 1} / {currentList.length})
+        <div 
+          className="fixed inset-0 z-[100] flex flex-col bg-black/95 backdrop-blur-xl animate-in fade-in select-none"
+          onClick={() => {
+            if (openMenuAssetId) setOpenMenuAssetId(null)
+            if (isLightboxFolderMenuOpen) setIsLightboxFolderMenuOpen(false)
+          }}
+        >
+          {/* Header Superior del Visor */}
+          <div className="h-16 px-4 sm:px-6 flex items-center justify-between border-b border-white/10 bg-black/40 backdrop-blur-md z-50">
+            {/* Información del archivo */}
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="px-2.5 py-1 rounded-md bg-white/10 text-white font-mono text-xs font-semibold tracking-wider">
+                {lightboxIndex + 1} / {currentList.length}
+              </span>
+              <div className="truncate">
+                <p className="text-white font-medium text-sm truncate max-w-[200px] sm:max-w-md">
+                  {currentList[lightboxIndex].filename || t.unnamedFile}
+                </p>
+                {currentList[lightboxIndex].client_notes && (
+                  <p className="text-amber-400 text-xs truncate max-w-[200px] sm:max-w-md flex items-center gap-1">
+                    <MessageSquare className="w-3 h-3 shrink-0" />
+                    <span>&quot;{currentList[lightboxIndex].client_notes}&quot;</span>
+                  </p>
+                )}
               </div>
-              {currentList[lightboxIndex].client_notes && (
-                <div className="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-amber-950/90 border border-amber-500/60 text-amber-200 text-xs shadow-xl backdrop-blur-md">
-                  <MessageSquare className="w-3.5 h-3.5 text-amber-400" />
-                  <span><strong>{t.clientRetouchInstruction}</strong> &quot;{currentList[lightboxIndex].client_notes}&quot;</span>
-                </div>
+            </div>
+
+            {/* Barra de herramientas / Controles de imagen */}
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              {/* Botón Rotar */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setRotation(prev => (prev + 90) % 360)
+                }}
+                className="p-2 sm:px-3 sm:py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center gap-1.5 text-xs font-medium transition-colors cursor-pointer border border-white/10"
+                title={`${t.rotatePhoto} (R)`}
+              >
+                <RotateCw className="w-4 h-4 text-[#c69f68]" />
+                <span className="hidden sm:inline">{t.rotatePhoto}</span>
+                {rotation !== 0 && (
+                  <span className="text-[10px] px-1 rounded bg-[#c69f68]/30 text-[#c69f68]">{rotation}°</span>
+                )}
+              </button>
+
+              {/* Botón Zoom In */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setZoom(prev => Math.min(prev + 0.25, 3))
+                }}
+                className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer border border-white/10 hidden sm:flex items-center justify-center"
+                title={t.zoomIn}
+              >
+                <ZoomIn className="w-4 h-4" />
+              </button>
+
+              {/* Botón Zoom Out */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setZoom(prev => Math.max(prev - 0.25, 0.5))
+                }}
+                className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer border border-white/10 hidden sm:flex items-center justify-center"
+                title={t.zoomOut}
+              >
+                <ZoomOut className="w-4 h-4" />
+              </button>
+
+              {/* Reset Zoom / Rotación */}
+              {(zoom !== 1 || rotation !== 0) && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setZoom(1)
+                    setRotation(0)
+                  }}
+                  className="px-2.5 py-1.5 rounded-lg bg-[#c69f68]/20 hover:bg-[#c69f68]/30 border border-[#c69f68]/40 text-[#c69f68] text-xs font-medium transition-colors cursor-pointer"
+                  title={t.resetView}
+                >
+                  <Maximize2 className="w-3.5 h-3.5" />
+                </button>
               )}
+
+              {/* Botón Abrir Carpeta (Local vs NAS) */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setIsLightboxFolderMenuOpen(!isLightboxFolderMenuOpen)
+                  }}
+                  className="p-2 sm:px-3 sm:py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center gap-1.5 text-xs font-medium transition-colors cursor-pointer border border-white/10"
+                  title={t.revealInFolder}
+                >
+                  <FolderOpen className="w-4 h-4 text-emerald-400" />
+                  <span className="hidden md:inline">{t.revealInFolder}</span>
+                  <ChevronDown className="w-3 h-3 opacity-70" />
+                </button>
+
+                {isLightboxFolderMenuOpen && (
+                  <div 
+                    className="absolute right-0 top-full mt-2 w-60 rounded-xl bg-[#171411] border border-[#383129] shadow-2xl z-50 py-1.5 text-xs animate-in fade-in zoom-in-95 backdrop-blur-2xl"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handleOpenFile(currentList[lightboxIndex].nas_path, "reveal", "local")}
+                      className="w-full px-3 py-2.5 text-left flex items-center gap-2.5 hover:bg-[#26211c] text-[#f5f2eb] transition-colors cursor-pointer"
+                    >
+                      <HardDrive className="w-4 h-4 text-[#c69f68]" />
+                      <div>
+                        <div className="font-semibold">{t.openInLocalFolder}</div>
+                        <div className="text-[10px] text-[#8c7a6b]">C:\Lamha-Storage\...</div>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenFile(currentList[lightboxIndex].nas_path, "reveal", "nas")}
+                      className="w-full px-3 py-2.5 text-left flex items-center gap-2.5 hover:bg-[#26211c] text-[#f5f2eb] transition-colors cursor-pointer border-t border-[#26211c]"
+                    >
+                      <Server className="w-4 h-4 text-sky-400" />
+                      <div>
+                        <div className="font-semibold">{t.openInNasFolder}</div>
+                        <div className="text-[10px] text-[#8c7a6b]">Router ZTE FTP (192.168.11.1)</div>
+                      </div>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Cerrar modal */}
+              <button 
+                type="button"
+                className="p-2 sm:p-2.5 rounded-full bg-white/10 hover:bg-rose-500/20 hover:text-rose-400 text-white transition-colors cursor-pointer border border-white/10 ml-2"
+                onClick={() => setLightboxIndex(null)}
+                title="Cerrar (Esc)"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
           </div>
-          
-          <button 
-            className="absolute right-4 top-1/2 -translate-y-1/2 p-4 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors z-50 disabled:opacity-30 cursor-pointer"
-            onClick={() => setLightboxIndex(prev => prev !== null && prev < currentList.length - 1 ? prev + 1 : prev)}
-            disabled={lightboxIndex === currentList.length - 1}
-          >
-            ▶
-          </button>
+
+          {/* Área Central: Visualizador Principal con Controles Laterales */}
+          <div className="flex-1 relative flex items-center justify-center overflow-hidden p-4 sm:p-8">
+            {/* Flecha Anterior */}
+            <button 
+              type="button"
+              className="absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 p-3 sm:p-4 rounded-full bg-black/60 hover:bg-black/90 text-white border border-white/15 transition-all z-40 disabled:opacity-20 disabled:pointer-events-none cursor-pointer shadow-2xl hover:scale-105 active:scale-95"
+              onClick={(e) => {
+                e.stopPropagation()
+                setLightboxIndex(prev => prev !== null && prev > 0 ? prev - 1 : prev)
+              }}
+              disabled={lightboxIndex === 0}
+              title="Anterior (Flecha Izquierda)"
+            >
+              <ChevronLeft className="w-6 h-6" />
+            </button>
+
+            {/* Contenedor de la Imagen / Video Central con Transformación CSS */}
+            <div 
+              className="w-full h-full flex items-center justify-center transition-transform duration-300 ease-out"
+              style={{
+                transform: `rotate(${rotation}deg) scale(${zoom})`,
+              }}
+            >
+              {currentList[lightboxIndex].asset_type.includes("video") ? (
+                <video 
+                  src={currentList[lightboxIndex].preview_url || ""} 
+                  controls 
+                  autoPlay 
+                  className="max-w-full max-h-[68vh] rounded-xl shadow-2xl ring-1 ring-white/15 object-contain"
+                />
+              ) : (
+                <img 
+                  src={currentList[lightboxIndex].preview_url || ""} 
+                  alt={currentList[lightboxIndex].filename || "Preview"} 
+                  className="max-w-full max-h-[68vh] object-contain rounded-xl shadow-2xl ring-1 ring-white/15"
+                  draggable={false}
+                />
+              )}
+            </div>
+
+            {/* Flecha Siguiente */}
+            <button 
+              type="button"
+              className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 p-3 sm:p-4 rounded-full bg-black/60 hover:bg-black/90 text-white border border-white/15 transition-all z-40 disabled:opacity-20 disabled:pointer-events-none cursor-pointer shadow-2xl hover:scale-105 active:scale-95"
+              onClick={(e) => {
+                e.stopPropagation()
+                setLightboxIndex(prev => prev !== null && prev < currentList.length - 1 ? prev + 1 : prev)
+              }}
+              disabled={lightboxIndex === currentList.length - 1}
+              title="Siguiente (Flecha Derecha)"
+            >
+              <ChevronRight className="w-6 h-6" />
+            </button>
+          </div>
+
+          {/* Carrusel Inferior de Fotos Pequeñas (Estilo Galería de Teléfono) */}
+          <div className="h-24 px-4 py-2 border-t border-white/10 bg-black/70 backdrop-blur-md z-40 flex items-center justify-center">
+            <div 
+              ref={filmstripRef}
+              className="flex items-center gap-2 overflow-x-auto max-w-5xl w-full h-full px-2 no-scrollbar scroll-smooth"
+            >
+              {currentList.map((thumbAsset, idx) => {
+                const isActive = idx === lightboxIndex
+                return (
+                  <button
+                    key={thumbAsset.id || idx}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setLightboxIndex(idx)
+                    }}
+                    className={`relative shrink-0 h-16 w-16 sm:w-20 rounded-lg overflow-hidden transition-all duration-200 cursor-pointer ${
+                      isActive 
+                        ? "ring-2 ring-[#c69f68] scale-105 opacity-100 shadow-lg shadow-[#c69f68]/20" 
+                        : "opacity-40 hover:opacity-80 hover:scale-100"
+                    }`}
+                  >
+                    <img 
+                      src={thumbAsset.preview_url || ""} 
+                      alt={thumbAsset.filename || ""} 
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                    {thumbAsset.client_notes && (
+                      <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-amber-400 ring-1 ring-black" />
+                    )}
+                    {thumbAsset.asset_type.includes("video") && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                        <Play className="w-3.5 h-3.5 text-white drop-shadow" />
+                      </div>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
         </div>
       )}
     </div>

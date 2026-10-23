@@ -40,20 +40,48 @@ export async function POST(req: NextRequest) {
     }
 
     // Normalizar ruta local
-    const normalizedPath = path.normalize(filePath)
+    let normalizedPath = path.normalize(filePath)
     const platform = process.platform
+
+    // Si la ruta no es absoluta, buscar en C:\Lamha-Storage y en otras unidades
+    if (!path.isAbsolute(normalizedPath)) {
+      const defaultRoot = "C:\\Lamha-Storage"
+      const candidate = path.join(defaultRoot, normalizedPath)
+      if (fs.existsSync(candidate)) {
+        normalizedPath = candidate
+      } else {
+        let found = false
+        for (const drive of ["D", "E", "F", "G", "C"]) {
+          const testP = path.join(`${drive}:\\Lamha-Storage`, normalizedPath)
+          if (fs.existsSync(testP)) {
+            normalizedPath = testP
+            found = true
+            break
+          }
+        }
+        if (!found) {
+          normalizedPath = candidate
+        }
+      }
+    }
 
     // Verificar si el archivo/carpeta existe
     const exists = fs.existsSync(normalizedPath)
     if (!exists) {
-      return NextResponse.json(
-        { 
-          error: `El archivo no fue encontrado en la ruta: ${normalizedPath}`,
-          resolvedPath: normalizedPath,
-          exists: false 
-        },
-        { status: 404 }
-      )
+      // Si el archivo específico no existe, probar con la carpeta contenedora
+      const parentDir = path.dirname(normalizedPath)
+      if (fs.existsSync(parentDir)) {
+        normalizedPath = parentDir
+      } else {
+        return NextResponse.json(
+          { 
+            error: `El archivo o carpeta no fue encontrado en la ruta: ${normalizedPath}`,
+            resolvedPath: normalizedPath,
+            exists: false 
+          },
+          { status: 404 }
+        )
+      }
     }
 
     const isDirectory = fs.statSync(normalizedPath).isDirectory()
