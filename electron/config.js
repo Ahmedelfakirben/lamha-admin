@@ -54,13 +54,13 @@ function getConfig() {
   const env = readEnvFile()
   const user = loadUserSettings()
   return {
-    supabaseUrl: user.supabaseUrl || env.NEXT_PUBLIC_SUPABASE_URL || "",
-    supabaseAnonKey: user.supabaseAnonKey || env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
-    dashboardUrl: user.dashboardUrl || "https://lam7.ma",
+    supabaseUrl: user.supabaseUrl || env.NEXT_PUBLIC_SUPABASE_URL || "https://lam7a.elfakir.com",
+    supabaseAnonKey: user.supabaseAnonKey || env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJzdXBhYmFzZSIsImlhdCI6MTc4OTkxODUwMCwiZXhwIjo0OTQ1NTkyMTAwLCJyb2xlIjoiYW5vbiJ9.BO0AL139qok5hXKYeU5c7tmD2J0QroXeFuqndyhln0Y",
+    dashboardUrl: user.dashboardUrl || "https://admin.lam7a.ma",
     ssdPath: user.ssdPath || env.LAMHA_LOCAL_STORAGE || "C:\\Lamha-Storage",
     nasHost: user.nasHost || env.LAMHA_FTP_HOST || "192.168.11.1",
     nasUser: user.nasUser || env.LAMHA_FTP_USER || "admin",
-    nasPassword: user.nasPassword || env.LAMHA_FTP_PASSWORD || "",
+    nasPassword: user.nasPassword || env.LAMHA_FTP_PASSWORD || "Satec2016C@U",
     nasBaseDir: user.nasBaseDir || env.LAMHA_FTP_BASE_DIR || "/usb1_1/Lamha-Storage",
     language: user.language || "fr",
     theme: user.theme || "dark",

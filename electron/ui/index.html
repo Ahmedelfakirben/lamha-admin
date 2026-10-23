@@ -493,7 +493,12 @@
       <div class="card">
         <div class="card-title">
           <span id="txt-step2-title">2. Projet / Session Réelle</span>
-          <a href="#" id="link-open-web" style="color: var(--gold); font-size: 11px; text-decoration: none;">Ouvrir Dashboard ↗</a>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <button id="btn-refresh-sessions" title="Actualiser" style="background: none; border: none; color: var(--gold); cursor: pointer; display: flex; align-items: center; padding: 2px;">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+            </button>
+            <a href="#" id="link-open-web" style="color: var(--gold); font-size: 11px; text-decoration: none;">Ouvrir Dashboard ↗</a>
+          </div>
         </div>
         <div class="card-content">
           <div class="form-group">
@@ -777,6 +782,8 @@
     };
 
     document.getElementById("btn-refresh-drives").onclick = () => scanTarget(selectedDrive);
+    const btnRefSessions = document.getElementById("btn-refresh-sessions");
+    if (btnRefSessions) btnRefSessions.onclick = () => loadRealSessions();
 
     // Ajustes
     const modalSettings = document.getElementById("modal-settings");

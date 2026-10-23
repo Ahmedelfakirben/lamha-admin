@@ -114,8 +114,10 @@ function showMain() {
   }
   if (mainWindow.isMinimized()) mainWindow.restore()
   mainWindow.show()
+  mainWindow.restore()
   mainWindow.setAlwaysOnTop(true)
   mainWindow.focus()
+  mainWindow.moveTop()
   setTimeout(() => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.setAlwaysOnTop(false)
@@ -172,18 +174,14 @@ function createWindow() {
   mainWindow.loadFile(path.join(__dirname, "ui", "index.html"))
 
   mainWindow.on("close", (event) => {
-    const isBusy = engine.isIngesting && engine.isIngesting()
-    if (!app.isQuitting && isBusy) {
+    if (!app.isQuitting) {
       event.preventDefault()
       mainWindow.hide()
       if (!hasShownMinimizeBalloon && systemTray) {
         systemTray.notifyMinimized()
         hasShownMinimizeBalloon = true
       }
-      return
     }
-    app.isQuitting = true
-    app.quit()
   })
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
