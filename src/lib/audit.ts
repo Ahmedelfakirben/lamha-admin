@@ -1,4 +1,4 @@
-import { createAdminClient } from "@/lib/supabase"
+import { createAdminClient, createClient } from "@/lib/supabase"
 
 export type AuditAction =
   | "SESSION_CREATED"
@@ -18,6 +18,8 @@ export type AuditAction =
   | "CATEGORY_DELETED"
   | "TEAM_MEMBER_INVITED"
   | "TEAM_MEMBER_UPDATED"
+  | "EMAIL_WELCOME_SENT"
+  | "EMAIL_PHOTOS_READY_SENT"
 
 export type AuditEntityType =
   | "session"
@@ -72,14 +74,12 @@ export interface GetAuditLogsFilter {
  */
 export async function recordAuditLog(params: RecordAuditParams): Promise<boolean> {
   try {
-    const supabase = createAdminClient()
-    
     // Valores por defecto seguros para auditoría
     const fallbackName = params.userName || params.userEmail?.split("@")[0] || "Admin Studio"
     const fallbackEmail = params.userEmail || "admin@lamha.com"
     const fallbackRole = params.userRole || "super_admin"
 
-    const { error } = await supabase.from("audit_logs").insert({
+    const payload = {
       user_id: params.userId || null,
       user_name: fallbackName,
       user_email: fallbackEmail,
@@ -90,11 +90,24 @@ export async function recordAuditLog(params: RecordAuditParams): Promise<boolean
       entity_title: params.entityTitle || null,
       details: params.details || {},
       ip_address: params.ipAddress || null,
-    })
+    }
 
+    // 1. Probar primero con el cliente disponible (browser / anon)
+    const client = createClient()
+    let { error } = await client.from("audit_logs").insert(payload)
+
+    // 2. Si falla por permisos o RLS, intentar con admin client por si service_role es válido
     if (error) {
-      // Si la tabla no existe en la BD remota todavía, advertir sin romper
-      console.warn("[AUDIT_LOG_WARN] Podría faltar la tabla audit_logs:", error.message)
+      try {
+        const adminClient = createAdminClient()
+        const retry = await adminClient.from("audit_logs").insert(payload)
+        if (!retry.error) {
+          return true
+        }
+      } catch {
+        // Fallback catch
+      }
+      console.warn("[AUDIT_LOG_WARN]:", error.message)
       return false
     }
 
@@ -113,39 +126,56 @@ export async function getAuditLogs(filters: GetAuditLogsFilter = {}): Promise<{
   total: number
 }> {
   try {
-    const supabase = createAdminClient()
     const limit = filters.limit || 50
     const offset = filters.offset || 0
 
-    let query = supabase
-      .from("audit_logs")
-      .select("*", { count: "exact" })
-      .order("created_at", { ascending: false })
+    const executeQuery = async (sb: any) => {
+      let query = sb
+        .from("audit_logs")
+        .select("*", { count: "exact" })
+        .order("created_at", { ascending: false })
 
-    if (filters.entityType && filters.entityType !== "all") {
-      query = query.eq("entity_type", filters.entityType)
+      if (filters.entityType && filters.entityType !== "all") {
+        query = query.eq("entity_type", filters.entityType)
+      }
+
+      if (filters.entityId) {
+        query = query.eq("entity_id", filters.entityId)
+      }
+
+      if (filters.userId && filters.userId !== "all") {
+        query = query.eq("user_id", filters.userId)
+      }
+
+      if (filters.action && filters.action !== "all") {
+        query = query.eq("action", filters.action)
+      }
+
+      if (filters.search && filters.search.trim()) {
+        const term = `%${filters.search.trim()}%`
+        query = query.or(`entity_title.ilike.${term},user_name.ilike.${term},user_email.ilike.${term}`)
+      }
+
+      query = query.range(offset, offset + limit - 1)
+      return await query
     }
 
-    if (filters.entityId) {
-      query = query.eq("entity_id", filters.entityId)
+    // 1. Ejecutar con cliente base
+    const client = createClient()
+    let { data, count, error } = await executeQuery(client)
+
+    // 2. Si hay error de autenticación, intentar con cliente de servicio
+    if (error && (error.message.includes("Unauthorized") || error.message.includes("JWT"))) {
+      try {
+        const adminClient = createAdminClient()
+        const retry = await executeQuery(adminClient)
+        if (!retry.error) {
+          data = retry.data
+          count = retry.count
+          error = null
+        }
+      } catch {}
     }
-
-    if (filters.userId && filters.userId !== "all") {
-      query = query.eq("user_id", filters.userId)
-    }
-
-    if (filters.action && filters.action !== "all") {
-      query = query.eq("action", filters.action)
-    }
-
-    if (filters.search && filters.search.trim()) {
-      const term = `%${filters.search.trim()}%`
-      query = query.or(`entity_title.ilike.${term},user_name.ilike.${term},user_email.ilike.${term}`)
-    }
-
-    query = query.range(offset, offset + limit - 1)
-
-    const { data, count, error } = await query
 
     if (error) {
       console.warn("[GET_AUDIT_LOGS_WARN]:", error.message)
@@ -167,15 +197,29 @@ export async function getAuditLogs(filters: GetAuditLogsFilter = {}): Promise<{
  */
 export async function getAuditStats() {
   try {
-    const supabase = createAdminClient()
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     const todayIso = today.toISOString()
 
-    const { data, error } = await supabase
+    const client = createClient()
+    let { data, error } = await client
       .from("audit_logs")
       .select("action, user_email, created_at")
       .gte("created_at", todayIso)
+
+    if (error) {
+      try {
+        const adminClient = createAdminClient()
+        const retry = await adminClient
+          .from("audit_logs")
+          .select("action, user_email, created_at")
+          .gte("created_at", todayIso)
+        if (!retry.error) {
+          data = retry.data
+          error = null
+        }
+      } catch {}
+    }
 
     if (error || !data) {
       return { totalToday: 0, uploadsToday: 0, projectChangesToday: 0, activeUsersToday: 0 }
@@ -195,3 +239,4 @@ export async function getAuditStats() {
     return { totalToday: 0, uploadsToday: 0, projectChangesToday: 0, activeUsersToday: 0 }
   }
 }
+

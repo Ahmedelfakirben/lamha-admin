@@ -92,6 +92,25 @@ const SUBCATEGORIES_PORTRAIT = [
 
 const QUICK_TAGS = ['#mariage', '#urgent', '#album', '#drive', '#vip', '#reel', '#drone'];
 
+const WELCOME_CHECKBOX_I18N = {
+  fr: {
+    title: "Envoyer un email de bienvenue",
+    subtitle: "Notifie le client avec la date et la catégorie confirmée",
+  },
+  es: {
+    title: "Enviar correo de bienvenida",
+    subtitle: "Notifica al cliente con la fecha y categoría confirmadas",
+  },
+  en: {
+    title: "Send welcome email",
+    subtitle: "Notifies the client with scheduled date and confirmed category",
+  },
+  ar: {
+    title: "إرسال بريد تترحيب وتأكيد الحجز",
+    subtitle: "إشعار العميل بالموعد وفئة الجلسة المعتمدة",
+  },
+};
+
 export function SessionForm({ initialData, onSuccess, theme = 'light' }: SessionFormProps) {
   const { t, language } = useLanguage();
   const [isLoading, setIsLoading] = useState(false);
@@ -112,6 +131,7 @@ export function SessionForm({ initialData, onSuccess, theme = 'light' }: Session
   const [selectedClient, setSelectedClient] = useState<ExistingClientOption | null>(null);
   const [showClientDropdown, setShowClientDropdown] = useState(false);
   const [pinGeneratedBadge, setPinGeneratedBadge] = useState(false);
+  const [sendWelcomeEmail, setSendWelcomeEmail] = useState(true);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -341,6 +361,11 @@ export function SessionForm({ initialData, onSuccess, theme = 'light' }: Session
     if (!payload.final_link) {
       if (initialData?.id) payload.final_link = null;
       else delete payload.final_link;
+    }
+
+    if (!initialData?.id) {
+      payload.sendWelcomeEmail = sendWelcomeEmail;
+      payload.language = language;
     }
 
     if (initialData?.id) {
@@ -774,6 +799,33 @@ export function SessionForm({ initialData, onSuccess, theme = 'light' }: Session
                   </FormItem>
                 )}
               />
+
+              {!isEditing && form.watch('client_email') && (
+                <div className={cn(
+                  "p-3 rounded-xl border flex items-center justify-between text-xs gap-3 animate-in fade-in duration-200",
+                  isLight 
+                    ? "bg-[#fcfaf6] border-[#e6dfcf] text-[#3d3328]" 
+                    : "bg-[#181512] border-[#2e261f] text-[#d6cdbe]"
+                )}>
+                  <div className="flex items-center gap-2.5">
+                    <Mail className="w-4 h-4 text-[#c69f68] shrink-0" />
+                    <div>
+                      <span className="font-semibold block">
+                        {(WELCOME_CHECKBOX_I18N[language as keyof typeof WELCOME_CHECKBOX_I18N] || WELCOME_CHECKBOX_I18N.fr).title}
+                      </span>
+                      <span className="text-[11px] opacity-75">
+                        {(WELCOME_CHECKBOX_I18N[language as keyof typeof WELCOME_CHECKBOX_I18N] || WELCOME_CHECKBOX_I18N.fr).subtitle}
+                      </span>
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={sendWelcomeEmail}
+                    onChange={(e) => setSendWelcomeEmail(e.target.checked)}
+                    className="w-4 h-4 rounded text-[#c69f68] focus:ring-[#c69f68] cursor-pointer"
+                  />
+                </div>
+              )}
             </div>
           )}
         </div>

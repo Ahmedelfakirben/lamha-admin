@@ -3161,12 +3161,27 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     const saved = localStorage.getItem("lamha_admin_lang") as Language
     if (saved && ["es", "fr", "en", "ar"].includes(saved)) {
       setLanguageState(saved)
+      if (typeof window !== "undefined" && (window as any).electronAPI?.notifyLanguageChange) {
+        (window as any).electronAPI.notifyLanguageChange(saved)
+      }
+    }
+
+    if (typeof window !== "undefined" && (window as any).electronAPI?.onLanguageChanged) {
+      (window as any).electronAPI.onLanguageChanged((newLang: Language) => {
+        if (["es", "fr", "en", "ar"].includes(newLang)) {
+          setLanguageState(newLang)
+          localStorage.setItem("lamha_admin_lang", newLang)
+        }
+      })
     }
   }, [])
 
   const setLanguage = (lang: Language) => {
     setLanguageState(lang)
     localStorage.setItem("lamha_admin_lang", lang)
+    if (typeof window !== "undefined" && (window as any).electronAPI?.notifyLanguageChange) {
+      (window as any).electronAPI.notifyLanguageChange(lang)
+    }
   }
 
   const dir = language === "ar" ? "rtl" : "ltr"

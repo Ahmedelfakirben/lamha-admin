@@ -25,6 +25,7 @@ import {
   Cloud
 } from "lucide-react"
 import { MasterDeliveryUploadModal } from "@/components/master-delivery-upload-modal"
+import { MontageDriveSyncModal } from "@/components/montage-drive-sync-modal"
 import { toggleAssetSharedAction, bulkSetAssetsSharedAction, deleteAssetAction } from "@/app/actions"
 import { useLanguage } from "@/context/language-context"
 import { createClient } from "@/lib/supabase"
@@ -516,6 +517,18 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
                   <span>{t.uploadMasterDualNas}</span>
                 </button>
               }
+            />
+
+            {/* Exportación y Sincronización a Google Drive desde Montaje */}
+            <MontageDriveSyncModal
+              sessionId={session.id}
+              clientName={session.client_name}
+              clientEmail={session.client_email}
+              portalPin={session.portal_pin}
+              folderName={fName}
+              existingDriveUrl={session.gdrive_folder_id ? `https://drive.google.com/drive/folders/${session.gdrive_folder_id}` : null}
+              selectedCount={selectedAssetKeys.length}
+              onSuccess={() => window.location.reload()}
             />
           </div>
         </div>

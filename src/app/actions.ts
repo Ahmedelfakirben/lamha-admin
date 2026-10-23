@@ -3,6 +3,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { revalidatePath } from 'next/cache';
 import { recordAuditLog } from '@/lib/audit';
+import { sendWelcomeEmailNotification, sendPhotosReadyNotification } from '@/lib/email';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -95,7 +96,7 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 
 export async function createSession(data: any, userContext?: UserAuditContext) {
   try {
-    const { folder_link, final_link, ...sessionData } = data;
+    const { folder_link, final_link, sendWelcomeEmail, language, ...sessionData } = data;
     
     // Parse tags if provided as string
     if (typeof sessionData.tags === 'string') {
@@ -184,6 +185,38 @@ export async function createSession(data: any, userContext?: UserAuditContext) {
       ...userContext,
     });
 
+    // Enviar correo cordial de bienvenida al cliente si tiene email
+    if (insertedSession.client_email && sendWelcomeEmail !== false) {
+      try {
+        const emailRes = await sendWelcomeEmailNotification({
+          clientName: insertedSession.client_name,
+          clientEmail: insertedSession.client_email,
+          sessionDate: insertedSession.session_date,
+          category: insertedSession.category,
+          sessionType: insertedSession.session_type,
+          notes: insertedSession.comments,
+          language: language || 'fr',
+        });
+
+        if (emailRes.success) {
+          await recordAuditLog({
+            action: 'EMAIL_WELCOME_SENT',
+            entityType: 'session',
+            entityId: insertedSession.id,
+            entityTitle: insertedSession.client_name,
+            details: {
+              email: insertedSession.client_email,
+              date: insertedSession.session_date,
+              messageId: emailRes.messageId,
+            },
+            ...userContext,
+          });
+        }
+      } catch (emailErr) {
+        console.warn('Fallo no bloqueante al enviar correo de bienvenida:', emailErr);
+      }
+    }
+
     if (folder_link) {
       try {
         await supabase.from('media_deliveries').insert({
@@ -228,7 +261,7 @@ export async function createSession(data: any, userContext?: UserAuditContext) {
 
 export async function updateSession(id: string, data: any, userContext?: UserAuditContext) {
   try {
-    const { folder_link, final_link, ...sessionData } = data;
+    const { folder_link, final_link, sendWelcomeEmail, language, ...sessionData } = data;
     
     if (typeof sessionData.tags === 'string') {
       sessionData.tags = sessionData.tags.split(',').map((t: string) => t.trim()).filter(Boolean);
@@ -743,5 +776,93 @@ export async function updateClientContactInfo(
   }
 }
 
+/**
+ * Server Action para notificar al cliente que sus fotos están listas
+ * Incluye credenciales, PIN de acceso al portal y enlace a Google Drive
+ */
+export async function sendPhotosReadyEmailAction(
+  sessionId: string, 
+  userContext?: UserAuditContext,
+  language?: string
+) {
+  try {
+    // 1. Obtener datos del proyecto
+    const { data: session, error: sErr } = await supabase
+      .from('sessions')
+      .select('id, client_name, client_email, portal_pin, gdrive_folder_id, comments')
+      .eq('id', sessionId)
+      .single();
 
+    if (sErr || !session) {
+      return { success: false, error: 'No se encontró la sesión o proyecto.' };
+    }
 
+    if (!session.client_email) {
+      return { success: false, error: 'Este proyecto no tiene un correo electrónico de cliente registrado.' };
+    }
+
+    if (!session.portal_pin) {
+      return { success: false, error: 'Este proyecto no tiene un Código PIN de acceso configurado. Genere o guarde un PIN de 4 dígitos primero.' };
+    }
+
+    // 2. Contar fotos disponibles
+    const { count: photosCount } = await supabase
+      .from('media_assets')
+      .select('id', { count: 'exact', head: true })
+      .eq('session_id', sessionId);
+
+    // 3. Buscar enlace de Google Drive
+    let driveFolderUrl: string | null = null;
+    if (session.gdrive_folder_id) {
+      driveFolderUrl = `https://drive.google.com/drive/folders/${session.gdrive_folder_id}`;
+    } else {
+      const { data: delivery } = await supabase
+        .from('media_deliveries')
+        .select('url')
+        .eq('session_id', sessionId)
+        .eq('delivery_type', 'folder_link')
+        .maybeSingle();
+      if (delivery?.url) {
+        driveFolderUrl = delivery.url;
+      }
+    }
+
+    // 4. Enviar mediante el motor Microsoft Exchange
+    const result = await sendPhotosReadyNotification({
+      clientName: session.client_name,
+      clientEmail: session.client_email,
+      portalPin: session.portal_pin,
+      driveFolderUrl,
+      photosCount: photosCount || undefined,
+      language: language || 'fr',
+    });
+
+    if (!result.success) {
+      return { success: false, error: result.error };
+    }
+
+    // 5. Registrar en Auditoría inmutable
+    await recordAuditLog({
+      action: 'EMAIL_PHOTOS_READY_SENT',
+      entityType: 'session',
+      entityId: sessionId,
+      entityTitle: session.client_name,
+      details: {
+        email: session.client_email,
+        portal_pin: session.portal_pin,
+        photos_count: photosCount || 0,
+        drive_url: driveFolderUrl,
+        messageId: result.messageId,
+      },
+      ...userContext,
+    });
+
+    revalidatePath(`/sessions/${sessionId}`);
+    revalidatePath('/audit');
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error en sendPhotosReadyEmailAction:', error);
+    return { success: false, error: error?.message || 'Error inesperado al enviar el correo.' };
+  }
+}

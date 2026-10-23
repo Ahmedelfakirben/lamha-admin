@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lamha Studios Atelier - Compagnon d'Ingestion</title>
+  <style>
+    :root {
+      --bg: #12100e;
+      --card-bg: #1a1714;
+      --card-border: #2c251f;
+      --text-main: #f5f2eb;
+      --text-muted: #9c8e7f;
+      --gold: #c69f68;
+      --gold-hover: #ddb57f;
+      --gold-dark: #8c6428;
+      --badge-bg: rgba(198, 159, 104, 0.12);
+      --badge-border: rgba(198, 159, 104, 0.3);
+      --success: #10b981;
+      --danger: #ef4444;
+      --header-bg: #171411;
+      --input-bg: #141210;
+    }
+    [data-theme="light"] {
+      --bg: #faf8f5;
+      --card-bg: #ffffff;
+      --card-border: #e8dfd5;
+      --text-main: #2c221a;
+      --text-muted: #7d6c5d;
+      --gold: #b38647;
+      --gold-hover: #c69f68;
+      --gold-dark: #8c6428;
+      --badge-bg: rgba(179, 134, 71, 0.12);
+      --badge-border: rgba(179, 134, 71, 0.35);
+      --header-bg: #f4ede4;
+      --input-bg: #fcfbfa;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      user-select: none;
+    }
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+      transition: background-color 0.2s, color 0.2s;
+    }
+    /* Scrollbar ultra-fino y elegante a juego con el tema */
+    ::-webkit-scrollbar {
+      width: 7px;
+      height: 7px;
+    }
+    ::-webkit-scrollbar-track {
+      background: var(--bg);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: var(--card-border);
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--gold);
+    }
+
+    header {
+      background: var(--header-bg);
+      border-bottom: 1px solid var(--card-border);
+      padding: 8px 24px;
+      padding-right: 148px; /* Espacio para los controles nativos de Windows */
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+      -webkit-app-region: drag;
+      min-height: 52px;
+    }
+    [dir="rtl"] header {
+      padding-right: 24px;
+      padding-left: 148px;
+    }
+    .brand, .header-actions, button, select, input, a {
+      -webkit-app-region: no-drag;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: #0e0c0a;
+      border: 1px solid rgba(198, 159, 104, 0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4), 0 0 10px rgba(198, 159, 104, 0.2);
+      padding: 6px;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+    .brand-icon svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    .brand-text h1 {
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+    .brand-text p {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .auth-badge {
+      font-size: 11px;
+      padding: 5px 12px;
+      border-radius: 20px;
+      background: var(--badge-bg);
+      border: 1px solid var(--badge-border);
+      color: var(--gold);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--danger);
+    }
+    .status-dot.connected {
+      background: var(--success);
+      box-shadow: 0 0 8px var(--success);
+    }
+    .btn-icon {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      color: var(--text-muted);
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.15s;
+    }
+    .btn-icon:hover {
+      color: var(--text-main);
+      border-color: var(--gold);
+    }
+    main {
+      flex: 1;
+      padding: 24px;
+      max-width: 1080px;
+      margin: 0 auto;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    @media (max-width: 800px) {
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+    }
+    .card-title {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--gold);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .card-content {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .drive-box {
+      border: 1px solid var(--card-border);
+      background: var(--input-bg);
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: border-color 0.15s;
+    }
+    .drive-box.active {
+      border-color: var(--gold);
+      background: var(--badge-bg);
+    }
+    .drive-meta h3 {
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .drive-meta p {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .select-input, .text-input {
+      width: 100%;
+      padding: 10px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--card-border);
+      background: var(--input-bg);
+      color: var(--text-main);
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .select-input:focus, .text-input:focus {
+      border-color: var(--gold);
+    }
+    .pipeline-step {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      background: var(--input-bg);
+      border: 1px solid var(--card-border);
+      cursor: pointer;
+    }
+    .pipeline-step input[type="checkbox"] {
+      accent-color: var(--gold);
+      width: 16px;
+      height: 16px;
+    }
+    .pipeline-step-text {
+      flex: 1;
+    }
+    .pipeline-step-text strong {
+      display: block;
+      font-size: 13px;
+    }
+    .pipeline-step-text span {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    .badge-step {
+      font-size: 10px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      background: var(--badge-bg);
+      color: var(--gold);
+      border: 1px solid var(--badge-border);
+      font-weight: 600;
+    }
+
+    /* Botón principal */
+    .btn-primary {
+      background: linear-gradient(135deg, var(--gold), #a17838);
+      color: #12100e;
+      border: none;
+      padding: 14px 24px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      box-shadow: 0 4px 16px rgba(198, 159, 104, 0.25);
+      transition: all 0.15s;
+    }
+    .btn-primary:hover {
+      filter: brightness(1.1);
+      transform: translateY(-1px);
+    }
+    .btn-primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+      filter: none;
+    }
+
+    /* BARRA DE CARGA LLAMATIVA ULTRA-MODERNA */
+    .progress-section {
+      display: none;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 24px;
+      flex-direction: column;
+      gap: 16px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+    }
+    .progress-section.visible {
+      display: flex;
+    }
+    .progress-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .progress-head h3 {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--gold);
+    }
+    .progress-head .pct-large {
+      font-size: 22px;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      color: var(--text-main);
+    }
+    .progress-track {
+      width: 100%;
+      height: 18px;
+      background: rgba(0,0,0,0.3);
+      border-radius: 10px;
+      border: 1px solid var(--card-border);
+      overflow: hidden;
+      position: relative;
+      padding: 2px;
+    }
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #c69f68 0%, #e8c89b 50%, #10b981 100%);
+      border-radius: 8px;
+      box-shadow: 0 0 16px rgba(198, 159, 104, 0.7);
+      position: relative;
+      transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .progress-fill::after {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.45), transparent);
+      animation: sweep 1.8s infinite;
+    }
+    @keyframes sweep {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
+    }
+    .progress-file {
+      font-family: monospace;
+      font-size: 12px;
+      color: var(--gold);
+      background: var(--input-bg);
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--card-border);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .progress-metrics {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .metric-card {
+      background: var(--input-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .metric-card span { font-size: 10px; text-transform: uppercase; }
+    .metric-card strong { font-size: 13px; color: var(--text-main); }
+
+    /* Modales */
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.75);
+      backdrop-filter: blur(4px);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      width: 100%;
+      max-width: 460px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .form-group label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+    [dir="rtl"] { text-align: right; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <div class="brand-icon" title="Lamha Studios">
+        <svg viewBox="100 400 750 300" style="fill: var(--gold);">
+          <path d="M805.99,486.53c-.82,1.83-3.51,1.4-3.8-.58-4.38-31.31-23.1-39.11-23.1-39.11-15.71.09,61.92,158.43-10.37,158.43-26.61,0-23.93-9.1-28.57-9.27-4.64-.19-1.44,21.08-6.96,18.55-8.83-4.05-41.53-29.06-45.68-26.41-4.69,3.01-10.35,18.92-38.72,18.92-34.78-1.31-27.42-35.48-25.92-47.03,4.98-3.74,8.5-6.84,10.93-9.19.37,12.24,3.76,26.96,21.84,26.96,32.08.3,46.58-50.29,66.63-50.29,27.46.32,9.81,44.71,41.65,44.71,0,0,20.56.89,21.01-7.57,1.8-33.81-46.2-120.95-10.28-143.77,3.67-2.33,8.47-2,11.72.88,11.55,10.24,30.47,40.26,19.61,64.77Z"/>
+          <path d="M615.34,560.8l.03.04c-18.99,12.47-73.99,49.65-176.24,49.65-130.47,0-125.84-48.73-121.22-64.15,4.64-15.42,23.44-39.79,19.44-44.73-4.02-4.94-17.58-7.1-17.58-7.1,0,0-10.18,25.3-16.04,25.6-5.86.32-22.52-10.18-30.54-10.18s6.18-28.07,10.18-28.68c4.02-.62,22.52,11.1,26.22,9.26,3.7-1.86,13.56-26.84,17.88-26.84s28.38,12.34,28.38,15.42-26.22,53.67-25.3,63.55c.94,9.86,16.66,50.63,133.88,38.59,144.04-16.96,175.81-63.58,175.81-63.58l-125.14,13.2c-2.53.22-4.36-2.38-3.31-4.69l9.4-23.78c.49-1.05,1.47-1.79,2.62-1.93,14.76-1.83,113.34-13.82,135.62-12.14,2.48.19,4.35,2.3,4.25,4.78-1.09,24.45-21.95,39.87-28.17,50.13,0,0-.01.03-.04.07-.52.73-5.04,6.94-20.13,17.5Z"/>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <h1 id="txt-app-title">LAMHA STUDIOS ATELIER</h1>
+        <p id="txt-app-subtitle">Compagnon d'Ingestion & Vigilance</p>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <!-- Selector de idioma -->
+      <select id="lang-select" class="select-input" style="width: auto; padding: 6px 10px;">
+        <option value="fr">FR</option>
+        <option value="es">ES</option>
+        <option value="en">EN</option>
+        <option value="ar">العربية</option>
+      </select>
+
+      <!-- Tema y ajustes -->
+      <button id="btn-theme" class="btn-icon" title="Changer Thème">☀️</button>
+      <button id="btn-settings" class="btn-icon" title="Paramètres">⚙</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="grid-2">
+      <!-- Paso 1: Origen -->
+      <div class="card">
+        <div class="card-title">
+          <span id="txt-step1-title">1. Source Mémoire (SD / USB)</span>
+          <button id="btn-refresh-drives" class="btn-icon" style="width: 26px; height: 26px; font-size: 11px;">↺</button>
+        </div>
+        <div class="card-content">
+          <div id="drive-box" class="drive-box active">
+            <div class="drive-meta">
+              <h3 id="drive-title">Carte Mémoire (D:\)</h3>
+              <p id="drive-subtitle">Recherche des fichiers...</p>
+            </div>
+            <span class="badge-step" id="drive-badge">Connecté</span>
+          </div>
+          <button id="btn-browse-folder" class="select-input" style="text-align: center; cursor: pointer; border-style: dashed;">
+            Choisir un autre dossier manuellement...
+          </button>
+        </div>
+      </div>
+
+      <!-- Paso 2: Proyecto Real de Supabase -->
+      <div class="card">
+        <div class="card-title">
+          <span id="txt-step2-title">2. Projet / Session Réelle</span>
+          <a href="#" id="link-open-web" style="color: var(--gold); font-size: 11px; text-decoration: none;">Ouvrir Dashboard ↗</a>
+        </div>
+        <div class="card-content">
+          <div class="form-group">
+            <label id="txt-select-session-label">Associer à la séance :</label>
+            <select id="session-select" class="select-input">
+              <option value="">Chargement des séances réelles...</option>
+            </select>
+          </div>
+          <div id="session-info" style="font-size: 11px; color: var(--text-muted); padding: 8px 12px; background: var(--input-bg); border-radius: 8px; border: 1px solid var(--card-border); display: none;">
+            <!-- Meta de la sesión seleccionada -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Paso 3: Pipeline completo -->
+    <div class="card">
+      <div class="card-title">
+        <span id="txt-step3-title">3. Pipeline d'Ingestion Complet</span>
+        <span style="font-size: 11px; color: var(--text-muted);">Processus Automatique</span>
+      </div>
+      <div class="card-content">
+        <label class="pipeline-step">
+          <input type="checkbox" id="chk-local" checked disabled>
+          <div class="pipeline-step-text">
+            <strong id="txt-pipe-local">1. Copie Ultra-Rapide vers SSD Local</strong>
+            <span id="txt-pipe-local-desc">Stockage de travail haute vitesse pour le montage immédiat</span>
+          </div>
+          <span class="badge-step">SSD Requis</span>
+        </label>
+
+        <label class="pipeline-step">
+          <input type="checkbox" id="chk-supabase" checked>
+          <div class="pipeline-step-text">
+            <strong id="txt-pipe-cloud">2. Synchronisation Cloud Supabase</strong>
+            <span id="txt-pipe-cloud-desc">Envoi des aperçus WebP et enregistrement dans la base de données</span>
+          </div>
+          <span class="badge-step">Espace Client</span>
+        </label>
+
+        <label class="pipeline-step">
+          <input type="checkbox" id="chk-nas" checked>
+          <div class="pipeline-step-text">
+            <strong id="txt-pipe-nas">3. Sauvegarde Réseau vers le NAS de l'Atelier</strong>
+            <span id="txt-pipe-nas-desc">Archivage automatique sécurisé en arrière-plan</span>
+          </div>
+          <span class="badge-step">Archive Sécurisée</span>
+        </label>
+
+        <button id="btn-start-ingest" class="btn-primary" style="margin-top: 6px;">
+          <span id="txt-btn-start">DÉMARRER L'INGESTION COMPLÈTE</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Sección de Progreso Ultra-Llamativa -->
+    <div id="progress-section" class="progress-section">
+      <div class="progress-head">
+        <h3 id="txt-ingest-status">Ingestion en cours...</h3>
+        <span class="pct-large" id="txt-pct">0%</span>
+      </div>
+
+      <div class="progress-track">
+        <div class="progress-fill" id="bar-fill"></div>
+      </div>
+
+      <div class="progress-file" id="txt-cur-file">Initialisation du pipeline...</div>
+
+      <div class="progress-metrics">
+        <div class="metric-card">
+          <span>Fichiers</span>
+          <strong id="m-count">0 / 0</strong>
+        </div>
+        <div class="metric-card">
+          <span>Vitesse</span>
+          <strong id="m-speed">0.0 MB/s</strong>
+        </div>
+        <div class="metric-card">
+          <span>Temps restant</span>
+          <strong id="m-eta">Calcul...</strong>
+        </div>
+        <div class="metric-card">
+          <span>Étape</span>
+          <strong id="m-phase">Copie SSD</strong>
+        </div>
+      </div>
+    </div>
+  </main>
+
+
+
+  <!-- Modal de Ajustes -->
+  <div id="modal-settings" class="modal-backdrop">
+    <div class="modal-card">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h3 style="color: var(--gold);">Paramètres de l'Atelier</h3>
+        <button class="btn-icon" id="btn-close-settings" style="border:none;">✕</button>
+      </div>
+      <div class="form-group">
+        <label>URL du Dashboard :</label>
+        <input type="text" id="cfg-dashboard-url" class="text-input">
+      </div>
+      <div class="form-group">
+        <label>Dossier SSD Local de travail :</label>
+        <input type="text" id="cfg-ssd-path" class="text-input">
+      </div>
+      <div class="form-group">
+        <label>Hôte NAS (FTP) :</label>
+        <input type="text" id="cfg-nas-host" class="text-input">
+      </div>
+      <div class="form-group">
+        <label>Mot de passe NAS :</label>
+        <input type="password" id="cfg-nas-pass" class="text-input" placeholder="(Laisser vide pour ne pas modifier)">
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 8px;">
+        <button id="btn-save-settings" class="btn-primary" style="padding: 10px 18px; font-size: 13px;">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const I18N = {
+      fr: {
+        appTitle: "LAMHA STUDIOS ATELIER",
+        appSubtitle: "Compagnon d'Ingestion & Vigilance",
+        step1Title: "1. Source Mémoire (SD / USB)",
+        step2Title: "2. Projet / Session Réelle",
+        step3Title: "3. Pipeline d'Ingestion Complet",
+        selectSessionLabel: "Associer à la séance :",
+        pipeLocal: "1. Copie Ultra-Rapide vers SSD Local",
+        pipeLocalDesc: "Stockage de travail haute vitesse pour le montage immédiat",
+        pipeCloud: "2. Synchronisation Cloud Supabase",
+        pipeCloudDesc: "Envoi des aperçus WebP et enregistrement dans la base de données",
+        pipeNas: "3. Sauvegarde Réseau vers le NAS de l'Atelier",
+        pipeNasDesc: "Archivage automatique sécurisé en arrière-plan",
+        btnStart: "DÉMARRER L'INGESTION COMPLÈTE",
+        browseOther: "Choisir un autre dossier manuellement...",
+        loginOk: "Connecté :",
+        loginNeed: "Connexion Supabase requise",
+      },
+      es: {
+        appTitle: "LAMHA STUDIOS ATELIER",
+        appSubtitle: "Compañero de Ingesta & Vigilancia",
+        step1Title: "1. Origen de Memoria (SD / USB)",
+        step2Title: "2. Proyecto / Sesión Real",
+        step3Title: "3. Pipeline de Ingesta Completo",
+        selectSessionLabel: "Vincular a la sesión:",
+        pipeLocal: "1. Copia Ultra-Rápida a SSD Local",
+        pipeLocalDesc: "Disco de trabajo de alta velocidad para montaje inmediato",
+        pipeCloud: "2. Sincronización en la Nube Supabase",
+        pipeCloudDesc: "Subida de previsualizaciones WebP y registro en base de datos",
+        pipeNas: "3. Respaldo en Red al NAS del Estudio",
+        pipeNasDesc: "Archivado automático seguro en segundo plano",
+        btnStart: "INICIAR INGESTA COMPLETA",
+        browseOther: "Seleccionar otra carpeta manualmente...",
+        loginOk: "Conectado:",
+        loginNeed: "Iniciar sesión en Supabase",
+      },
+      en: {
+        appTitle: "LAMHA STUDIOS ATELIER",
+        appSubtitle: "Ingest Companion & Watcher",
+        step1Title: "1. Storage Source (SD / USB)",
+        step2Title: "2. Real Project / Session",
+        step3Title: "3. Full Ingestion Pipeline",
+        selectSessionLabel: "Link to session:",
+        pipeLocal: "1. Ultra-Fast Copy to Local SSD",
+        pipeLocalDesc: "High-speed working drive for immediate editing",
+        pipeCloud: "2. Supabase Cloud Sync",
+        pipeCloudDesc: "Upload WebP previews and register in database",
+        pipeNas: "3. Network Backup to Studio NAS",
+        pipeNasDesc: "Secure automatic background archival",
+        btnStart: "START FULL INGESTION",
+        browseOther: "Choose another folder manually...",
+        loginOk: "Connected:",
+        loginNeed: "Supabase Login Required",
+      },
+      ar: {
+        appTitle: "استوديو لمحة - أتيلييه",
+        appSubtitle: "رفيق تفريغ الذاكرة والمراقبة",
+        step1Title: "١. مصدر الذاكرة (SD / USB)",
+        step2Title: "٢. المشروع / الجلسة الحقيقية",
+        step3Title: "٣. مسار التفريغ التلقائي الكامل",
+        selectSessionLabel: "ربط الصور بالجلسة:",
+        pipeLocal: "١. نسخ فائق السرعة إلى قرص SSD المحلي",
+        pipeLocalDesc: "قرص عمل عالي السرعة للبدء الفوري في المونتاج",
+        pipeCloud: "٢. مزامنة سحابية مع Supabase",
+        pipeCloudDesc: "رفع صور المعاينة والتسجيل في قاعدة البيانات",
+        pipeNas: "٣. نسخ احتياطي على شبكة NAS الاستوديو",
+        pipeNasDesc: "أرشفة أوتوماتيكية آمنة في الخلفية",
+        btnStart: "بدء عملية التفريغ الكاملة",
+        browseOther: "اختيار مجلد آخر يدويًا...",
+        loginOk: "متصل:",
+        loginNeed: "تسجيل الدخول إلى Supabase",
+      }
+    };
+
+    let currentLang = "fr";
+    let currentTheme = "dark";
+    let selectedDrive = "D:\\";
+    let sessionsCache = [];
+
+    function setLanguage(l) {
+      currentLang = l;
+      const t = I18N[l] || I18N.fr;
+      document.documentElement.setAttribute("dir", l === "ar" ? "rtl" : "ltr");
+      document.getElementById("txt-app-title").textContent = t.appTitle;
+      document.getElementById("txt-app-subtitle").textContent = t.appSubtitle;
+      document.getElementById("txt-step1-title").textContent = t.step1Title;
+      document.getElementById("txt-step2-title").textContent = t.step2Title;
+      document.getElementById("txt-step3-title").textContent = t.step3Title;
+      document.getElementById("txt-select-session-label").textContent = t.selectSessionLabel;
+      document.getElementById("txt-pipe-local").textContent = t.pipeLocal;
+      document.getElementById("txt-pipe-local-desc").textContent = t.pipeLocalDesc;
+      document.getElementById("txt-pipe-cloud").textContent = t.pipeCloud;
+      document.getElementById("txt-pipe-cloud-desc").textContent = t.pipeCloudDesc;
+      document.getElementById("txt-pipe-nas").textContent = t.pipeNas;
+      document.getElementById("txt-pipe-nas-desc").textContent = t.pipeNasDesc;
+      document.getElementById("txt-btn-start").textContent = t.btnStart;
+      document.getElementById("btn-browse-folder").textContent = t.browseOther;
+    }
+
+    // Toggle Theme
+    document.getElementById("btn-theme").onclick = () => {
+      currentTheme = currentTheme === "dark" ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", currentTheme);
+      document.getElementById("btn-theme").textContent = currentTheme === "dark" ? "☀️" : "🌙";
+      if (window.electronAPI) window.electronAPI.notifyThemeChange(currentTheme);
+    };
+
+    document.getElementById("lang-select").onchange = (e) => {
+      setLanguage(e.target.value);
+      if (window.electronAPI) window.electronAPI.notifyLanguageChange(e.target.value);
+    };
+
+    // Carga de proyectos reales desde Supabase
+    const sessionSelect = document.getElementById("session-select");
+
+    // Carga de proyectos reales desde Supabase
+    async function loadRealSessions() {
+      sessionSelect.innerHTML = "<option value=''>Chargement des séances réelles...</option>";
+      const res = await window.electronAPI.getSessions();
+      if (res.ok && res.sessions) {
+        sessionsCache = res.sessions;
+        sessionSelect.innerHTML = "<option value=''>-- Sélectionner un projet / client --</option>";
+        res.sessions.forEach((s) => {
+          const opt = document.createElement("option");
+          opt.value = s.id;
+          const date = s.session_date || "";
+          opt.textContent = `${s.client_name || "Client"} - ${s.category || "Atelier"} (${date})`;
+          sessionSelect.appendChild(opt);
+        });
+      } else {
+        sessionSelect.innerHTML = `<option value=''>Erreur : ${res.error || "Impossible de charger"}</option>`;
+      }
+    }
+
+    sessionSelect.onchange = () => {
+      const s = sessionsCache.find((x) => x.id === sessionSelect.value);
+      const box = document.getElementById("session-info");
+      if (s) {
+        box.style.display = "block";
+        box.textContent = `Projet: ${s.client_name} • Catégorie: ${s.category || "-"} • Date: ${s.session_date || "-"} • ID: ${s.id}`;
+      } else {
+        box.style.display = "none";
+      }
+    };
+
+    // Escanear tarjeta / origen
+    async function scanTarget(p) {
+      selectedDrive = p;
+      document.getElementById("drive-title").textContent = p;
+      if (window.electronAPI) {
+        const info = await window.electronAPI.scanSource(p);
+        document.getElementById("drive-subtitle").textContent = `${info.count} fichiers détectés (${info.gb} Go)`;
+      }
+    }
+
+    document.getElementById("btn-browse-folder").onclick = async () => {
+      const f = await window.electronAPI.selectFolder();
+      if (f) scanTarget(f);
+    };
+
+    document.getElementById("btn-refresh-drives").onclick = () => scanTarget(selectedDrive);
+
+    // Ajustes
+    const modalSettings = document.getElementById("modal-settings");
+    document.getElementById("btn-settings").onclick = async () => {
+      const cfg = await window.electronAPI.getSettings();
+      document.getElementById("cfg-dashboard-url").value = cfg.dashboardUrl || "";
+      document.getElementById("cfg-ssd-path").value = cfg.ssdPath || "";
+      document.getElementById("cfg-nas-host").value = cfg.nasHost || "";
+      modalSettings.classList.add("open");
+    };
+    document.getElementById("btn-close-settings").onclick = () => modalSettings.classList.remove("open");
+    document.getElementById("btn-save-settings").onclick = async () => {
+      const patch = {
+        dashboardUrl: document.getElementById("cfg-dashboard-url").value,
+        ssdPath: document.getElementById("cfg-ssd-path").value,
+        nasHost: document.getElementById("cfg-nas-host").value,
+      };
+      const p = document.getElementById("cfg-nas-pass").value;
+      if (p) patch.nasPassword = p;
+      await window.electronAPI.saveSettings(patch);
+      modalSettings.classList.remove("open");
+    };
+
+    document.getElementById("link-open-web").onclick = async (e) => {
+      e.preventDefault();
+      const cfg = await window.electronAPI.getSettings();
+      window.electronAPI.openExternal(cfg.dashboardUrl || "https://lam7.ma");
+    };
+
+    // Ingesta y Progreso llamativo
+    const progressSection = document.getElementById("progress-section");
+    const barFill = document.getElementById("bar-fill");
+    const txtPct = document.getElementById("txt-pct");
+    const txtCurFile = document.getElementById("txt-cur-file");
+    const mCount = document.getElementById("m-count");
+    const mSpeed = document.getElementById("m-speed");
+    const mEta = document.getElementById("m-eta");
+    const mPhase = document.getElementById("m-phase");
+    const btnStart = document.getElementById("btn-start-ingest");
+
+    btnStart.onclick = async () => {
+      const sessId = sessionSelect.value;
+      if (!sessId) {
+        alert("Veuillez sélectionner une séance de destination.");
+        return;
+      }
+      btnStart.disabled = true;
+      progressSection.classList.add("visible");
+      barFill.style.width = "0%";
+      txtPct.textContent = "0%";
+
+      await window.electronAPI.startIngest({
+        sourcePath: selectedDrive,
+        sessionId: sessId,
+        uploadSupabase: document.getElementById("chk-supabase").checked,
+        syncNas: document.getElementById("chk-nas").checked,
+      });
+    };
+
+    if (window.electronAPI) {
+      window.electronAPI.onIngestEvent((ev) => {
+        if (ev.type === "progress") {
+          const p = ev.percent || 0;
+          barFill.style.width = p + "%";
+          txtPct.textContent = Math.round(p) + "%";
+          if (ev.currentFile) txtCurFile.textContent = ev.currentFile;
+          mCount.textContent = `${ev.processed || 0} / ${ev.total || 0}`;
+          mSpeed.textContent = (ev.speed || 0) + " MB/s";
+          mEta.textContent = ev.eta !== null ? `${ev.eta}s` : "Calcul...";
+          mPhase.textContent = ev.phase === "copy" ? "Copie SSD" : ev.phase === "cloud" ? "Supabase WebP" : "NAS FTP";
+        } else if (ev.type === "done") {
+          barFill.style.width = "100%";
+          txtPct.textContent = "100%";
+          document.getElementById("txt-ingest-status").textContent = "Ingestion terminée avec succès !";
+          btnStart.disabled = false;
+        } else if (ev.type === "error") {
+          document.getElementById("txt-ingest-status").textContent = `Erreur : ${ev.message}`;
+          btnStart.disabled = false;
+        }
+      });
+
+      window.electronAPI.onCardDetected((c) => scanTarget(c.path || c.drive));
+      window.electronAPI.onCardRemoved(() => scanTarget("D:\\"));
+    }
+
+    setLanguage("fr");
+    loadRealSessions();
+    scanTarget("D:\\");
+  </script>
+</body>
+</html>

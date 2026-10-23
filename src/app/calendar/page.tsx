@@ -66,7 +66,7 @@ const CATEGORY_ICONS: Record<string, string> = {
   newborn: "👶",
   maternity: "🤰",
   product: "📦",
-  other: "✨",
+  other: "📷",
 }
 
 const FR_CATEGORY_LABELS: Record<string, string> = {
@@ -642,7 +642,7 @@ export default function CalendarPage() {
                       {/* Sessions Chips Container */}
                       <div className="space-y-1 my-1 overflow-hidden">
                         {daySessions.slice(0, 3).map((session) => {
-                          const icon = CATEGORY_ICONS[session.category] || "✨"
+                          const icon = CATEGORY_ICONS[session.category] || "📷"
                           const statusStyle = STATUS_BADGE_STYLES[session.status] || STATUS_BADGE_STYLES.pending
 
                           return (

@@ -48,3 +48,5 @@ gen_jwt.mjs
 .ingest-progress.json
 .worker-progress.json
 .system_generated
+dist/
+scratch/

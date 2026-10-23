@@ -37,9 +37,10 @@ export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
   const isAuthPage = pathname.startsWith('/login')
   const isApiRoute = pathname.startsWith('/api')
+  const isPublicPwa = pathname === '/manifest.json' || pathname === '/sw.js'
 
   // 1. If not authenticated and attempting to access protected admin pages -> Redirect to /login
-  if (!user && !isAuthPage && !isApiRoute) {
+  if (!user && !isAuthPage && !isApiRoute && !isPublicPwa) {
     const loginUrl = request.nextUrl.clone()
     loginUrl.pathname = '/login'
     // Optional: remember redirected path
@@ -66,9 +67,9 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
-     * - static public assets (images, svg, webp)
+     * - static public assets (images, svg, webp, json, js)
      */
-    '/((?!api/|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!api/|_next/static|_next/image|favicon.ico|manifest\\.json|sw\\.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp|json|js)$).*)',
   ],
 }
 

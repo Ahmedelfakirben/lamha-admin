@@ -166,10 +166,8 @@ export function SessionAuditTimeline({ sessionId, clientName }: SessionAuditTime
   }
 
   useEffect(() => {
-    if (isOpen && logs.length === 0) {
-      fetchLogs()
-    }
-  }, [isOpen])
+    fetchLogs()
+  }, [sessionId])
 
   const getActionBadge = (action: string) => {
     if (action.includes("UPLOAD")) {
