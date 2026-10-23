@@ -319,7 +319,7 @@ export default function CalendarPage() {
   return (
     <>
       {/* Vista Móvil: Sólo Calendario y Notas del Día (Sin sobrecarga) */}
-      <MobileCalendarView sessions={sessions} />
+      <MobileCalendarView sessions={sessions} onRefresh={fetchSessions} />
 
       {/* Vista de Escritorio: Completa e intacta para trabajar desde el PC */}
       <div className="hidden md:block space-y-6">
