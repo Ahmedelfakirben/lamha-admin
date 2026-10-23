@@ -149,6 +149,83 @@ export function IngestDialog({
     }
   }
 
+  // Desktop Ingest Companion Bridge (Local HTTP :41890 & lamha:// Protocol)
+  const [companionStatus, setCompanionStatus] = useState<{
+    connected: boolean
+    activeCards?: Array<{ drive: string; label: string; count: number; dcimPath?: string }>
+    isIngesting?: boolean
+  } | null>(null)
+
+  const checkCompanion = async () => {
+    try {
+      const res = await fetch("http://127.0.0.1:41890/status", { cache: "no-store", signal: AbortSignal.timeout(2000) })
+      if (res.ok) {
+        const data = await res.json()
+        setCompanionStatus({
+          connected: true,
+          activeCards: data.activeCards || [],
+          isIngesting: data.isIngesting || false
+        })
+        if (data.activeCards && data.activeCards.length > 0) {
+          const firstCard = data.activeCards[0]
+          const cardPath = firstCard.dcimPath || firstCard.drive
+          setSourcePath(prev => {
+            if (!prev || prev === "E:\\DCIM") {
+              scanSpecificPath(cardPath)
+              return cardPath
+            }
+            return prev
+          })
+        }
+        return
+      }
+    } catch {}
+    setCompanionStatus({ connected: false })
+  }
+
+  useEffect(() => {
+    if (open) {
+      checkCompanion()
+    }
+  }, [open])
+
+  const handleLaunchDesktopIngest = async () => {
+    const targetSessionId = sessionId || defaultSessionId
+    if (!targetSessionId) {
+      alert("Por favor selecciona o confirma una sesión primero.")
+      return
+    }
+
+    if (companionStatus?.connected) {
+      try {
+        const res = await fetch("http://127.0.0.1:41890/ingest", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sessionId: targetSessionId,
+            clientName: clientName || defaultClientName,
+            sourcePath: sourcePath && !sourcePath.startsWith("📁") ? sourcePath.trim() : undefined,
+            uploadSupabase: true,
+            syncNas: true,
+          })
+        })
+        if (res.ok) {
+          setOpen(false)
+          return
+        }
+      } catch (e) {
+        console.warn("Fallo lanzando HTTP local, intentando protocolo:", e)
+      }
+    }
+
+    // Protocolo de sistema lamha://
+    const protocolUrl = `lamha://ingest?session_id=${encodeURIComponent(targetSessionId)}&client_name=${encodeURIComponent(clientName || defaultClientName || "")}&auto=true`
+    window.location.href = protocolUrl
+    setTimeout(() => {
+      setOpen(false)
+    }, 400)
+  }
+
   // Progress & Logs
   const [progressPercent, setProgressPercent] = useState(0)
   const [currentFileText, setCurrentFileText] = useState("")
@@ -1182,26 +1259,65 @@ export function IngestDialog({
               )}
             </div>
 
-            {/* Botón de Inicio */}
-            <div className="pt-2">
+            {/* Botones de Inicio e Ingesta */}
+            <div className="pt-2 space-y-2.5">
+              {/* Tarjeta de Acción: App de Escritorio (Lamha Companion) */}
+              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-[#171411] to-[#12100e] border border-[#c69f68]/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg shadow-black/40">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <span className={cn(
+                      "w-2 h-2 rounded-full shrink-0",
+                      companionStatus?.connected ? "bg-emerald-400 animate-pulse shadow-sm shadow-emerald-400" : "bg-amber-400"
+                    )} />
+                    <span className="text-xs font-bold text-[#f5f2eb]">
+                      {companionStatus?.connected
+                        ? "App de Escritorio Lista en este PC"
+                        : "App de Escritorio (Lamha Ingest Companion)"}
+                    </span>
+                    <span className="text-[9px] px-1.5 py-0.2 rounded bg-[#c69f68]/15 text-[#c69f68] font-mono font-semibold">
+                      Ventana Esquina
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-[#8c7a6b] leading-tight">
+                    {companionStatus?.connected
+                      ? "Se minimizará y mostrará el progreso en la esquina derecha mientras procesa y sube las fotos a Supabase."
+                      : "Arranca la app instalada en tu PC para procesar tarjetas SD a máxima velocidad con previsualizaciones WebP."}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleLaunchDesktopIngest}
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#c69f68] to-[#dfba85] hover:from-[#dfba85] hover:to-[#c69f68] text-[#0b0a09] font-bold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-[#c69f68]/20 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer whitespace-nowrap"
+                >
+                  <HardDrive className="w-4 h-4 shrink-0" />
+                  <span>
+                    {companionStatus?.connected
+                      ? "Lanzar Ingesta en PC"
+                      : "Abrir App de Ingesta"}
+                  </span>
+                </button>
+              </div>
+
+              {/* Botón Servidor Web Directo (Fallback) */}
               <button
                 type="button"
                 disabled={isStartDisabled}
                 onClick={handleStartIngest}
                 className={cn(
-                  "w-full py-3.5 rounded-xl font-bold text-sm tracking-wide shadow-xl transition-all flex items-center justify-center gap-2",
+                  "w-full py-2.5 rounded-xl font-medium text-xs tracking-wide transition-all flex items-center justify-center gap-2",
                   isStartDisabled
-                    ? "bg-[#201c18] border border-[#26211c] text-[#70665a] cursor-not-allowed opacity-60"
-                    : "bg-gradient-to-r from-[#c69f68] to-[#dfba85] text-[#0b0a09] hover:shadow-[#c69f68]/20 hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
+                    ? "bg-[#181613] border border-[#26211c] text-[#70665a] cursor-not-allowed opacity-50"
+                    : "bg-[#1c1915] border border-[#2e2720] text-[#a89f91] hover:text-[#f5f2eb] hover:bg-[#25201a] cursor-pointer"
                 )}
               >
-                <UploadCloud className="w-4 h-4" />
+                <UploadCloud className="w-3.5 h-3.5" />
                 <span>
                   {isExactSamePath 
                     ? t.samePathErrorTitle
                     : spaceWarning?.isCritical
                     ? t.insufficientSpaceTitle
-                    : `${t.startIngestOnSsd} (${targetDriveInfo?.id || "SSD"})`}
+                    : `Ingestar vía Servidor Web (${targetDriveInfo?.id || "SSD"})`}
                 </span>
               </button>
             </div>

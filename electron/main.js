@@ -17,6 +17,7 @@ process.on("unhandledRejection", (err) => logToFile("UNHANDLED_REJECTION:", err 
 const { LamhaSystemTray } = require("./tray")
 const { WindowsDriveWatcher } = require("./watcher")
 const { getConfig, getPublicSettings, updateSettings } = require("./config")
+const { LamhaBridgeServer } = require("./bridge-server")
 const engine = require("./ingest-engine")
 
 let mainWindow = null
@@ -24,6 +25,7 @@ let miniWindow = null
 let miniCloseTimer = null
 let systemTray = null
 let driveWatcher = null
+let bridgeServer = null
 let currentLanguage = "fr"
 let hasShownMinimizeBalloon = false
 let lastIngestState = null // último evento relevante, para pintar la mini ventana al abrirse
@@ -33,6 +35,15 @@ logToFile("--- INICIANDO PROCESO ELECTRON (PID:", process.pid, ") ---")
 // Asigna AppUserModelId para que Windows use el icono oficial en la barra de tareas
 app.setAppUserModelId("com.lamhastudios.atelier")
 
+// Registrar protocolo lamha:// para permitir lanzamientos directos desde la web
+if (process.defaultApp) {
+  if (process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient("lamha", process.execPath, [path.resolve(process.argv[1])])
+  }
+} else {
+  app.setAsDefaultProtocolClient("lamha")
+}
+
 const gotTheLock = app.requestSingleInstanceLock()
 if (!gotTheLock) {
   logToFile("NO SE OBTUVO EL LOCK (YA HAY OTRA INSTANCIA EJECUTANDOSE). SALIENDO...")
@@ -41,10 +52,38 @@ if (!gotTheLock) {
   logToFile("LOCK OBTENIDO CON EXITO.")
 }
 
-app.on("second-instance", () => {
-  logToFile("SEGUNDA INSTANCIA DETECTADA -> MOSTRANDO VENTANA PRINCIPAL.")
-  showMain()
+app.on("second-instance", (_event, commandLine) => {
+  logToFile("SEGUNDA INSTANCIA DETECTADA ->", JSON.stringify(commandLine))
+  const protocolUrl = commandLine ? commandLine.find((arg) => typeof arg === "string" && arg.startsWith("lamha://")) : null
+  if (protocolUrl) {
+    handleProtocolUrl(protocolUrl)
+  } else {
+    showMain()
+  }
 })
+
+function handleProtocolUrl(rawUrl) {
+  logToFile("MANEJANDO URL DE PROTOCOLO:", rawUrl)
+  try {
+    const parsed = new URL(rawUrl)
+    const sessionId = parsed.searchParams.get("session_id") || parsed.searchParams.get("sessionId")
+    const clientName = parsed.searchParams.get("client_name") || parsed.searchParams.get("clientName")
+    const sourcePath = parsed.searchParams.get("source_path") || parsed.searchParams.get("sourcePath")
+    const auto = parsed.searchParams.get("auto") === "true"
+
+    if (sessionId && auto) {
+      triggerIngestWorkflow({ sessionId, clientName, sourcePath })
+    } else {
+      showMain()
+      if (mainWindow && !mainWindow.isDestroyed() && sessionId) {
+        mainWindow.webContents.send("prefill-session", { sessionId, clientName, sourcePath })
+      }
+    }
+  } catch (e) {
+    logToFile("ERROR PARSEANDO PROTOCOLO:", e.message)
+    showMain()
+  }
+}
 
 function showMain() {
   if (!mainWindow || mainWindow.isDestroyed()) {
@@ -290,26 +329,28 @@ app.whenReady().then(() => {
   ipcMain.handle("auth-logout", () => engine.logout())
   ipcMain.handle("get-sessions", () => engine.listSessions())
 
+  // --- Iniciar Servidor de Enlace Local (Web ↔ Desktop) ---------------------
+  bridgeServer = new LamhaBridgeServer({
+    onStartIngest: (params) => triggerIngestWorkflow(params),
+    onShowMain: () => showMain(),
+    getStatus: () => ({
+      isIngesting: Boolean(lastIngestState && lastIngestState.type !== "done" && lastIngestState.type !== "error"),
+      lastProgress: lastIngestState,
+      language: currentLanguage,
+    }),
+    getCards: () => (driveWatcher ? driveWatcher.getActiveCards() : []),
+  })
+  bridgeServer.start()
+
+  // Comprobar si se arrancó directamente con URL de protocolo lamha://
+  const coldProtocolUrl = process.argv.find((arg) => typeof arg === "string" && arg.startsWith("lamha://"))
+  if (coldProtocolUrl) {
+    setTimeout(() => handleProtocolUrl(coldProtocolUrl), 600)
+  }
+
   // --- IPC: ingesta ---------------------------------------------------------
   ipcMain.handle("start-ingest", async (_e, params) => {
-    lastIngestState = null
-    // La app se minimiza y aparece la mini ventana con el progreso
-    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.minimize()
-    showMini()
-
-    const result = await engine.runIngest({ ...params, lang: currentLanguage }, (ev) => {
-      broadcastIngest(ev)
-      if (ev.type === "done" && !ev.empty) {
-        const [title, body] = (DONE_TEXT[currentLanguage] || DONE_TEXT.fr)(ev.summary?.client || "")
-        notify(title, body)
-        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.flashFrame(true)
-        miniCloseTimer = setTimeout(closeMini, 20000)
-      } else if (ev.type === "error" || ev.type === "cancelled" || (ev.type === "done" && ev.empty)) {
-        miniCloseTimer = setTimeout(closeMini, 8000)
-        showMain()
-      }
-    })
-    return result
+    return triggerIngestWorkflow(params)
   })
   ipcMain.handle("cancel-ingest", () => engine.cancelIngest())
 
@@ -322,8 +363,38 @@ app.whenReady().then(() => {
   ipcMain.on("mini-close", () => closeMini())
 })
 
+async function triggerIngestWorkflow(params) {
+  lastIngestState = null
+  // La app se minimiza y aparece la mini ventana con el progreso en la esquina derecha
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.minimize()
+  showMini()
+
+  // Si no se proporcionó tarjeta fuente, intentar seleccionar la activa detectada
+  if (!params.sourcePath && driveWatcher) {
+    const cards = driveWatcher.getActiveCards()
+    if (cards && cards.length > 0) {
+      params.sourcePath = cards[0].dcimPath || cards[0].drive
+    }
+  }
+
+  const result = await engine.runIngest({ ...params, lang: currentLanguage }, (ev) => {
+    broadcastIngest(ev)
+    if (ev.type === "done" && !ev.empty) {
+      const [title, body] = (DONE_TEXT[currentLanguage] || DONE_TEXT.fr)(ev.summary?.client || "")
+      notify(title, body)
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.flashFrame(true)
+      miniCloseTimer = setTimeout(closeMini, 20000)
+    } else if (ev.type === "error" || ev.type === "cancelled" || (ev.type === "done" && ev.empty)) {
+      miniCloseTimer = setTimeout(closeMini, 8000)
+      showMain()
+    }
+  })
+  return result
+}
+
 app.on("before-quit", () => {
   app.isQuitting = true
+  if (bridgeServer) bridgeServer.stop()
   if (driveWatcher) driveWatcher.stop()
   if (systemTray) systemTray.destroy()
 })
@@ -331,3 +402,4 @@ app.on("before-quit", () => {
 app.on("window-all-closed", () => {
   // Se mantiene vivo en la bandeja del sistema de Windows
 })
+

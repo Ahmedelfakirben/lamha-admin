@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   onCardRemoved: on("card-removed"),
   onLanguageChanged: on("language-changed"),
   onIngestEvent: on("ingest-event"),
+  onPrefillSession: on("prefill-session"),
 
   // Idioma / sistema / tema
   notifyLanguageChange: (lang) => ipcRenderer.send("language-changed", lang),

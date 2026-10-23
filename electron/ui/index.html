@@ -860,6 +860,15 @@
 
       window.electronAPI.onCardDetected((c) => scanTarget(c.path || c.drive));
       window.electronAPI.onCardRemoved(() => scanTarget("D:\\"));
+      if (window.electronAPI.onPrefillSession) {
+        window.electronAPI.onPrefillSession((data) => {
+          if (data && data.sessionId) {
+            sessionSelect.value = data.sessionId;
+            sessionSelect.onchange && sessionSelect.onchange();
+            if (data.sourcePath) scanTarget(data.sourcePath);
+          }
+        });
+      }
     }
 
     setLanguage("fr");
