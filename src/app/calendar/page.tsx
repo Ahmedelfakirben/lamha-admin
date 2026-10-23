@@ -37,10 +37,11 @@ import {
   List, 
   Grid 
 } from "lucide-react"
-import Link from "next/link"
 import { useLanguage } from "@/context/language-context"
 import { SessionDialog } from "@/components/session-dialog"
 import { updateSessionNotes, updateSessionStatus } from "@/app/actions"
+import { MobileCalendarView } from "@/components/mobile-calendar-view"
+import Link from "next/link"
 
 interface SessionItem {
   id: string
@@ -316,7 +317,12 @@ export default function CalendarPage() {
   const weekDayHeaders = ["LUN.", "MAR.", "MER.", "JEU.", "VEN.", "SAM.", "DIM."]
 
   return (
-    <div className="space-y-6">
+    <>
+      {/* Vista Móvil: Sólo Calendario y Notas del Día (Sin sobrecarga) */}
+      <MobileCalendarView sessions={sessions} />
+
+      {/* Vista de Escritorio: Completa e intacta para trabajar desde el PC */}
+      <div className="hidden md:block space-y-6">
       {/* Top Header & Monthly Overview */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#26211c] pb-6">
         <div>
@@ -997,5 +1003,6 @@ export default function CalendarPage() {
       )}
       </div>
     </div>
+    </>
   )
 }

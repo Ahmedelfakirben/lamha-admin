@@ -9,6 +9,7 @@ import { SessionDialog } from "@/components/session-dialog"
 import { Pagination } from "@/components/pagination"
 import { useLanguage } from "@/context/language-context"
 import Link from "next/link"
+import { MobileGalleryView } from "@/components/mobile-gallery-view"
 
 const ITEMS_PER_PAGE = 20
 
@@ -210,8 +211,13 @@ export default function PhotosPage() {
   const delivered = sessions.filter((s) => s.status === "delivered").length
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
+    <>
+      {/* Vista Móvil: Exclusivamente lista de proyectos y galería de fotos */}
+      <MobileGalleryView />
+
+      {/* Vista de Escritorio: Completa e intacta para trabajar desde la web en PC */}
+      <div className="hidden md:block space-y-8">
+        {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#c69f68]/10 border border-[#c69f68]/30 text-[#c69f68] text-xs font-semibold tracking-wider uppercase mb-2">
@@ -497,6 +503,7 @@ export default function PhotosPage() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   )
 }

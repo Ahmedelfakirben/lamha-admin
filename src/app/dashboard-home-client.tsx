@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect } from "react"
 import { Session, SessionStatus, STATUS_COLORS, STATUS_LABELS, CATEGORY_LABELS } from "@/types/database"
 import { DashboardCharts } from "@/components/dashboard-charts"
 import { SessionDialog } from "@/components/session-dialog"
@@ -24,6 +25,13 @@ interface DashboardHomeClientProps {
 
 export function DashboardHomeClient({ sessions, categoryData, statusData }: DashboardHomeClientProps) {
   const { t, language } = useLanguage()
+
+  // En dispositivos móviles (teléfonos), redirigir directamente a la vista limpia del Calendario
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      window.location.replace("/calendar")
+    }
+  }, [])
 
   // Calculate Metrics
   const total = sessions.length

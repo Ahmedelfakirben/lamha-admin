@@ -146,47 +146,10 @@ export function Sidebar() {
       {/* ─────────────────────────────────────────────────────────────
           1. MOBILE TOP NAVIGATION BAR (Visible only on < md screens)
           ───────────────────────────────────────────────────────────── */}
-      <header className="md:hidden w-full h-14 shrink-0 bg-[#0b0a09] border-b border-[#26211c] px-3.5 flex items-center justify-between z-30 select-none">
-        <div className="flex items-center gap-2.5">
-          <button
-            type="button"
-            onClick={() => setIsMobileOpen(true)}
-            className="p-2 rounded-xl text-[#f5f2eb] hover:text-[#c69f68] hover:bg-[#1a1714] border border-[#26211c] transition-colors"
-            aria-label="Abrir menú"
-          >
-            <Menu className="w-5 h-5 text-[#c69f68]" />
-          </button>
-
-          <Link href="/" className="hover:opacity-90 transition-opacity flex items-center">
-            <BrandLogo width={110} color={theme === "light" ? "#9E753B" : "#C69F68"} showSubtitle={false} />
-          </Link>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {/* Quick Add Session Button */}
-          <SessionDialog
-            triggerType="add"
-            customTrigger={
-              <button 
-                title={t.addSessionBtn}
-                className="h-8 px-2.5 rounded-lg bg-gradient-to-r from-[#c69f68] to-[#dfba85] text-[#0b0a09] font-bold text-xs flex items-center gap-1 shadow-sm active:scale-95 transition-all"
-              >
-                <Plus className="w-3.5 h-3.5 text-[#0b0a09]" />
-                <span className="hidden sm:inline">{t.addSessionBtn}</span>
-              </button>
-            }
-          />
-
-          {/* Quick Profile / Drawer Trigger */}
-          <button
-            type="button"
-            onClick={() => setIsMobileOpen(true)}
-            className="w-8 h-8 rounded-lg bg-[#141210] border border-[#26211c] flex items-center justify-center text-[#c69f68] text-xs font-bold"
-            title={user?.email || "Menu"}
-          >
-            {user?.name ? user.name.charAt(0).toUpperCase() : <User className="w-3.5 h-3.5" />}
-          </button>
-        </div>
+      <header className="md:hidden w-full h-14 shrink-0 bg-[#0b0a09]/95 backdrop-blur-md border-b border-[#26211c] px-4 flex items-center justify-center z-30 select-none">
+        <Link href="/calendar" className="flex items-center justify-center">
+          <BrandLogo width={120} color={theme === "light" ? "#9E753B" : "#C69F68"} showSubtitle={true} />
+        </Link>
       </header>
 
       {/* ─────────────────────────────────────────────────────────────
