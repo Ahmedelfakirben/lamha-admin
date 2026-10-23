@@ -727,4 +727,14 @@ async function runIngest(params, emit) {
   }
 }
 
-module.exports = { getAuthStatus, login, logout, listSessions, runIngest, cancelIngest, scanSource, classify }
+module.exports = { 
+  getAuthStatus, 
+  login, 
+  logout, 
+  listSessions, 
+  runIngest, 
+  cancelIngest, 
+  scanSource, 
+  classify,
+  isIngesting: () => Boolean(currentJob),
+}

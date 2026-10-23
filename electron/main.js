@@ -46,8 +46,29 @@ if (process.defaultApp) {
 
 const gotTheLock = app.requestSingleInstanceLock()
 if (!gotTheLock) {
-  logToFile("NO SE OBTUVO EL LOCK (YA HAY OTRA INSTANCIA EJECUTANDOSE). SALIENDO...")
-  app.quit()
+  logToFile("NO SE OBTUVO EL LOCK (YA HAY OTRA INSTANCIA EJECUTANDOSE). DESPERTANDO INSTANCIA EXISTENTE...")
+  try {
+    const http = require("http")
+    const req = http.request(
+      {
+        hostname: "127.0.0.1",
+        port: 41890,
+        path: "/show",
+        method: "POST",
+        timeout: 1500,
+      },
+      () => {
+        app.exit(0)
+      }
+    )
+    req.on("error", () => {
+      app.exit(0)
+    })
+    req.end()
+  } catch {
+    app.exit(0)
+  }
+  return
 } else {
   logToFile("LOCK OBTENIDO CON EXITO.")
 }
@@ -86,6 +107,7 @@ function handleProtocolUrl(rawUrl) {
 }
 
 function showMain() {
+  logToFile("showMain() invocado -> Mostrando y enfocando ventana principal.")
   if (!mainWindow || mainWindow.isDestroyed()) {
     createWindow()
     return
@@ -94,7 +116,12 @@ function showMain() {
   mainWindow.show()
   mainWindow.setAlwaysOnTop(true)
   mainWindow.focus()
-  mainWindow.setAlwaysOnTop(false)
+  setTimeout(() => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.setAlwaysOnTop(false)
+      mainWindow.focus()
+    }
+  }, 150)
 }
 
 // ---------------------------------------------------------------------------
@@ -145,14 +172,18 @@ function createWindow() {
   mainWindow.loadFile(path.join(__dirname, "ui", "index.html"))
 
   mainWindow.on("close", (event) => {
-    if (!app.isQuitting) {
+    const isBusy = engine.isIngesting && engine.isIngesting()
+    if (!app.isQuitting && isBusy) {
       event.preventDefault()
       mainWindow.hide()
       if (!hasShownMinimizeBalloon && systemTray) {
         systemTray.notifyMinimized()
         hasShownMinimizeBalloon = true
       }
+      return
     }
+    app.isQuitting = true
+    app.quit()
   })
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
