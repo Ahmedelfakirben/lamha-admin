@@ -24,7 +24,8 @@ import {
   Moon,
   Menu,
   X,
-  ShieldCheck
+  ShieldCheck,
+  MessageSquare
 } from "lucide-react"
 import { BrandLogo } from "@/components/brand-logo"
 import { useLanguage, Language } from "@/context/language-context"
@@ -127,6 +128,11 @@ export function Sidebar() {
     { href: "/photos", label: t.photoSessions, icon: Camera },
     { href: "/videos", label: t.videoProduction, icon: Film },
     { href: "/clients", label: t.clientDirectory, icon: Users },
+    { 
+      href: "/chat", 
+      label: language === "ar" ? "محادثات واتساب" : language === "es" ? "Chat WhatsApp" : language === "en" ? "WhatsApp Chat" : "Messagerie WhatsApp", 
+      icon: MessageSquare 
+    },
     { href: "/categories", label: t.categoriesMenu, icon: FolderTree },
   ]
 

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Key, Copy, Check, RefreshCw, ExternalLink, MessageSquare, Sparkles, Mail, SlidersHorizontal } from "lucide-react"
+import { Key, Copy, Check, RefreshCw, ExternalLink, MessageSquare, Sparkles, Mail, SlidersHorizontal, Send, Smartphone, Loader2, AlertCircle } from "lucide-react"
 import { updateSessionPin, updateSessionQuota } from "@/app/actions"
 import { useLanguage } from "@/context/language-context"
 
@@ -10,9 +10,54 @@ interface SessionPinCardProps {
   currentPin: string | null
   clientName: string
   clientEmail?: string | null
+  clientPhone?: string | null
+  clientId?: string | null
   selectedCount: number
   quota?: number
   onQuotaChange?: (newQuota: number) => void
+}
+
+const ACCESS_WHATSAPP_I18N = {
+  es: {
+    sendBtn: "Enviar Accesos por WhatsApp",
+    sending: "Enviando por WhatsApp...",
+    sentSuccess: "¡Accesos enviados por WhatsApp con éxito!",
+    noPhoneWarning: "Este cliente no tiene teléfono guardado. Escribe el número:",
+    phonePlaceholder: "Ej: 0612345678 o 212612345678",
+    confirmSend: "Enviar ahora",
+    cancel: "Cancelar",
+    recipientPhone: "Destinatario WhatsApp:",
+  },
+  fr: {
+    sendBtn: "Envoyer les Accès par WhatsApp",
+    sending: "Envoi WhatsApp en cours...",
+    sentSuccess: "Accès envoyés par WhatsApp avec succès !",
+    noPhoneWarning: "Aucun numéro de téléphone enregistré. Indiquez le numéro :",
+    phonePlaceholder: "Ex : 0612345678 ou 212612345678",
+    confirmSend: "Envoyer maintenant",
+    cancel: "Annuler",
+    recipientPhone: "Destinataire WhatsApp :",
+  },
+  en: {
+    sendBtn: "Send Access via WhatsApp",
+    sending: "Sending via WhatsApp...",
+    sentSuccess: "Access successfully sent via WhatsApp!",
+    noPhoneWarning: "No phone number saved for this client. Enter phone number:",
+    phonePlaceholder: "e.g., 0612345678 or 212612345678",
+    confirmSend: "Send now",
+    cancel: "Cancel",
+    recipientPhone: "WhatsApp recipient:",
+  },
+  ar: {
+    sendBtn: "إرسال بيانات الدخول عبر واتساب",
+    sending: "جاري الإرسال عبر واتساب...",
+    sentSuccess: "تم إرسال بيانات الدخول عبر واتساب بنجاح!",
+    noPhoneWarning: "لا يوجد رقم هاتف مسجل لهذا العميل. اكتب الرقم:",
+    phonePlaceholder: "مثال: 0612345678 أو 212612345678",
+    confirmSend: "إرسال الآن",
+    cancel: "إلغاء",
+    recipientPhone: "المستلم عبر واتساب:",
+  },
 }
 
 export function SessionPinCard({
@@ -20,11 +65,14 @@ export function SessionPinCard({
   currentPin,
   clientName,
   clientEmail,
+  clientPhone,
+  clientId,
   selectedCount,
   quota = 20,
   onQuotaChange,
 }: SessionPinCardProps) {
   const { t, language } = useLanguage()
+  const strings = ACCESS_WHATSAPP_I18N[language as keyof typeof ACCESS_WHATSAPP_I18N] || ACCESS_WHATSAPP_I18N.fr
   const [pin, setPin] = useState(currentPin || "")
   const [currentQuota, setCurrentQuota] = useState(quota)
   const [isCopied, setIsCopied] = useState(false)
@@ -32,6 +80,13 @@ export function SessionPinCard({
   const [isUpdating, setIsUpdating] = useState(false)
   const [isSavingQuota, setIsSavingQuota] = useState(false)
   const [quotaSaved, setQuotaSaved] = useState(false)
+
+  // Estados de WhatsApp
+  const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false)
+  const [whatsAppSent, setWhatsAppSent] = useState(false)
+  const [whatsAppError, setWhatsAppError] = useState<string | null>(null)
+  const [showPhonePrompt, setShowPhonePrompt] = useState(false)
+  const [customPhone, setCustomPhone] = useState(clientPhone || "")
 
   const copyPin = () => {
     if (!pin) return
@@ -55,44 +110,86 @@ export function SessionPinCard({
     }
   }
 
-  const copyWhatsAppMessage = () => {
+  const buildAccessMessage = () => {
     const basePortalUrl = process.env.NEXT_PUBLIC_PORTAL_URL || (typeof window !== "undefined" && window.location.hostname.includes("lam7a.ma") ? "https://lam7a.ma/portal" : "http://localhost:3001/portal")
     const emailParam = clientEmail ? `&email=${encodeURIComponent(clientEmail)}` : ""
     const portalUrl = pin
       ? `${basePortalUrl}?pin=${pin}${emailParam}`
       : basePortalUrl
 
-    let message = ""
     if (language === "es") {
-      message = `Hola ${clientName},\n\nTu suite privada en Lamha Studios está lista para la selección de tus fotografías de autor.\n\nAccede a tu Espace Privé : ${portalUrl}\n` +
-        (clientEmail ? `Identificador (Email) : ${clientEmail}\n` : "") +
-        `Código PIN de seguridad : ${pin || "----"}\n` +
-        `Cantidad de fotos a seleccionar : ${currentQuota} fotos\n\n` +
+      return `✨ *Lamha Studios • Espace Privé*\n\nHola ${clientName},\n\nTu suite privada en Lamha Studios está lista para la selección de tus fotografías de autor.\n\n🔗 *Accede a tu Espace Privé:* ${portalUrl}\n` +
+        (clientEmail ? `📧 *Identificador (Email):* ${clientEmail}\n` : "") +
+        `🔑 *Código PIN de seguridad:* *${pin || "----"}*\n` +
+        `📸 *Cantidad de fotos a seleccionar:* ${currentQuota} fotos\n\n` +
         `Afaf Elaribi • Lamha Studios`
     } else if (language === "ar") {
-      message = `مرحباً ${clientName}،\n\nجناحكم الخاص في استوديو لمحة جاهز لاختيار صوركم الفنية.\n\nرابط الدخول إلى البوابة الخاصة: ${portalUrl}\n` +
-        (clientEmail ? `المعرّف (البريد الإلكتروني): ${clientEmail}\n` : "") +
-        `رمز PIN للأمان: ${pin || "----"}\n` +
-        `عدد الصور المطلوب اختيارها: ${currentQuota} صورة\n\n` +
+      return `✨ *استوديوهات لمحة • Espace Privé*\n\nمرحباً ${clientName}،\n\nجناحكم الخاص في استوديو لمحة جاهز لاختيار صوركم الفنية.\n\n🔗 *رابط الدخول إلى البوابة الخاصة:* ${portalUrl}\n` +
+        (clientEmail ? `📧 *المعرّف (البريد الإلكتروني):* ${clientEmail}\n` : "") +
+        `🔑 *رمز PIN للأمان:* *${pin || "----"}*\n` +
+        `📸 *عدد الصور المطلوب اختيارها:* ${currentQuota} صورة\n\n` +
         `عفاف العريبي • استوديوهات لمحة`
     } else if (language === "en") {
-      message = `Hello ${clientName},\n\nYour private suite at Lamha Studios is ready for selecting your fine art photographs.\n\nAccess your Espace Privé: ${portalUrl}\n` +
-        (clientEmail ? `Identifier (Email): ${clientEmail}\n` : "") +
-        `Security PIN code: ${pin || "----"}\n` +
-        `Number of photos to select: ${currentQuota} photos\n\n` +
+      return `✨ *Lamha Studios • Private Suite*\n\nHello ${clientName},\n\nYour private suite at Lamha Studios is ready for selecting your fine art photographs.\n\n🔗 *Access your Espace Privé:* ${portalUrl}\n` +
+        (clientEmail ? `📧 *Identifier (Email):* ${clientEmail}\n` : "") +
+        `🔑 *Security PIN Code:* *${pin || "----"}*\n` +
+        `📸 *Photos to select:* ${currentQuota} photos\n\n` +
         `Afaf Elaribi • Lamha Studios`
     } else {
       // fr (défaut)
-      message = `Bonjour ${clientName},\n\nVotre suite privée chez Lamha Studios est prête pour la sélection de vos photographies d'art.\n\nAccédez à votre Espace Privé : ${portalUrl}\n` +
-        (clientEmail ? `Identifiant (Email) : ${clientEmail}\n` : "") +
-        `Code PIN de sécurité : ${pin || "----"}\n` +
-        `Nombre de photos à sélectionner : ${currentQuota} photos\n\n` +
+      return `✨ *Lamha Studios • Espace Privé*\n\nBonjour ${clientName},\n\nVotre suite privée chez Lamha Studios est prête pour la sélection de vos photographies d'art.\n\n🔗 *Accédez à votre Espace Privé :* ${portalUrl}\n` +
+        (clientEmail ? `📧 *Identifiant (Email) :* ${clientEmail}\n` : "") +
+        `🔑 *Code PIN de sécurité :* *${pin || "----"}*\n` +
+        `📸 *Nombre de photos à sélectionner :* ${currentQuota} photos\n\n` +
         `Afaf Elaribi • Lamha Studios`
     }
+  }
 
+  const copyWhatsAppMessage = () => {
+    const message = buildAccessMessage()
     navigator.clipboard.writeText(message)
     setIsCopiedMsg(true)
     setTimeout(() => setIsCopiedMsg(false), 2500)
+  }
+
+  const handleSendWhatsAppAccess = async (targetPhone?: string) => {
+    const phoneToSend = (targetPhone || customPhone || clientPhone || "").trim()
+
+    if (!phoneToSend) {
+      setShowPhonePrompt(true)
+      return
+    }
+
+    setIsSendingWhatsApp(true)
+    setWhatsAppSent(false)
+    setWhatsAppError(null)
+
+    try {
+      const message = buildAccessMessage()
+      const res = await fetch("/api/whatsapp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: phoneToSend,
+          text: message,
+          clientId: clientId || null,
+          sessionId: sessionId || null,
+        }),
+      })
+
+      const data = await res.json()
+      if (res.ok && data.success) {
+        setWhatsAppSent(true)
+        setShowPhonePrompt(false)
+        setTimeout(() => setWhatsAppSent(false), 4500)
+      } else {
+        setWhatsAppError(data.error || "Erreur lors de l'envoi WhatsApp")
+      }
+    } catch (err: any) {
+      setWhatsAppError(err.message || "Erreur de connexion")
+    } finally {
+      setIsSendingWhatsApp(false)
+    }
   }
 
   const generateNewPin = async () => {
@@ -259,34 +356,112 @@ export function SessionPinCard({
       </div>
 
       {/* Sharing Actions */}
-      <div className="space-y-2 pt-2">
+      <div className="space-y-2.5 pt-2">
+        {/* Modal / Prompt si no hay teléfono guardado */}
+        {showPhonePrompt && (
+          <div className="p-3.5 rounded-xl bg-[#1c1814] border border-[#c69f68]/40 space-y-2.5 animate-in fade-in">
+            <div className="flex items-center gap-2 text-xs text-[#e6ca9e]">
+              <Smartphone className="w-4 h-4 text-[#c69f68]" />
+              <span>{strings.noPhoneWarning}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                placeholder={strings.phonePlaceholder}
+                value={customPhone}
+                onChange={(e) => setCustomPhone(e.target.value)}
+                className="flex-1 px-3 py-1.5 rounded-lg bg-[#12100e] border border-[#382d20] text-xs font-mono text-[#e5c38e] placeholder:text-[#605549] focus:border-[#c69f68] focus:outline-none"
+              />
+              <button
+                disabled={isSendingWhatsApp || !customPhone.trim()}
+                onClick={() => handleSendWhatsAppAccess(customPhone)}
+                className="px-3 py-1.5 rounded-lg bg-[#25D366] hover:bg-[#20ba59] disabled:opacity-50 text-[#0b0a09] text-xs font-bold flex items-center gap-1.5 transition-colors"
+              >
+                {isSendingWhatsApp ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                <span>{strings.confirmSend}</span>
+              </button>
+              <button
+                onClick={() => setShowPhonePrompt(false)}
+                className="px-2.5 py-1.5 rounded-lg bg-[#201c18] hover:bg-[#28231e] text-xs text-[#8c7a6b] transition-colors"
+              >
+                {strings.cancel}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Error Feedback */}
+        {whatsAppError && (
+          <div className="p-2.5 rounded-xl bg-red-950/30 border border-red-800/40 text-red-300 text-xs flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{whatsAppError}</span>
+          </div>
+        )}
+
+        {/* Botón Principal: Enviar Accesos directamente por WhatsApp */}
         <button
-          onClick={copyWhatsAppMessage}
-          className="w-full py-2.5 px-3 rounded-xl bg-[#1d1915] hover:bg-[#25201b] border border-[#29241f] hover:border-[#c69f68]/40 text-xs text-[#e4decb] font-medium flex items-center justify-center gap-2 transition-colors"
+          onClick={() => handleSendWhatsAppAccess()}
+          disabled={isSendingWhatsApp}
+          className={`w-full py-2.5 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-md ${
+            whatsAppSent
+              ? "bg-emerald-950/50 border-emerald-500/60 text-emerald-300 shadow-emerald-900/20"
+              : "bg-gradient-to-r from-[#20ba59]/20 via-[#25D366]/25 to-[#c69f68]/20 hover:from-[#20ba59]/30 hover:to-[#c69f68]/30 border-[#25D366]/40 text-[#55ef88] hover:text-white"
+          }`}
         >
-          {isCopiedMsg ? (
+          {isSendingWhatsApp ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin text-[#25D366]" />
+              <span>{strings.sending}</span>
+            </>
+          ) : whatsAppSent ? (
             <>
               <Check className="w-4 h-4 text-emerald-400" />
-              <span className="text-emerald-400">OK!</span>
+              <span>{strings.sentSuccess}</span>
             </>
           ) : (
             <>
-              <MessageSquare className="w-4 h-4 text-emerald-500" />
-              <span>{t.copyWhatsappInvite}</span>
+              <MessageSquare className="w-4 h-4 text-[#25D366]" />
+              <span>{strings.sendBtn}</span>
+              {(clientPhone || customPhone) && (
+                <span className="font-mono text-[10px] text-[#25D366]/70 ml-1">
+                  ({clientPhone || customPhone})
+                </span>
+              )}
             </>
           )}
         </button>
 
-        <a
-          href={portalHref}
-          target="_blank"
-          rel="noreferrer"
-          className="w-full py-2.5 px-3 rounded-xl bg-[#c69f68]/10 hover:bg-[#c69f68]/20 border border-[#c69f68]/30 text-xs text-[#c69f68] font-semibold flex items-center justify-center gap-2 transition-colors"
-        >
-          <Sparkles className="w-3.5 h-3.5" />
-          <span>{t.testPortalWithPin}</span>
-          <ExternalLink className="w-3.5 h-3.5 ml-1" />
-        </a>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {/* Botón secundario: Copiar mensaje al portapapeles */}
+          <button
+            onClick={copyWhatsAppMessage}
+            className="py-2 px-3 rounded-xl bg-[#1d1915] hover:bg-[#25201b] border border-[#29241f] hover:border-[#c69f68]/40 text-xs text-[#ded8d0] font-medium flex items-center justify-center gap-2 transition-colors"
+          >
+            {isCopiedMsg ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="text-emerald-400">OK!</span>
+              </>
+            ) : (
+              <>
+                <Copy className="w-3.5 h-3.5 text-[#8c7a6b]" />
+                <span className="truncate">{t.copyWhatsappInvite}</span>
+              </>
+            )}
+          </button>
+
+          {/* Test portal link */}
+          <a
+            href={portalHref}
+            target="_blank"
+            rel="noreferrer"
+            className="py-2 px-3 rounded-xl bg-[#c69f68]/10 hover:bg-[#c69f68]/20 border border-[#c69f68]/30 text-xs text-[#c69f68] font-semibold flex items-center justify-center gap-2 transition-colors"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span className="truncate">{t.testPortalWithPin}</span>
+            <ExternalLink className="w-3 h-3 ml-0.5 shrink-0" />
+          </a>
+        </div>
       </div>
     </div>
   )

@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { ArrowLeft, Calendar, Pencil, Camera, Film } from "lucide-react"
+import { ArrowLeft, Calendar, Pencil, Camera, Film, MessageSquare, ExternalLink } from "lucide-react"
 import { SessionStatusSwitcher } from "@/components/session-status-switcher"
 import { SessionDialog } from "@/components/session-dialog"
 import { IngestDialog } from "@/components/ingest-dialog"
@@ -10,7 +10,6 @@ import { SessionHubAccordion } from "@/components/session-hub-accordion"
 import { ProjectNotesHistory } from "@/components/project-notes-history"
 import { SessionAuditTimeline } from "@/components/session-audit-timeline"
 import { NotifyClientEmailDialog } from "@/components/notify-client-email-dialog"
-import { WhatsAppChatPanel } from "@/components/whatsapp-chat-panel"
 import { format } from "date-fns"
 import { fr, es, enUS, ar } from "date-fns/locale"
 import { useLanguage } from "@/context/language-context"
@@ -188,14 +187,32 @@ export function SessionDetailsClient({
         finalLink={finalLink}
       />
 
-      {/* ── Chat de WhatsApp en Vivo con el Cliente ── */}
-      <WhatsAppChatPanel
-        sessionId={session.id}
-        clientId={session.client_id}
-        clientPhone={session.client_phone}
-        clientName={session.client_name}
-        title={`WhatsApp • ${session.client_name}`}
-      />
+      {/* ── Acceso directo al Centro de Chat WhatsApp ── */}
+      {session.client_phone && (
+        <div className="flex items-center justify-between p-3.5 rounded-2xl bg-[#141210] border border-[#26211c]">
+          <div className="flex items-center gap-2.5">
+            <span className="p-2 rounded-xl bg-[#25D366]/15 border border-[#25D366]/30 text-[#25D366]">
+              <MessageSquare className="w-4 h-4" />
+            </span>
+            <div>
+              <span className="text-xs font-semibold text-[#ded8d0] block">
+                {language === "ar" ? "محادثة واتساب مع العميل" : language === "es" ? "Conversación de WhatsApp con el Cliente" : language === "en" ? "Client WhatsApp Conversation" : "Discussion WhatsApp Client"}
+              </span>
+              <span className="text-[11px] text-[#70665a] font-mono">
+                {session.client_phone}
+              </span>
+            </div>
+          </div>
+          <Link
+            href={`/chat?phone=${encodeURIComponent(session.client_phone)}`}
+            className="px-3 py-1.5 rounded-xl bg-[#201c18] hover:bg-[#28231e] border border-[#382d20] hover:border-[#c69f68]/40 text-xs font-medium text-[#c69f68] flex items-center gap-1.5 transition-colors"
+          >
+            <MessageSquare className="w-3.5 h-3.5 text-[#25D366]" />
+            <span>{language === "ar" ? "فتح في مركز المحادثات" : language === "es" ? "Abrir en Centro de Chat" : language === "en" ? "Open in Chat Hub" : "Ouvrir dans la Messagerie"}</span>
+            <ExternalLink className="w-3 h-3 text-[#70665a]" />
+          </Link>
+        </div>
+      )}
 
       {/* ── Cahier de Notes & Historique de Production ── */}
       <ProjectNotesHistory

@@ -39,7 +39,7 @@ export interface SendWhatsAppResult {
 function getEvolutionConfig() {
   const url = (process.env.EVOLUTION_API_URL || "https://wa-api.elfakir.com").replace(/\/+$/, "")
   const apiKey = process.env.EVOLUTION_API_KEY || ""
-  const instance = process.env.EVOLUTION_INSTANCE_NAME || "estudio-fotos"
+  const instance = process.env.EVOLUTION_INSTANCE_NAME || "lam7astudio"
 
   return { url, apiKey, instance }
 }

@@ -238,6 +238,8 @@ export function SessionHubAccordion({
                 currentPin={session.portal_pin}
                 clientName={session.client_name}
                 clientEmail={session.client_email}
+                clientPhone={session.client_phone}
+                clientId={session.client_id}
                 selectedCount={selectedCount}
                 quota={quota}
                 onQuotaChange={setQuota}
