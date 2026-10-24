@@ -3,11 +3,12 @@
 import { useEffect, useState, useMemo, useCallback } from "react"
 import { createClient } from "@/lib/supabase"
 import { SessionSummary, STATUS_COLORS, STATUS_LABELS } from "@/types/database"
-import { Camera, Search, ArrowRight, Key, CheckCircle2, ExternalLink, Copy, Check, RotateCcw, Folder, Pencil } from "lucide-react"
+import { Camera, Search, ArrowRight, Key, CheckCircle2, ExternalLink, Copy, Check, RotateCcw, Folder, Pencil, Building2, PartyPopper } from "lucide-react"
 import { format } from "date-fns"
 import { SessionDialog } from "@/components/session-dialog"
 import { Pagination } from "@/components/pagination"
 import { useLanguage } from "@/context/language-context"
+import { SHOOTING_TYPE_I18N, getSessionShootingType } from "@/lib/shooting-type"
 import Link from "next/link"
 import { MobileGalleryView } from "@/components/mobile-gallery-view"
 
@@ -15,12 +16,14 @@ const ITEMS_PER_PAGE = 20
 
 export default function PhotosPage() {
   const { t, language } = useLanguage()
+  const shootingTexts = SHOOTING_TYPE_I18N[language as keyof typeof SHOOTING_TYPE_I18N] || SHOOTING_TYPE_I18N.fr
   const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [dbCategories, setDbCategories] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   
   // Filter States
   const [search, setSearch] = useState("")
+  const [shootingTypeFilter, setShootingTypeFilter] = useState<"all" | "shooting" | "party">("all")
   const [statusFilter, setStatusFilter] = useState("all")
   const [categoryFilter, setCategoryFilter] = useState("all")
   const [subcategoryFilter, setSubcategoryFilter] = useState("all")
@@ -140,6 +143,7 @@ export default function PhotosPage() {
         (s.client_phone && s.client_phone.includes(search)) ||
         (s.portal_pin && s.portal_pin.includes(search))
 
+      const matchShootingType = shootingTypeFilter === "all" || getSessionShootingType(s) === shootingTypeFilter
       const matchStatus = statusFilter === "all" || s.status === statusFilter
       const matchCategory = categoryFilter === "all" || s.category === categoryFilter
       const matchSubcategory = subcategoryFilter === "all" || s.subcategory === subcategoryFilter
@@ -150,7 +154,7 @@ export default function PhotosPage() {
         (pinFilter === "no_pin" && !s.portal_pin) ||
         (pinFilter === "has_selections" && s.selected_assets && s.selected_assets.length > 0)
 
-      return matchSearch && matchStatus && matchCategory && matchSubcategory && matchPin
+      return matchSearch && matchShootingType && matchStatus && matchCategory && matchSubcategory && matchPin
     })
 
     result.sort((a: any, b: any) => {
@@ -167,12 +171,12 @@ export default function PhotosPage() {
     })
 
     return result
-  }, [sessions, search, statusFilter, categoryFilter, subcategoryFilter, pinFilter, sortOrder])
+  }, [sessions, search, shootingTypeFilter, statusFilter, categoryFilter, subcategoryFilter, pinFilter, sortOrder])
 
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1)
-  }, [search, statusFilter, categoryFilter, subcategoryFilter, pinFilter, sortOrder])
+  }, [search, shootingTypeFilter, statusFilter, categoryFilter, subcategoryFilter, pinFilter, sortOrder])
 
   // Pagination Slice (20 items max)
   const totalPages = Math.ceil(filteredSessions.length / ITEMS_PER_PAGE)
@@ -189,6 +193,7 @@ export default function PhotosPage() {
 
   const resetFilters = () => {
     setSearch("")
+    setShootingTypeFilter("all")
     setStatusFilter("all")
     setCategoryFilter("all")
     setSubcategoryFilter("all")
@@ -199,6 +204,7 @@ export default function PhotosPage() {
 
   const activeFilterCount =
     (search ? 1 : 0) +
+    (shootingTypeFilter !== "all" ? 1 : 0) +
     (statusFilter !== "all" ? 1 : 0) +
     (categoryFilter !== "all" ? 1 : 0) +
     (subcategoryFilter !== "all" ? 1 : 0) +
@@ -266,6 +272,16 @@ export default function PhotosPage() {
           </div>
 
           <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 sm:gap-2.5 w-full md:w-auto">
+            <select
+              value={shootingTypeFilter}
+              onChange={(e) => setShootingTypeFilter(e.target.value as any)}
+              className="w-full sm:w-auto bg-[#181613] border border-[#29241f] rounded-xl px-3 py-2 text-xs text-[#a89f91] focus:outline-none focus:border-[#c69f68]"
+            >
+              <option value="all">{shootingTexts.filterAll}</option>
+              <option value="shooting">{shootingTexts.filterShooting}</option>
+              <option value="party">{shootingTexts.filterParty}</option>
+            </select>
+
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
@@ -398,9 +414,22 @@ export default function PhotosPage() {
 
                       <td className="px-6 py-4">
                         <div className="flex flex-col gap-1 items-start">
-                          <span className="capitalize px-2.5 py-1 rounded-md bg-[#1d1a16] text-[#c69f68] border border-[#c69f68]/20 font-medium text-[11px]">
-                            {getCategoryLabel(session.category)}
-                          </span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="capitalize px-2.5 py-1 rounded-md bg-[#1d1a16] text-[#c69f68] border border-[#c69f68]/20 font-medium text-[11px]">
+                              {getCategoryLabel(session.category)}
+                            </span>
+                            {getSessionShootingType(session) === 'party' ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-400 font-semibold text-[9px] uppercase tracking-wider">
+                                <PartyPopper className="w-2.5 h-2.5" />
+                                <span>{shootingTexts.partyBadge}</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#221c17] border border-[#3d3329] text-[#b3a89a] font-medium text-[9px] uppercase tracking-wider">
+                                <Building2 className="w-2.5 h-2.5 text-[#c69f68]" />
+                                <span>{shootingTexts.shootingBadge}</span>
+                              </span>
+                            )}
+                          </div>
                           {session.subcategory && (
                             <span className="capitalize px-1.5 py-0.5 rounded bg-[#25201b] text-[#dfba85] border border-[#c69f68]/30 font-medium text-[10px]">
                               {getSubcategoryLabel(session.category, session.subcategory)}

@@ -45,6 +45,8 @@ export interface Client {
   total_sessions: number
 }
 
+export type ShootingType = 'shooting' | 'party'
+
 export interface Session {
   id: string
   created_at: string
@@ -55,6 +57,7 @@ export interface Session {
   client_phone: string | null
   client_email: string | null
   session_type: SessionType
+  shooting_type?: ShootingType | string | null
   category: SessionCategory
   subcategory: string | null
   status: SessionStatus

@@ -13,24 +13,29 @@ import {
   Check, 
   ArrowRight,
   RotateCcw,
-  Pencil
+  Pencil,
+  Building2,
+  PartyPopper
 } from "lucide-react"
 import { format } from "date-fns"
 import { SessionDialog } from "@/components/session-dialog"
 import { Pagination } from "@/components/pagination"
 import { useLanguage } from "@/context/language-context"
+import { SHOOTING_TYPE_I18N, getSessionShootingType } from "@/lib/shooting-type"
 import Link from "next/link"
 
 const ITEMS_PER_PAGE = 20
 
 export default function ProjectsPage() {
   const { t, language } = useLanguage()
+  const shootingTexts = SHOOTING_TYPE_I18N[language as keyof typeof SHOOTING_TYPE_I18N] || SHOOTING_TYPE_I18N.fr
   const [sessions, setSessions] = useState<any[]>([])
   const [dbCategories, setDbCategories] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   
   // Filter States
   const [typeFilter, setTypeFilter] = useState<"all" | "photo" | "video">("all")
+  const [shootingTypeFilter, setShootingTypeFilter] = useState<"all" | "shooting" | "party">("all")
   const [statusFilter, setStatusFilter] = useState("all")
   const [categoryFilter, setCategoryFilter] = useState("all")
   const [subcategoryFilter, setSubcategoryFilter] = useState("all")
@@ -151,6 +156,7 @@ export default function ProjectsPage() {
         (s.portal_pin && s.portal_pin.includes(search))
       
       const matchType = typeFilter === "all" || s.session_type === typeFilter
+      const matchShootingType = shootingTypeFilter === "all" || getSessionShootingType(s) === shootingTypeFilter
       const matchStatus = statusFilter === "all" || s.status === statusFilter
       const matchCategory = categoryFilter === "all" || s.category === categoryFilter
       const matchSubcategory = subcategoryFilter === "all" || s.subcategory === subcategoryFilter
@@ -161,7 +167,7 @@ export default function ProjectsPage() {
         (selectionFilter === "has_selection" && hasSelection) ||
         (selectionFilter === "no_selection" && !hasSelection)
 
-      return matchSearch && matchType && matchStatus && matchCategory && matchSubcategory && matchSelection
+      return matchSearch && matchType && matchShootingType && matchStatus && matchCategory && matchSubcategory && matchSelection
     })
 
     result.sort((a: any, b: any) => {
@@ -178,12 +184,12 @@ export default function ProjectsPage() {
     })
 
     return result
-  }, [sessions, search, typeFilter, statusFilter, categoryFilter, subcategoryFilter, selectionFilter, sortOrder])
+  }, [sessions, search, typeFilter, shootingTypeFilter, statusFilter, categoryFilter, subcategoryFilter, selectionFilter, sortOrder])
 
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1)
-  }, [search, typeFilter, statusFilter, categoryFilter, subcategoryFilter, selectionFilter, sortOrder])
+  }, [search, typeFilter, shootingTypeFilter, statusFilter, categoryFilter, subcategoryFilter, selectionFilter, sortOrder])
 
   // Pagination Slice (20 items max)
   const totalPages = Math.ceil(filteredSessions.length / ITEMS_PER_PAGE)
@@ -201,6 +207,7 @@ export default function ProjectsPage() {
   const resetFilters = () => {
     setSearch("")
     setTypeFilter("all")
+    setShootingTypeFilter("all")
     setStatusFilter("all")
     setCategoryFilter("all")
     setSubcategoryFilter("all")
@@ -212,6 +219,7 @@ export default function ProjectsPage() {
   const activeFilterCount =
     (search ? 1 : 0) +
     (typeFilter !== "all" ? 1 : 0) +
+    (shootingTypeFilter !== "all" ? 1 : 0) +
     (statusFilter !== "all" ? 1 : 0) +
     (categoryFilter !== "all" ? 1 : 0) +
     (subcategoryFilter !== "all" ? 1 : 0) +
@@ -327,6 +335,16 @@ export default function ProjectsPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
+            <select
+              value={shootingTypeFilter}
+              onChange={(e) => setShootingTypeFilter(e.target.value as any)}
+              className="px-3 py-2 text-xs rounded-xl bg-[#181613] border border-[#29241f] text-[#a89f91] focus:border-[#c69f68] outline-none"
+            >
+              <option value="all">{shootingTexts.filterAll}</option>
+              <option value="shooting">{shootingTexts.filterShooting}</option>
+              <option value="party">{shootingTexts.filterParty}</option>
+            </select>
+
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
@@ -462,17 +480,31 @@ export default function ProjectsPage() {
                       </td>
 
                       <td className="px-6 py-4">
-                        {isVideo ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 font-semibold text-[10px] uppercase">
-                            <Film className="w-3 h-3" />
-                            <span>{t.videoProductionsTab}</span>
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-[#c69f68]/15 border border-[#c69f68]/30 text-[#c69f68] font-semibold text-[10px] uppercase">
-                            <Camera className="w-3 h-3" />
-                            <span>{t.photoSessionsTab}</span>
-                          </span>
-                        )}
+                        <div className="flex flex-col gap-1 items-start">
+                          {isVideo ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 font-semibold text-[10px] uppercase">
+                              <Film className="w-3 h-3" />
+                              <span>{t.videoProductionsTab}</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#c69f68]/15 border border-[#c69f68]/30 text-[#c69f68] font-semibold text-[10px] uppercase">
+                              <Camera className="w-3 h-3" />
+                              <span>{t.photoSessionsTab}</span>
+                            </span>
+                          )}
+
+                          {getSessionShootingType(session) === 'party' ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-400 font-semibold text-[9px] uppercase tracking-wider">
+                              <PartyPopper className="w-2.5 h-2.5" />
+                              <span>{shootingTexts.partyBadge}</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#221c17] border border-[#3d3329] text-[#b3a89a] font-medium text-[9px] uppercase tracking-wider">
+                              <Building2 className="w-2.5 h-2.5 text-[#c69f68]" />
+                              <span>{shootingTexts.shootingBadge}</span>
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       <td className="px-6 py-4 text-[#8c7a6b] font-mono text-[11px]">

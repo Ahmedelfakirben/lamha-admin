@@ -163,13 +163,36 @@ export async function createSession(data: any, userContext?: UserAuditContext) {
       sessionData.client_id = null;
     }
 
-    const { data: insertedSession, error } = await supabase
+    // Normalize shooting_type and place tag
+    const shootingType = sessionData.shooting_type === 'party' ? 'party' : 'shooting';
+    sessionData.shooting_type = shootingType;
+    const existingTags: string[] = Array.isArray(sessionData.tags) ? sessionData.tags : [];
+    const cleanTags = existingTags.filter(t => !t.toLowerCase().startsWith('place:'));
+    cleanTags.push(`place:${shootingType}`);
+    sessionData.tags = cleanTags;
+
+    let insertedSession: any = null;
+    let { data: insData, error } = await supabase
       .from('sessions')
       .insert({ ...sessionData })
       .select()
       .single();
 
-    if (error) throw error;
+    if (error && (error.message?.includes('shooting_type') || error.details?.includes('shooting_type') || error.code === 'PGRST204')) {
+      // Supabase migration might be pending; fallback without column while tags retain place info
+      const { shooting_type, ...fallbackData } = sessionData;
+      const retryRes = await supabase
+        .from('sessions')
+        .insert({ ...fallbackData })
+        .select()
+        .single();
+      if (retryRes.error) throw retryRes.error;
+      insertedSession = retryRes.data;
+    } else if (error) {
+      throw error;
+    } else {
+      insertedSession = insData;
+    }
 
     // Registrar en auditoría estricta la creación del proyecto
     await recordAuditLog({
@@ -298,12 +321,30 @@ export async function updateSession(id: string, data: any, userContext?: UserAud
       }
     }
 
-    const { error } = await supabase
+    if (sessionData.shooting_type) {
+      const shootingType = sessionData.shooting_type === 'party' ? 'party' : 'shooting';
+      sessionData.shooting_type = shootingType;
+      const existingTags: string[] = Array.isArray(sessionData.tags) ? sessionData.tags : [];
+      const cleanTags = existingTags.filter(t => !t.toLowerCase().startsWith('place:'));
+      cleanTags.push(`place:${shootingType}`);
+      sessionData.tags = cleanTags;
+    }
+
+    let { error } = await supabase
       .from('sessions')
       .update({ ...sessionData })
       .eq('id', id);
 
-    if (error) throw error;
+    if (error && (error.message?.includes('shooting_type') || error.details?.includes('shooting_type') || error.code === 'PGRST204')) {
+      const { shooting_type, ...fallbackData } = sessionData;
+      const retry = await supabase
+        .from('sessions')
+        .update({ ...fallbackData })
+        .eq('id', id);
+      if (retry.error) throw retry.error;
+    } else if (error) {
+      throw error;
+    }
 
     if (folder_link !== undefined) {
       try {

@@ -21,7 +21,9 @@ import {
   X, 
   Loader2, 
   Tag, 
-  MessageSquare
+  MessageSquare,
+  Building2,
+  PartyPopper
 } from 'lucide-react';
 
 import {
@@ -43,6 +45,7 @@ import { useLanguage } from '@/context/language-context';
 import { cn } from "@/lib/utils";
 import { createClient } from '@/lib/supabase';
 import { Category } from '@/types/database';
+import { SHOOTING_TYPE_I18N, getSessionShootingType } from '@/lib/shooting-type';
 
 const formSchema = z.object({
   client_id: z.string().optional(),
@@ -50,6 +53,7 @@ const formSchema = z.object({
   client_phone: z.string().optional(),
   client_email: z.string().email("Adresse email invalide").optional().or(z.literal('')),
   session_date: z.string(),
+  shooting_type: z.enum(['shooting', 'party']),
   session_type: z.enum(['photo', 'video']),
   category: z.string().min(1, "Veuillez sélectionner une catégorie"),
   subcategory: z.string().optional(),
@@ -113,6 +117,7 @@ const WELCOME_CHECKBOX_I18N = {
 
 export function SessionForm({ initialData, onSuccess, theme = 'light' }: SessionFormProps) {
   const { t, language } = useLanguage();
+  const shootingTexts = SHOOTING_TYPE_I18N[language as keyof typeof SHOOTING_TYPE_I18N] || SHOOTING_TYPE_I18N.fr;
   const [isLoading, setIsLoading] = useState(false);
   const isLight = theme === 'light';
 
@@ -141,6 +146,7 @@ export function SessionForm({ initialData, onSuccess, theme = 'light' }: Session
       client_phone: initialData?.client_phone || "",
       client_email: initialData?.client_email || "",
       session_date: initialData?.session_date || new Date().toISOString().split('T')[0],
+      shooting_type: initialData?.shooting_type || getSessionShootingType(initialData) || "shooting",
       session_type: initialData?.session_type || "photo",
       category: initialData?.category || "portrait",
       subcategory: initialData?.subcategory || "",
@@ -162,6 +168,7 @@ export function SessionForm({ initialData, onSuccess, theme = 'light' }: Session
         client_phone: initialData.client_phone || "",
         client_email: initialData.client_email || "",
         session_date: initialData.session_date ? String(initialData.session_date).split('T')[0] : new Date().toISOString().split('T')[0],
+        shooting_type: initialData.shooting_type || getSessionShootingType(initialData) || "shooting",
         session_type: initialData.session_type || "photo",
         category: initialData.category || "portrait",
         subcategory: initialData.subcategory || "",
@@ -853,6 +860,75 @@ export function SessionForm({ initialData, onSuccess, theme = 'light' }: Session
             )}>
               Séance & Planning
             </h4>
+          </div>
+
+          {/* Cadre & Environnement: Shooting (Studio) vs Party (Extérieur) */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className={cn(
+                "text-xs font-semibold block",
+                isLight ? "text-[#382f26]" : "text-[#a89f91]"
+              )}>
+                {shootingTexts.label}
+              </label>
+              <span className={cn(
+                "text-[10px] font-medium hidden sm:inline-block",
+                isLight ? "text-[#8a7f72]" : "text-[#7d7164]"
+              )}>
+                {shootingTexts.sublabel}
+              </span>
+            </div>
+            <div className={cn(
+              "grid grid-cols-2 gap-2 p-1 rounded-xl border",
+              isLight ? "bg-[#f2ece2] border-[#ded5c6]" : "bg-[#110f0d] border-[#28211b]"
+            )}>
+              <button
+                type="button"
+                onClick={() => form.setValue('shooting_type', 'shooting', { shouldDirty: true, shouldValidate: true })}
+                className={cn(
+                  "flex items-center justify-center gap-2.5 py-2.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer",
+                  form.watch('shooting_type') === 'shooting'
+                    ? "bg-gradient-to-r from-[#c69f68] to-[#dfba85] text-[#0b0a09] shadow-md scale-[1.01]"
+                    : isLight 
+                      ? "text-[#70665a] hover:text-[#1c1815] hover:bg-[#e6dece]" 
+                      : "text-[#8c7a6b] hover:text-[#f5f2eb] hover:bg-[#1a1714]"
+                )}
+              >
+                <Building2 className="w-4 h-4 shrink-0" />
+                <div className="flex flex-col text-left leading-tight">
+                  <span className="font-bold">{shootingTexts.shooting}</span>
+                  <span className={cn(
+                    "text-[10px] font-normal",
+                    form.watch('shooting_type') === 'shooting' ? "text-[#382a17]" : "text-[#70665a]"
+                  )}>
+                    {shootingTexts.shootingDesc}
+                  </span>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => form.setValue('shooting_type', 'party', { shouldDirty: true, shouldValidate: true })}
+                className={cn(
+                  "flex items-center justify-center gap-2.5 py-2.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer",
+                  form.watch('shooting_type') === 'party'
+                    ? "bg-gradient-to-r from-amber-600 to-orange-500 text-white shadow-md scale-[1.01]"
+                    : isLight 
+                      ? "text-[#70665a] hover:text-[#1c1815] hover:bg-[#e6dece]" 
+                      : "text-[#8c7a6b] hover:text-[#f5f2eb] hover:bg-[#1a1714]"
+                )}
+              >
+                <PartyPopper className="w-4 h-4 shrink-0" />
+                <div className="flex flex-col text-left leading-tight">
+                  <span className="font-bold">{shootingTexts.party}</span>
+                  <span className={cn(
+                    "text-[10px] font-normal",
+                    form.watch('shooting_type') === 'party' ? "text-orange-100" : "text-[#70665a]"
+                  )}>
+                    {shootingTexts.partyDesc}
+                  </span>
+                </div>
+              </button>
+            </div>
           </div>
 
           {/* Session Type Pill Switcher */}
