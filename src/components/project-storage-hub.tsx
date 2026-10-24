@@ -30,6 +30,7 @@ import {
   ArrowUpRight,
 } from "lucide-react"
 import { useLanguage } from "@/context/language-context"
+import { openLocalFolderOrFile } from "@/lib/desktop-bridge"
 
 interface FolderStat {
   name: string
@@ -271,17 +272,13 @@ export function ProjectStorageHub({
     }
   }
 
-  // Abrir carpeta local en el Explorador de Windows
+  // Abrir carpeta local en el Explorador de Windows mediante puente nativo
   const handleOpenLocalFolder = async (subfolder?: string) => {
     try {
       const target = subfolder
         ? `C:\\Lamha-Storage\\${projectFolder}\\${subfolder.replace(/\//g, "\\")}`
         : `C:\\Lamha-Storage\\${projectFolder}`
-      await fetch("/api/media/open-file", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filePath: target, mode: "reveal" }),
-      })
+      await openLocalFolderOrFile(target, "reveal")
     } catch {}
   }
 

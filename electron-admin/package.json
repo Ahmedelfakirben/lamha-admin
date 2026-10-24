@@ -1,0 +1,9 @@
+{
+  "name": "lamha-admin-desktop",
+  "productName": "Lamha Studios - Panel Administrador",
+  "version": "0.1.0",
+  "main": "main-admin.js",
+  "description": "Lamha Studios ERP Desktop Administrator",
+  "author": "Lamha Studios",
+  "dependencies": {}
+}

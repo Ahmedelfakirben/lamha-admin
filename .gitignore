@@ -49,4 +49,11 @@ gen_jwt.mjs
 .worker-progress.json
 .system_generated
 dist/
+dist-admin/
+dist/
 scratch/
+*.log
+app-log.txt
+err.txt
+out.txt
+scripts/apply-whatsapp-migration.mjs

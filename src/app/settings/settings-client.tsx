@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { Settings, ShieldCheck, Database, MapPin, Phone, Mail, Sparkles, Key } from "lucide-react"
 import { useLanguage } from "@/context/language-context"
 import { TeamManagementCard } from "@/components/team-management-card"
+import { WhatsAppGatewayCard } from "@/components/whatsapp-gateway-card"
 
 interface SettingsClientProps {
   latencyMs: number
@@ -119,6 +120,9 @@ export function SettingsClient({ latencyMs, dbConnected }: SettingsClientProps) 
 
         {/* Dual Mode Delivery & Storage Hub */}
         <DualDeliverySettingsCard />
+
+        {/* WhatsApp Gateway Integration */}
+        <WhatsAppGatewayCard />
       </div>
     </div>
   )

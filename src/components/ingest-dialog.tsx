@@ -38,6 +38,7 @@ import { useLanguage } from "@/context/language-context"
 import { getExistingClients, ExistingClientOption } from "@/app/actions"
 import { createClient } from "@/lib/supabase"
 import { cn } from "@/lib/utils"
+import { selectNativeFolder, getConnectedCards } from "@/lib/desktop-bridge"
 
 interface IngestDialogProps {
   defaultSessionId?: string
@@ -157,8 +158,35 @@ export function IngestDialog({
   } | null>(null)
 
   const checkCompanion = async () => {
+    // 1. Detección directa desde el puente de la App de Escritorio Electron
     try {
-      const res = await fetch("http://127.0.0.1:41890/status", { cache: "no-store", signal: AbortSignal.timeout(2000) })
+      const nativeCards = await getConnectedCards()
+      if (nativeCards && nativeCards.length > 0) {
+        setCompanionStatus(prev => ({
+          connected: prev?.connected ?? true,
+          activeCards: nativeCards.map(c => ({
+            drive: c.drive,
+            label: `Tarjeta (${c.letter}:) - ${c.count} fotos`,
+            count: c.count,
+            dcimPath: c.path,
+          })),
+          isIngesting: prev?.isIngesting ?? false,
+        }))
+        const firstCard = nativeCards[0]
+        const cardPath = firstCard.path || firstCard.drive
+        setSourcePath(prev => {
+          if (!prev || prev === "E:\\DCIM") {
+            scanSpecificPath(cardPath)
+            return cardPath
+          }
+          return prev
+        })
+      }
+    } catch {}
+
+    // 2. Comprobar Ingest Companion HTTP :41890
+    try {
+      const res = await fetch("http://127.0.0.1:41890/status", { cache: "no-store", signal: AbortSignal.timeout(1500) })
       if (res.ok) {
         const data = await res.json()
         setCompanionStatus({
@@ -180,7 +208,21 @@ export function IngestDialog({
         return
       }
     } catch {}
-    setCompanionStatus({ connected: false })
+    
+    // Si no hay companion ni cartas nativas
+    setCompanionStatus(prev => prev?.activeCards?.length ? prev : { connected: false })
+  }
+
+  const handleNativeFolderPicker = async () => {
+    if (typeof window !== "undefined" && window.desktopAdminAPI?.selectFolder) {
+      const picked = await selectNativeFolder("Seleccionar Tarjeta SD o Carpeta de Cámara en este PC")
+      if (picked) {
+        setSourcePath(picked)
+        scanSpecificPath(picked)
+        return
+      }
+    }
+    folderInputRef.current?.click()
   }
 
   useEffect(() => {
@@ -968,7 +1010,7 @@ export function IngestDialog({
                 />
                 <button
                   type="button"
-                  onClick={() => folderInputRef.current?.click()}
+                  onClick={handleNativeFolderPicker}
                   className="px-3 py-2 text-xs rounded-lg bg-gradient-to-r from-[#201c18] to-[#171411] hover:from-[#2e2720] hover:to-[#221c17] border border-[#c69f68]/40 hover:border-[#c69f68] text-[#c69f68] font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 shadow-sm"
                   title="Abrir selector de carpeta de tu Mac o PC"
                 >

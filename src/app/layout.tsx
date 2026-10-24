@@ -46,16 +46,31 @@ export default function RootLayout({
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
         <title>Lamha Studios • Studio Atelier</title>
       </head>
-      <body className={`${outfit.className} h-full m-0 p-0 overflow-hidden bg-[#0b0a09] text-[#f5f2eb]`}>
+      <body className={`${outfit.className} h-full m-0 p-0 overflow-hidden bg-[#0b0a09] text-[#f5f2eb] flex flex-col`}>
+        {/* Luxury Desktop Drag Header Bar */}
+        <header
+          className="w-full h-9 min-h-[36px] bg-[#0b0a09] border-b border-[#231f1a] flex items-center justify-between px-4 select-none z-50 shrink-0"
+          style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
+        >
+          <div className="flex items-center gap-2 text-xs">
+            <span className="w-2 h-2 rounded-full bg-[#c69f68] shadow-[0_0_8px_rgba(198,159,104,0.6)]"></span>
+            <span className="font-serif tracking-wider text-[#f5f2eb] font-medium text-[11px] uppercase">Lamha Studios</span>
+            <span className="text-[#c69f68]/40">•</span>
+            <span className="text-[#c69f68]/80 text-[11px] font-sans tracking-wide">Studio Atelier</span>
+          </div>
+          {/* Reserved space for native Windows title bar controls (Minimize, Maximize, Close) */}
+          <div className="w-36 h-full" style={{ WebkitAppRegion: "drag" } as React.CSSProperties} />
+        </header>
+
         <ThemeProvider>
           <LanguageProvider>
             <UploadProvider>
               {isAuthPage ? (
-                <div className="w-full h-full overflow-y-auto bg-[#0b0a09]">
+                <div className="w-full flex-1 overflow-y-auto bg-[#0b0a09]">
                   {children}
                 </div>
               ) : (
-                <div className="flex flex-col md:flex-row h-full w-full overflow-hidden bg-[#0b0a09]">
+                <div className="flex-1 flex flex-col md:flex-row min-h-0 w-full overflow-hidden bg-[#0b0a09]">
                   <Sidebar />
                   <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden bg-[#12100e]">
                     {/* Main Workspace with Lighter Background Tone and Expandable Width */}

@@ -10,6 +10,7 @@ import { SessionHubAccordion } from "@/components/session-hub-accordion"
 import { ProjectNotesHistory } from "@/components/project-notes-history"
 import { SessionAuditTimeline } from "@/components/session-audit-timeline"
 import { NotifyClientEmailDialog } from "@/components/notify-client-email-dialog"
+import { WhatsAppChatPanel } from "@/components/whatsapp-chat-panel"
 import { format } from "date-fns"
 import { fr, es, enUS, ar } from "date-fns/locale"
 import { useLanguage } from "@/context/language-context"
@@ -185,6 +186,15 @@ export function SessionDetailsClient({
         selectedCount={liveCount}
         folderLink={folderLink}
         finalLink={finalLink}
+      />
+
+      {/* ── Chat de WhatsApp en Vivo con el Cliente ── */}
+      <WhatsAppChatPanel
+        sessionId={session.id}
+        clientId={session.client_id}
+        clientPhone={session.client_phone}
+        clientName={session.client_name}
+        title={`WhatsApp • ${session.client_name}`}
       />
 
       {/* ── Cahier de Notes & Historique de Production ── */}

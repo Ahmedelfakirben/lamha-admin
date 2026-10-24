@@ -30,6 +30,7 @@ import { fr, es, enUS } from "date-fns/locale"
 import { SessionDialog } from "@/components/session-dialog"
 import { updateClientContactInfo } from "@/app/actions"
 import { useLanguage } from "@/context/language-context"
+import { WhatsAppChatPanel } from "@/components/whatsapp-chat-panel"
 
 interface ClientProfileViewProps {
   clientName: string
@@ -424,6 +425,14 @@ export function ClientProfileView({
           })}
         </div>
       </div>
+
+      {/* WhatsApp Chat en Vivo */}
+      <WhatsAppChatPanel
+        clientId={sessions[0]?.client_id || null}
+        clientPhone={clientPhone}
+        clientName={clientName}
+        title={`WhatsApp • ${clientName}`}
+      />
 
       {/* Edit Contact Coordinates Dialog Modal */}
       {isEditingContact && (

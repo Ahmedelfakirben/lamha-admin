@@ -218,3 +218,21 @@ export interface CategoryMedia {
   created_at?: string
 }
 
+export type WhatsAppMessageStatus = 'sent' | 'delivered' | 'read' | 'failed'
+export type WhatsAppMessageType = 'text' | 'image' | 'audio' | 'video' | 'document'
+
+export interface WhatsAppMessage {
+  id: string
+  client_id: string | null
+  session_id: string | null
+  remote_jid: string
+  phone: string
+  from_me: boolean
+  message_type: WhatsAppMessageType | string
+  content: string
+  status: WhatsAppMessageStatus
+  external_message_id: string | null
+  raw_payload?: any
+  created_at: string
+}
+

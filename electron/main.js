@@ -1,3 +1,9 @@
+// Delegar al Panel Administrador si se ejecuta desde el ejecutable del panel o con la variable de entorno
+if (process.env.LAMHA_APP === "admin" || (process.execPath && process.execPath.toLowerCase().includes("panel administrador"))) {
+  require("../electron-admin/main-admin.js")
+  return
+}
+
 const { app, BrowserWindow, ipcMain, shell, dialog, screen, Notification } = require("electron")
 const path = require("path")
 const fs = require("fs")

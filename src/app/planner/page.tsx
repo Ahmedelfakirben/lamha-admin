@@ -133,7 +133,7 @@ const STAGE_COLUMNS: StageColumnDef[] = [
   },
 ]
 
-export function getSessionPlannerStage(session: any): PlannerStage {
+function getSessionPlannerStage(session: any): PlannerStage {
   if (session.pipeline_stage && ["shooting", "editing", "shared", "client_selected", "ready_delivery", "delivered"].includes(session.pipeline_stage)) {
     return session.pipeline_stage as PlannerStage
   }

@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import { revalidatePath } from 'next/cache';
 import { recordAuditLog } from '@/lib/audit';
 import { sendWelcomeEmailNotification, sendPhotosReadyNotification } from '@/lib/email';
+import { sendWhatsAppMessage } from '@/lib/whatsapp';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -217,6 +218,24 @@ export async function createSession(data: any, userContext?: UserAuditContext) {
       }
     }
 
+    // Enviar WhatsApp automático de confirmación al cliente si tiene teléfono
+    if (insertedSession.client_phone) {
+      try {
+        const dateFormatted = insertedSession.session_date || "próximamente";
+        const catName = insertedSession.category ? `(${insertedSession.category})` : '';
+        const text = `¡Hola ${insertedSession.client_name}! 📸 Hemos creado tu proyecto en Lamha Studios ${catName}. Te confirmamos que tu sesión está programada para el día ${dateFormatted}. Si tienes cualquier duda, puedes responder directamente a este mensaje.`;
+
+        await sendWhatsAppMessage({
+          phone: insertedSession.client_phone,
+          text,
+          clientId: insertedSession.client_id || null,
+          sessionId: insertedSession.id,
+        });
+      } catch (waErr) {
+        console.warn('Fallo no bloqueante al enviar WhatsApp de bienvenida:', waErr);
+      }
+    }
+
     if (folder_link) {
       try {
         await supabase.from('media_deliveries').insert({
@@ -337,6 +356,32 @@ export async function updateSession(id: string, data: any, userContext?: UserAud
         }
       } catch (errDelivery) {
         console.warn('Could not update final_link delivery:', errDelivery);
+      }
+    }
+
+    // Trigger WhatsApp: Si el montaje o estado pasa a "edited" o "delivered", avisar al cliente
+    if (sessionData.status === 'edited' || sessionData.status === 'delivered') {
+      try {
+        const { data: currentSession } = await supabase
+          .from('sessions')
+          .select('client_name, client_phone, client_id, category')
+          .eq('id', id)
+          .single();
+
+        if (currentSession?.client_phone) {
+          const clientName = currentSession.client_name || 'Estimado/a cliente';
+          const projName = currentSession.category ? `de ${currentSession.category}` : 'en Lamha Studios';
+          const text = `¡Hola ${clientName}! 🎉 Tenemos buenas noticias: el montaje de fotos/vídeos de tu proyecto ${projName} ya está finalizado y listo para que lo veas. Puedes acceder desde tu panel o responder directamente a este mensaje si necesitas algo.`;
+
+          await sendWhatsAppMessage({
+            phone: currentSession.client_phone,
+            text,
+            clientId: currentSession.client_id || null,
+            sessionId: id,
+          });
+        }
+      } catch (waStatusErr) {
+        console.warn('Fallo no bloqueante al enviar WhatsApp de montaje listo:', waStatusErr);
       }
     }
 

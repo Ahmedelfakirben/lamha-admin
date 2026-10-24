@@ -397,8 +397,18 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
       const targetLabel = target === "nas" ? "NAS (Red ZTE)" : "Carpeta Local (SSD)"
       showNotification(`Abriendo en ${targetLabel}...`)
 
-      // 1. Intentar contactar primero al puente local Electron de la app de escritorio (http://127.0.0.1:41890/open)
-      // Esto funciona perfectamente tanto desde localhost como desde https://admin.lam7a.ma
+      // 0. Prioridad inmediata: Si estamos dentro de la App de Escritorio Electron
+      if (typeof window !== "undefined" && window.desktopAdminAPI?.openLocalPath) {
+        try {
+          const res = await window.desktopAdminAPI.openLocalPath(nasPath)
+          if (res.success) {
+            showNotification(`Abierto en ${targetLabel}`)
+            return
+          }
+        } catch {}
+      }
+
+      // 1. Intentar contactar al puente local HTTP del Companion (:41890)
       let desktopHandled = false
       try {
         const controller = new AbortController()

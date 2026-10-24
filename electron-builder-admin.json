@@ -1,0 +1,17 @@
+{
+  "appId": "com.lamhastudios.erp",
+  "productName": "Lamha Studios - Panel Administrador",
+  "npmRebuild": false,
+  "nodeGypRebuild": false,
+  "directories": {
+    "app": "electron-admin",
+    "output": "dist-admin"
+  },
+  "win": {
+    "target": [
+      "dir",
+      "portable"
+    ],
+    "icon": "electron-admin/assets/icon.ico"
+  }
+}

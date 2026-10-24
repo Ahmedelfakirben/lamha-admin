@@ -28,6 +28,7 @@ import {
   FolderPlus
 } from "lucide-react"
 import { useLanguage } from "@/context/language-context"
+import { openLocalFolderOrFile, selectNativeFolder } from "@/lib/desktop-bridge"
 import Link from "next/link"
 
 interface StorageConfigData {
@@ -175,13 +176,14 @@ export function NasStorageDashboard({ initialSessions = [] }: { initialSessions?
     const target = filePath || config?.activeBasePath
     if (!target) return
     try {
-      await fetch("/api/media/open-file", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filePath: target, mode: "reveal" }),
-      })
-    } catch {
-      // Ignorar
+      await openLocalFolderOrFile(target, "reveal")
+    } catch {}
+  }
+
+  const handlePickLocalPath = async () => {
+    const picked = await selectNativeFolder("Seleccionar Carpeta Raíz de Almacenamiento Local (SSD / Lamha-Storage)")
+    if (picked) {
+      setLocalPath(picked)
     }
   }
 
@@ -578,14 +580,35 @@ export function NasStorageDashboard({ initialSessions = [] }: { initialSessions?
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs text-[#a89f91]">{t.localFallbackPathLabel}</label>
-              <input
-                type="text"
-                value={localPath}
-                onChange={(e) => setLocalPath(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-[#141210] border border-[#26211c] focus:border-[#c69f68] text-xs font-mono text-[#f5f2eb] outline-none"
-                placeholder="C:\Lamha-Storage"
-              />
+              <label className="text-xs text-[#a89f91] flex items-center justify-between">
+                <span>{t.localFallbackPathLabel}</span>
+                <button
+                  type="button"
+                  onClick={handlePickLocalPath}
+                  className="text-[11px] text-[#c69f68] hover:underline flex items-center gap-1 font-sans"
+                >
+                  <FolderOpen className="w-3 h-3" />
+                  <span>Examinar en este PC...</span>
+                </button>
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={localPath}
+                  onChange={(e) => setLocalPath(e.target.value)}
+                  className="flex-1 px-3 py-2 rounded-xl bg-[#141210] border border-[#26211c] focus:border-[#c69f68] text-xs font-mono text-[#f5f2eb] outline-none"
+                  placeholder="C:\Lamha-Storage"
+                />
+                <button
+                  type="button"
+                  onClick={handlePickLocalPath}
+                  className="px-3 py-2 rounded-xl bg-[#1c1915] hover:bg-[#25201b] border border-[#26211c] hover:border-[#c69f68]/40 text-xs text-[#c69f68] flex items-center gap-1.5 shrink-0"
+                  title="Seleccionar carpeta en Windows"
+                >
+                  <FolderOpen className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Examinar</span>
+                </button>
+              </div>
             </div>
 
             {/* Test connection feedback */}

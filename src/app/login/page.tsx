@@ -30,22 +30,35 @@ export default function LoginPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [checkingAuth, setCheckingAuth] = useState(true)
 
-  // Redirect if already logged in
+  // Redirect if already logged in (con timeout de seguridad para que nunca se quede colgado)
   useEffect(() => {
+    let mounted = true
+    const timeout = setTimeout(() => {
+      if (mounted) setCheckingAuth(false)
+    }, 1200)
+
     async function checkSession() {
       try {
         const supabase = createClient()
-        const { data } = await supabase.auth.getUser()
-        if (data?.user) {
+        const userPromise = supabase.auth.getUser()
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 1200))
+        const res: any = await Promise.race([userPromise, timeoutPromise])
+        if (res?.data?.user && mounted) {
           router.replace("/")
+          return
         }
       } catch (e) {
-        // Not logged in, continue
+        // Not logged in or timeout, continue to login form
       } finally {
-        setCheckingAuth(false)
+        if (mounted) setCheckingAuth(false)
       }
     }
     checkSession()
+
+    return () => {
+      mounted = false
+      clearTimeout(timeout)
+    }
   }, [router])
 
   const handleLogin = async (e: React.FormEvent) => {

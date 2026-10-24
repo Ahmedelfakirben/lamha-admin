@@ -211,6 +211,37 @@ export function Sidebar() {
                   })}
                 </nav>
               </div>
+
+              {/* Mobile System Items */}
+              <div>
+                <div className="px-3 mb-2 text-[10px] uppercase tracking-[0.2em] text-[#70665a] font-semibold">
+                  Système & Stockage
+                </div>
+                <nav className="space-y-1">
+                  {SYSTEM_ITEMS.map((item) => {
+                    const active = isActive(item.href)
+                    const Icon = item.icon
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={() => setIsMobileOpen(false)}
+                        className={`group flex items-center justify-between rounded-xl px-3 py-2.5 text-xs font-medium transition-all ${
+                          active
+                            ? "bg-[#1c1815] text-[#c69f68] font-bold border border-[#c69f68]/30"
+                            : "text-[#a89f91] hover:bg-[#161412] hover:text-[#f5f2eb]"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Icon className={`h-4 w-4 shrink-0 ${active ? "text-[#c69f68]" : "text-[#70665a]"}`} />
+                          <span>{item.label}</span>
+                        </div>
+                        {active && <div className="w-1.5 h-1.5 rounded-full bg-[#c69f68]" />}
+                      </Link>
+                    )
+                  })}
+                </nav>
+              </div>
             </div>
 
             {/* Mobile Drawer Footer Controls */}
@@ -401,6 +432,52 @@ export function Sidebar() {
                     )}
 
                     {/* Floating tooltip when collapsed */}
+                    {isCollapsed && (
+                      <div className="absolute left-full ml-3 px-2.5 py-1.5 rounded-lg bg-[#181512] border border-[#332b23] text-xs font-semibold text-[#f5f2eb] whitespace-nowrap shadow-2xl opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50">
+                        {item.label}
+                      </div>
+                    )}
+                  </Link>
+                )
+              })}
+            </nav>
+          </div>
+
+          {/* System & Storage section */}
+          <div>
+            {!isCollapsed && (
+              <div className="px-3 mb-2 text-[10px] uppercase tracking-[0.2em] text-[#70665a] font-semibold">
+                Système & Stockage
+              </div>
+            )}
+            <nav className="space-y-1">
+              {SYSTEM_ITEMS.map((item) => {
+                const active = isActive(item.href)
+                const Icon = item.icon
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    title={isCollapsed ? item.label : undefined}
+                    className={`group relative flex items-center rounded-xl transition-all ${
+                      isCollapsed 
+                        ? "justify-center p-2.5" 
+                        : "justify-between gap-3 px-3 py-2.5 text-xs font-medium"
+                    } ${
+                      active
+                        ? "bg-[#1c1815] text-[#c69f68] font-semibold shadow-inner border border-[#c69f68]/30"
+                        : "text-[#a89f91] hover:bg-[#161412] hover:text-[#f5f2eb]"
+                    }`}
+                  >
+                    <div className={`flex items-center ${isCollapsed ? "justify-center" : "gap-3"}`}>
+                      <Icon className={`h-4 w-4 shrink-0 ${active ? "text-[#c69f68]" : "text-[#70665a]"}`} />
+                      {!isCollapsed && <span>{item.label}</span>}
+                    </div>
+                    
+                    {!isCollapsed && active && (
+                      <div className="w-1.5 h-1.5 rounded-full bg-[#c69f68]" />
+                    )}
+
                     {isCollapsed && (
                       <div className="absolute left-full ml-3 px-2.5 py-1.5 rounded-lg bg-[#181512] border border-[#332b23] text-xs font-semibold text-[#f5f2eb] whitespace-nowrap shadow-2xl opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50">
                         {item.label}
