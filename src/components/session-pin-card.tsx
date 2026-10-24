@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Key, Copy, Check, RefreshCw, ExternalLink, MessageSquare, Sparkles, Mail, SlidersHorizontal, Send, Smartphone, Loader2, AlertCircle } from "lucide-react"
 import { updateSessionPin, updateSessionQuota } from "@/app/actions"
 import { useLanguage } from "@/context/language-context"
+import { NotifyClientEmailDialog } from "@/components/notify-client-email-dialog"
 
 interface SessionPinCardProps {
   sessionId: string
@@ -15,14 +16,25 @@ interface SessionPinCardProps {
   selectedCount: number
   quota?: number
   onQuotaChange?: (newQuota: number) => void
+  photosCount?: number
+  hasDriveFolder?: boolean
+}
+
+export function isValidPhoneNumber(phone?: string | null): boolean {
+  if (!phone) return false
+  const clean = phone.replace(/\D/g, "")
+  if (clean.length < 8) return false
+  if (/^0+$/.test(clean)) return false // Rejette 0000000000
+  return true
 }
 
 const ACCESS_WHATSAPP_I18N = {
   es: {
     sendBtn: "Enviar Accesos por WhatsApp",
+    enterPhonePrompt: "Indicar teléfono",
     sending: "Enviando por WhatsApp...",
     sentSuccess: "¡Accesos enviados por WhatsApp con éxito!",
-    noPhoneWarning: "Este cliente no tiene teléfono guardado. Escribe el número:",
+    noPhoneWarning: "Este cliente no tiene un teléfono válido registrado. Introduce su número de WhatsApp:",
     phonePlaceholder: "Ej: 0612345678 o 212612345678",
     confirmSend: "Enviar ahora",
     cancel: "Cancelar",
@@ -30,9 +42,10 @@ const ACCESS_WHATSAPP_I18N = {
   },
   fr: {
     sendBtn: "Envoyer les Accès par WhatsApp",
+    enterPhonePrompt: "Indiquer numéro",
     sending: "Envoi WhatsApp en cours...",
     sentSuccess: "Accès envoyés par WhatsApp avec succès !",
-    noPhoneWarning: "Aucun numéro de téléphone enregistré. Indiquez le numéro :",
+    noPhoneWarning: "Ce client n'a pas de numéro valide enregistré. Indiquez son numéro WhatsApp :",
     phonePlaceholder: "Ex : 0612345678 ou 212612345678",
     confirmSend: "Envoyer maintenant",
     cancel: "Annuler",
@@ -40,9 +53,10 @@ const ACCESS_WHATSAPP_I18N = {
   },
   en: {
     sendBtn: "Send Access via WhatsApp",
+    enterPhonePrompt: "Enter phone",
     sending: "Sending via WhatsApp...",
     sentSuccess: "Access successfully sent via WhatsApp!",
-    noPhoneWarning: "No phone number saved for this client. Enter phone number:",
+    noPhoneWarning: "No valid phone number saved for this client. Enter WhatsApp number:",
     phonePlaceholder: "e.g., 0612345678 or 212612345678",
     confirmSend: "Send now",
     cancel: "Cancel",
@@ -50,9 +64,10 @@ const ACCESS_WHATSAPP_I18N = {
   },
   ar: {
     sendBtn: "إرسال بيانات الدخول عبر واتساب",
+    enterPhonePrompt: "إدخال الرقم",
     sending: "جاري الإرسال عبر واتساب...",
     sentSuccess: "تم إرسال بيانات الدخول عبر واتساب بنجاح!",
-    noPhoneWarning: "لا يوجد رقم هاتف مسجل لهذا العميل. اكتب الرقم:",
+    noPhoneWarning: "لا يوجد رقم هاتف صالح مسجل لهذا العميل. اكتب رقم الواتساب:",
     phonePlaceholder: "مثال: 0612345678 أو 212612345678",
     confirmSend: "إرسال الآن",
     cancel: "إلغاء",
@@ -70,6 +85,8 @@ export function SessionPinCard({
   selectedCount,
   quota = 20,
   onQuotaChange,
+  photosCount = 0,
+  hasDriveFolder = false,
 }: SessionPinCardProps) {
   const { t, language } = useLanguage()
   const strings = ACCESS_WHATSAPP_I18N[language as keyof typeof ACCESS_WHATSAPP_I18N] || ACCESS_WHATSAPP_I18N.fr
@@ -153,12 +170,14 @@ export function SessionPinCard({
   }
 
   const handleSendWhatsAppAccess = async (targetPhone?: string) => {
-    const phoneToSend = (targetPhone || customPhone || clientPhone || "").trim()
+    const rawCandidate = (targetPhone || customPhone || clientPhone || "").trim()
 
-    if (!phoneToSend) {
+    if (!isValidPhoneNumber(rawCandidate)) {
       setShowPhonePrompt(true)
       return
     }
+
+    const phoneToSend = rawCandidate
 
     setIsSendingWhatsApp(true)
     setWhatsAppSent(false)
@@ -398,42 +417,64 @@ export function SessionPinCard({
           </div>
         )}
 
-        {/* Botón Principal: Enviar Accesos directamente por WhatsApp */}
-        <button
-          onClick={() => handleSendWhatsAppAccess()}
-          disabled={isSendingWhatsApp}
-          className={`w-full py-2.5 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-md ${
-            whatsAppSent
-              ? "bg-emerald-950/50 border-emerald-500/60 text-emerald-300 shadow-emerald-900/20"
-              : "bg-gradient-to-r from-[#20ba59]/20 via-[#25D366]/25 to-[#c69f68]/20 hover:from-[#20ba59]/30 hover:to-[#c69f68]/30 border-[#25D366]/40 text-[#55ef88] hover:text-white"
-          }`}
-        >
-          {isSendingWhatsApp ? (
-            <>
-              <Loader2 className="w-4 h-4 animate-spin text-[#25D366]" />
-              <span>{strings.sending}</span>
-            </>
-          ) : whatsAppSent ? (
-            <>
-              <Check className="w-4 h-4 text-emerald-400" />
-              <span>{strings.sentSuccess}</span>
-            </>
-          ) : (
-            <>
-              <MessageSquare className="w-4 h-4 text-[#25D366]" />
-              <span>{strings.sendBtn}</span>
-              {(clientPhone || customPhone) && (
-                <span className="font-mono text-[10px] text-[#25D366]/70 ml-1">
-                  ({clientPhone || customPhone})
-                </span>
-              )}
-            </>
-          )}
-        </button>
+        {/* Fila 1: Botones Principales de Notificación Directa (WhatsApp + Email) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          {/* Botón WhatsApp */}
+          <button
+            type="button"
+            onClick={() => handleSendWhatsAppAccess()}
+            disabled={isSendingWhatsApp}
+            className={`py-2.5 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-md ${
+              whatsAppSent
+                ? "bg-emerald-950/50 border-emerald-500/60 text-emerald-300 shadow-emerald-900/20"
+                : "bg-gradient-to-r from-[#20ba59]/20 via-[#25D366]/25 to-[#c69f68]/20 hover:from-[#20ba59]/30 hover:to-[#c69f68]/30 border-[#25D366]/40 text-[#55ef88] hover:text-white"
+            }`}
+          >
+            {isSendingWhatsApp ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin text-[#25D366]" />
+                <span>{strings.sending}</span>
+              </>
+            ) : whatsAppSent ? (
+              <>
+                <Check className="w-4 h-4 text-emerald-400" />
+                <span>{strings.sentSuccess}</span>
+              </>
+            ) : (
+              <>
+                <MessageSquare className="w-4 h-4 text-[#25D366]" />
+                <span className="truncate">{strings.sendBtn}</span>
+                {isValidPhoneNumber(clientPhone || customPhone) ? (
+                  <span className="font-mono text-[10px] text-[#25D366]/80 shrink-0">
+                    ({clientPhone || customPhone})
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-amber-400/90 font-mono shrink-0 italic">
+                    ({strings.enterPhonePrompt})
+                  </span>
+                )}
+              </>
+            )}
+          </button>
 
+          {/* Botón Notifier Photos par Email (Integrado en ACCÈS ESPACE PRIVÉ) */}
+          <div className="flex items-stretch">
+            <NotifyClientEmailDialog
+              sessionId={sessionId}
+              clientName={clientName}
+              clientEmail={clientEmail}
+              portalPin={pin}
+              photosCount={photosCount}
+              hasDriveFolder={hasDriveFolder}
+            />
+          </div>
+        </div>
+
+        {/* Fila 2: Copiar Mensaje + Probar Portal */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {/* Botón secundario: Copiar mensaje al portapapeles */}
           <button
+            type="button"
             onClick={copyWhatsAppMessage}
             className="py-2 px-3 rounded-xl bg-[#1d1915] hover:bg-[#25201b] border border-[#29241f] hover:border-[#c69f68]/40 text-xs text-[#ded8d0] font-medium flex items-center justify-center gap-2 transition-colors"
           >

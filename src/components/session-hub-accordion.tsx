@@ -243,6 +243,8 @@ export function SessionHubAccordion({
                 selectedCount={selectedCount}
                 quota={quota}
                 onQuotaChange={setQuota}
+                photosCount={session.media_assets?.length || 0}
+                hasDriveFolder={Boolean(session.gdrive_folder_id || folderLink)}
               />
             </div>
           )}

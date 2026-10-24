@@ -30,12 +30,12 @@ import {
   ShieldCheck,
   UserCheck,
   UserX,
+  Image as ImageIcon,
 } from "lucide-react"
 
 interface ClientContact {
   id: string
-  first_name: string
-  last_name: string
+  name: string
   email?: string | null
   phone?: string | null
 }
@@ -53,6 +53,9 @@ interface SessionInfo {
 interface ChatConversation {
   phone: string
   normalizedPhone: string
+  remoteJid?: string
+  pushName?: string | null
+  profilePicUrl?: string | null
   client?: ClientContact | null
   sessions: SessionInfo[]
   messages: WhatsAppMessage[]
@@ -84,7 +87,7 @@ const CHAT_I18N = {
     allSessions: "Proyectos del cliente",
     quickTemplates: "Plantillas Rápidas",
     newChatModalTitle: "Iniciar Nueva Conversación",
-    selectExistingClient: "O selecciona un cliente existente:",
+    selectExistingClient: "O selecciona un cliente de tus proyectos:",
     enterPhoneNumber: "Número de teléfono (con código de país o 06/07):",
     phonePlaceholder: "Ej: 0612345678 o 212612345678",
     firstMessagePrompt: "Mensaje inicial:",
@@ -134,7 +137,7 @@ const CHAT_I18N = {
     allSessions: "Projets du client",
     quickTemplates: "Réponses Rapides",
     newChatModalTitle: "Démarrer une Nouvelle Discussion",
-    selectExistingClient: "Ou sélectionnez un client enregistré :",
+    selectExistingClient: "Ou sélectionnez un client de vos projets :",
     enterPhoneNumber: "Numéro de téléphone (avec indicatif ou 06/07) :",
     phonePlaceholder: "Ex : 0612345678 ou 212612345678",
     firstMessagePrompt: "Premier message :",
@@ -184,7 +187,7 @@ const CHAT_I18N = {
     allSessions: "Client projects",
     quickTemplates: "Quick Replies",
     newChatModalTitle: "Start a New Discussion",
-    selectExistingClient: "Or choose a registered client:",
+    selectExistingClient: "Or choose a registered client from your projects:",
     enterPhoneNumber: "Phone number (with country code or 06/07):",
     phonePlaceholder: "e.g., 0612345678 or 212612345678",
     firstMessagePrompt: "Initial message:",
@@ -234,7 +237,7 @@ const CHAT_I18N = {
     allSessions: "مشاريع العميل",
     quickTemplates: "ردود سريعة",
     newChatModalTitle: "بدء محادثة جديدة",
-    selectExistingClient: "أو اختر عميلاً مسجلاً:",
+    selectExistingClient: "أو اختر عميلاً مسجلاً من مشاريعك:",
     enterPhoneNumber: "رقم الهاتف (مع الرمز الدولي أو 06/07):",
     phonePlaceholder: "مثال: 0612345678 أو 212612345678",
     firstMessagePrompt: "الرسالة الأولى:",
@@ -271,6 +274,7 @@ export function ChatView() {
   const strings = CHAT_I18N[language as keyof typeof CHAT_I18N] || CHAT_I18N.fr
 
   const [messages, setMessages] = useState<WhatsAppMessage[]>([])
+  const [evolutionChats, setEvolutionChats] = useState<any[]>([])
   const [clients, setClients] = useState<ClientContact[]>([])
   const [sessions, setSessions] = useState<SessionInfo[]>([])
   const [selectedPhone, setSelectedPhone] = useState<string | null>(
@@ -278,6 +282,7 @@ export function ChatView() {
   )
   const [searchQuery, setSearchQuery] = useState("")
   const [filterTab, setFilterTab] = useState<"all" | "clients" | "prospects">("all")
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false)
 
   // Input message state
   const [inputText, setInputText] = useState("")
@@ -297,7 +302,18 @@ export function ChatView() {
   const fetchAllData = async () => {
     const supabase = createClient()
 
-    // Cargar mensajes
+    // A. Cargar chats históricos de Evolution API (los 137 chats de WhatsApp)
+    try {
+      const res = await fetch("/api/whatsapp/chats", { cache: "no-store" })
+      const data = await res.json()
+      if (data.success && Array.isArray(data.chats)) {
+        setEvolutionChats(data.chats)
+      }
+    } catch (e) {
+      console.warn("Evolution API chats non disponibles:", e)
+    }
+
+    // B. Cargar mensajes locales de Supabase
     const { data: msgData } = await supabase
       .from("whatsapp_messages")
       .select("*")
@@ -307,23 +323,54 @@ export function ChatView() {
       setMessages(msgData)
     }
 
-    // Cargar clientes
-    const { data: clientData } = await supabase
-      .from("clients")
-      .select("id, first_name, last_name, email, phone")
-
-    if (clientData) {
-      setClients(clientData)
-    }
-
-    // Cargar sesiones
+    // C. Cargar clientes desde la tabla de sesiones (base de datos real del estudio)
     const { data: sessionData } = await supabase
       .from("sessions")
-      .select("id, client_id, client_name, client_phone, category, status, event_date")
+      .select("id, client_id, client_name, client_phone, client_email, category, status, event_date")
       .order("created_at", { ascending: false })
 
     if (sessionData) {
       setSessions(sessionData)
+
+      // Extraer clientes únicos agrupando por nombre
+      const clientMap = new Map<string, ClientContact>()
+      for (const s of sessionData) {
+        if (s.client_name && s.client_name.trim()) {
+          const key = s.client_name.trim().toLowerCase()
+          if (!clientMap.has(key)) {
+            clientMap.set(key, {
+              id: s.client_id || s.id,
+              name: s.client_name.trim(),
+              email: s.client_email || null,
+              phone: s.client_phone || null,
+            })
+          }
+        }
+      }
+
+      // También cargar de la tabla 'clients' si tuviera registros
+      try {
+        const { data: clientTableData } = await supabase
+          .from("clients")
+          .select("id, name, email, phone")
+        if (clientTableData && Array.isArray(clientTableData)) {
+          for (const c of clientTableData) {
+            if (c.name && c.name.trim()) {
+              const key = c.name.trim().toLowerCase()
+              if (!clientMap.has(key)) {
+                clientMap.set(key, {
+                  id: c.id,
+                  name: c.name.trim(),
+                  email: c.email || null,
+                  phone: c.phone || null,
+                })
+              }
+            }
+          }
+        }
+      } catch {}
+
+      setClients(Array.from(clientMap.values()))
     }
   }
 
@@ -363,11 +410,13 @@ export function ChatView() {
   const matchClientByPhone = (phone: string): ClientContact | null => {
     if (!phone) return null
     const clean = normalizePhone(phone)
+    if (!clean) return null
     const last9 = clean.slice(-9)
 
     for (const c of clients) {
       if (!c.phone) continue
       const cClean = normalizePhone(c.phone)
+      if (!cClean) continue
       if (cClean === clean || (last9 && cClean.endsWith(last9))) {
         return c
       }
@@ -375,10 +424,51 @@ export function ChatView() {
     return null
   }
 
-  // ── 4. AGRUPAR MENSAJES POR CONVERSACIÓN ──
+  // ── 4. AGRUPAR MENSAJES Y CHATS EN CONVERSACIONES ──
   const conversations: ChatConversation[] = useMemo(() => {
     const map = new Map<string, WhatsAppMessage[]>()
+    const metaMap = new Map<string, { remoteJid: string; pushName?: string | null; profilePicUrl?: string | null }>()
 
+    // A. Incorporar los 137 chats de Evolution API
+    for (const ec of evolutionChats) {
+      if (!ec.remoteJid) continue
+      const rawDigits = ec.remoteJid.replace(/@.*$/, "")
+      const norm = normalizePhone(rawDigits)
+      if (!norm) continue
+
+      metaMap.set(norm, {
+        remoteJid: ec.remoteJid,
+        pushName: ec.pushName || null,
+        profilePicUrl: ec.profilePicUrl || null,
+      })
+
+      // Mensaje preview
+      if (ec.lastMessage && !map.has(norm)) {
+        const text = ec.lastMessage.message?.conversation
+          || ec.lastMessage.message?.extendedTextMessage?.text
+          || ec.lastMessage.message?.imageMessage?.caption
+          || (ec.lastMessage.messageType ? `[${ec.lastMessage.messageType}]` : "Message WhatsApp")
+
+        const ts = ec.updatedAt
+          || (ec.lastMessage.messageTimestamp ? new Date(ec.lastMessage.messageTimestamp * 1000).toISOString() : new Date().toISOString())
+
+        map.set(norm, [{
+          id: ec.lastMessage.id || ec.remoteJid,
+          remote_jid: ec.remoteJid,
+          phone: rawDigits,
+          client_id: null,
+          session_id: null,
+          from_me: Boolean(ec.lastMessage.key?.fromMe),
+          message_type: ec.lastMessage.messageType || "text",
+          content: text,
+          status: "delivered",
+          external_message_id: ec.lastMessage.key?.id || null,
+          created_at: ts,
+        }])
+      }
+    }
+
+    // B. Incorporar mensajes de Supabase
     for (const msg of messages) {
       const norm = normalizePhone(msg.phone || "")
       if (!norm) continue
@@ -386,29 +476,41 @@ export function ChatView() {
       if (!map.has(norm)) {
         map.set(norm, [])
       }
-      map.get(norm)!.push(msg)
+      const existing = map.get(norm)!
+      // Si solo tenía el dummy de lastMessage de evolution, reemplazarlo
+      if (existing.length === 1 && existing[0].id === existing[0].remote_jid) {
+        map.set(norm, [msg])
+      } else {
+        if (!existing.some((e) => e.id === msg.id || (e.external_message_id && e.external_message_id === msg.external_message_id))) {
+          existing.push(msg)
+        }
+      }
     }
 
     const convList: ChatConversation[] = []
 
     map.forEach((msgs, normPhone) => {
-      const client = matchClientByPhone(normPhone)
+      // Orden cronológico
+      msgs.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
 
-      // Emparejar sesiones
+      const client = matchClientByPhone(normPhone)
+      const meta = metaMap.get(normPhone)
+
       const matchedSessions = sessions.filter((s) => {
-        if (client && s.client_id === client.id) return true
+        if (client && s.client_name === client.name) return true
         if (s.client_phone && normalizePhone(s.client_phone) === normPhone) return true
         return false
       })
 
       const latestMessage = msgs[msgs.length - 1]
-
-      // Contar no leídos (mensajes de cliente que no han sido leídos)
       const unreadCount = msgs.filter((m) => !m.from_me && m.status !== "read").length
 
       convList.push({
         phone: msgs[0]?.phone || normPhone,
         normalizedPhone: normPhone,
+        remoteJid: meta?.remoteJid || `${normPhone}@s.whatsapp.net`,
+        pushName: meta?.pushName,
+        profilePicUrl: meta?.profilePicUrl,
         client,
         sessions: matchedSessions,
         messages: msgs,
@@ -417,13 +519,12 @@ export function ChatView() {
       })
     })
 
-    // Ordenar de más reciente a más antiguo
     return convList.sort(
       (a, b) =>
         new Date(b.latestMessage.created_at).getTime() -
         new Date(a.latestMessage.created_at).getTime()
     )
-  }, [messages, clients, sessions])
+  }, [evolutionChats, messages, clients, sessions])
 
   // Seleccionar la primera conversación si no hay ninguna seleccionada
   useEffect(() => {
@@ -437,6 +538,59 @@ export function ChatView() {
     if (!selectedPhone) return null
     return conversations.find((c) => c.normalizedPhone === selectedPhone) || null
   }, [conversations, selectedPhone])
+
+  // Cargar historial de Evolution si la conversación tiene pocos mensajes
+  useEffect(() => {
+    if (!activeConversation) return
+    const jid = activeConversation.remoteJid
+    const phone = activeConversation.phone
+
+    if (jid && activeConversation.messages.length <= 1) {
+      setIsLoadingHistory(true)
+      fetch("/api/whatsapp/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ remoteJid: jid, phone }),
+      })
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.success && Array.isArray(data.messages)) {
+            const parsed: WhatsAppMessage[] = data.messages.map((m: any) => {
+              const text = m.message?.conversation
+                || m.message?.extendedTextMessage?.text
+                || m.message?.imageMessage?.caption
+                || (m.messageType ? `[${m.messageType}]` : "Message WhatsApp")
+
+              const ts = m.messageTimestamp
+                ? new Date(m.messageTimestamp * 1000).toISOString()
+                : m.createdAt || new Date().toISOString()
+
+              return {
+                id: m.id || m.key?.id || String(Math.random()),
+                remote_jid: m.key?.remoteJid || jid,
+                phone: phone,
+                client_id: null,
+                session_id: null,
+                from_me: Boolean(m.key?.fromMe),
+                message_type: m.messageType || "text",
+                content: text,
+                status: (m.status === "READ" ? "read" : m.status === "DELIVERY_ACK" ? "delivered" : "sent") as any,
+                external_message_id: m.key?.id || null,
+                created_at: ts,
+              }
+            })
+
+            setMessages((prev) => {
+              const existingIds = new Set(prev.map((p) => p.external_message_id || p.id))
+              const toAdd = parsed.filter((n) => !existingIds.has(n.external_message_id || n.id))
+              return [...prev, ...toAdd]
+            })
+          }
+        })
+        .catch(() => {})
+        .finally(() => setIsLoadingHistory(false))
+    }
+  }, [selectedPhone])
 
   // Scroll al final al recibir mensajes o cambiar de chat
   useEffect(() => {
@@ -454,9 +608,7 @@ export function ChatView() {
       if (!searchQuery.trim()) return true
       const q = searchQuery.toLowerCase()
 
-      const clientName = c.client
-        ? `${c.client.first_name} ${c.client.last_name}`.toLowerCase()
-        : ""
+      const clientName = (c.client?.name || c.pushName || "").toLowerCase()
       const phone = c.phone.toLowerCase()
       const hasMatchingMsg = c.messages.some((m) =>
         m.content.toLowerCase().includes(q)
@@ -511,12 +663,12 @@ export function ChatView() {
 
     if (newChatSelectedClientId) {
       const cl = clients.find((c) => c.id === newChatSelectedClientId)
-      if (cl?.phone) {
+      if (cl?.phone && cl.phone !== "0000000000") {
         targetPhone = cl.phone
       }
     }
 
-    if (!targetPhone) {
+    if (!targetPhone || targetPhone === "0000000000") {
       alert("Veuillez saisir un numéro de téléphone valide")
       return
     }
@@ -575,6 +727,7 @@ export function ChatView() {
 
         <div className="flex items-center gap-3">
           <button
+            type="button"
             onClick={() => setIsNewChatOpen(true)}
             className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#c69f68] to-[#9b7844] hover:from-[#d1ab75] hover:to-[#aa864e] text-[#0b0a09] text-xs font-bold shadow-md shadow-[#c69f68]/20 flex items-center gap-2 transition-all hover:scale-[1.02]"
           >
@@ -582,6 +735,7 @@ export function ChatView() {
             <span>{strings.newChat}</span>
           </button>
           <button
+            type="button"
             onClick={fetchAllData}
             title="Rafraîchir"
             className="p-2 rounded-xl bg-[#141210] hover:bg-[#1f1b17] border border-[#26211c] text-[#8c7a6b] hover:text-[#c69f68] transition-colors"
@@ -617,6 +771,7 @@ export function ChatView() {
             {/* Pestañas de Filtro: Todos / Clientes / Prospectos */}
             <div className="flex items-center gap-1 p-0.5 rounded-lg bg-[#0b0a09] border border-[#26211c]">
               <button
+                type="button"
                 onClick={() => setFilterTab("all")}
                 className={`flex-1 py-1 text-[11px] font-medium rounded-md transition-all ${
                   filterTab === "all"
@@ -627,6 +782,7 @@ export function ChatView() {
                 {strings.all} ({conversations.length})
               </button>
               <button
+                type="button"
                 onClick={() => setFilterTab("clients")}
                 className={`flex-1 py-1 text-[11px] font-medium rounded-md transition-all flex items-center justify-center gap-1 ${
                   filterTab === "clients"
@@ -638,6 +794,7 @@ export function ChatView() {
                 <span>{strings.clientsOnly}</span>
               </button>
               <button
+                type="button"
                 onClick={() => setFilterTab("prospects")}
                 className={`flex-1 py-1 text-[11px] font-medium rounded-md transition-all flex items-center justify-center gap-1 ${
                   filterTab === "prospects"
@@ -661,14 +818,12 @@ export function ChatView() {
             ) : (
               filteredConversations.map((conv) => {
                 const isSelected = selectedPhone === conv.normalizedPhone
-                const clientName = conv.client
-                  ? `${conv.client.first_name} ${conv.client.last_name}`
-                  : conv.phone
-
+                const displayName = conv.client?.name || conv.pushName || conv.phone
                 const lastMsg = conv.latestMessage
 
                 return (
                   <button
+                    type="button"
                     key={conv.normalizedPhone}
                     onClick={() => setSelectedPhone(conv.normalizedPhone)}
                     className={`w-full p-3.5 text-left flex items-start gap-3 transition-colors relative ${
@@ -677,21 +832,31 @@ export function ChatView() {
                         : "hover:bg-[#181512]"
                     }`}
                   >
-                    {/* Avatar con iniciales o icono */}
-                    <div className="relative">
-                      <div
-                        className={`w-11 h-11 rounded-full flex items-center justify-center font-bold text-xs uppercase shadow-sm ${
-                          conv.client
-                            ? "bg-gradient-to-br from-[#c69f68]/30 to-[#9b7844]/20 border border-[#c69f68]/40 text-[#f0d8b4]"
-                            : "bg-[#201c18] border border-[#382d20] text-[#8c7a6b]"
-                        }`}
-                      >
-                        {conv.client ? (
-                          `${conv.client.first_name?.[0] || ""}${conv.client.last_name?.[0] || ""}` || "CL"
-                        ) : (
-                          <Phone className="w-4 h-4" />
-                        )}
-                      </div>
+                    {/* Avatar con foto de WhatsApp o iniciales */}
+                    <div className="relative shrink-0">
+                      {conv.profilePicUrl ? (
+                        <img
+                          src={conv.profilePicUrl}
+                          alt={displayName}
+                          className="w-11 h-11 rounded-full object-cover border border-[#c69f68]/30 shadow-sm"
+                        />
+                      ) : (
+                        <div
+                          className={`w-11 h-11 rounded-full flex items-center justify-center font-bold text-xs uppercase shadow-sm ${
+                            conv.client
+                              ? "bg-gradient-to-br from-[#c69f68]/30 to-[#9b7844]/20 border border-[#c69f68]/40 text-[#f0d8b4]"
+                              : "bg-[#201c18] border border-[#382d20] text-[#8c7a6b]"
+                          }`}
+                        >
+                          {conv.client ? (
+                            conv.client.name.substring(0, 2).toUpperCase()
+                          ) : conv.pushName ? (
+                            conv.pushName.substring(0, 2).toUpperCase()
+                          ) : (
+                            <Phone className="w-4 h-4" />
+                          )}
+                        </div>
+                      )}
                       {conv.unreadCount > 0 && (
                         <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#25D366] text-[#0b0a09] font-bold text-[9px] flex items-center justify-center shadow-md">
                           {conv.unreadCount}
@@ -707,7 +872,7 @@ export function ChatView() {
                             isSelected ? "text-[#e5c38e]" : "text-[#ded8d0]"
                           }`}
                         >
-                          {clientName}
+                          {displayName}
                         </span>
                         <span className="text-[10px] text-[#70665a] shrink-0 font-mono">
                           {formatTime(lastMsg.created_at)}
@@ -765,26 +930,34 @@ export function ChatView() {
               {/* Cabecera del chat activo */}
               <div className="p-3.5 px-5 border-b border-[#26211c] bg-[#141210] flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs uppercase shadow-sm shrink-0 ${
-                      activeConversation.client
-                        ? "bg-gradient-to-br from-[#c69f68]/30 to-[#9b7844]/20 border border-[#c69f68]/40 text-[#f0d8b4]"
-                        : "bg-[#201c18] border border-[#382d20] text-[#8c7a6b]"
-                    }`}
-                  >
-                    {activeConversation.client ? (
-                      `${activeConversation.client.first_name?.[0] || ""}${activeConversation.client.last_name?.[0] || ""}` || "CL"
-                    ) : (
-                      <Phone className="w-4 h-4" />
-                    )}
-                  </div>
+                  {activeConversation.profilePicUrl ? (
+                    <img
+                      src={activeConversation.profilePicUrl}
+                      alt={activeConversation.client?.name || activeConversation.pushName || activeConversation.phone}
+                      className="w-10 h-10 rounded-full object-cover border border-[#c69f68]/40 shadow-sm shrink-0"
+                    />
+                  ) : (
+                    <div
+                      className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs uppercase shadow-sm shrink-0 ${
+                        activeConversation.client
+                          ? "bg-gradient-to-br from-[#c69f68]/30 to-[#9b7844]/20 border border-[#c69f68]/40 text-[#f0d8b4]"
+                          : "bg-[#201c18] border border-[#382d20] text-[#8c7a6b]"
+                      }`}
+                    >
+                      {activeConversation.client ? (
+                        activeConversation.client.name.substring(0, 2).toUpperCase()
+                      ) : activeConversation.pushName ? (
+                        activeConversation.pushName.substring(0, 2).toUpperCase()
+                      ) : (
+                        <Phone className="w-4 h-4" />
+                      )}
+                    </div>
+                  )}
 
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <h2 className="text-sm font-semibold text-[#f0ebe3] truncate">
-                        {activeConversation.client
-                          ? `${activeConversation.client.first_name} ${activeConversation.client.last_name}`
-                          : activeConversation.phone}
+                        {activeConversation.client?.name || activeConversation.pushName || activeConversation.phone}
                       </h2>
                       {activeConversation.client ? (
                         <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-[#c69f68]/20 border border-[#c69f68]/40 text-[#e5c38e]">
@@ -807,9 +980,16 @@ export function ChatView() {
 
                 {/* Acciones directas de contacto */}
                 <div className="flex items-center gap-2 shrink-0">
+                  {isLoadingHistory && (
+                    <span className="text-[11px] text-[#c69f68] flex items-center gap-1 font-mono">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      <span>Historique...</span>
+                    </span>
+                  )}
+
                   {activeConversation.client && (
                     <Link
-                      href={`/clients/${activeConversation.client.id}`}
+                      href={`/clients`}
                       className="px-2.5 py-1.5 rounded-lg bg-[#201c18] hover:bg-[#28231e] border border-[#382d20] text-xs text-[#c69f68] flex items-center gap-1.5 transition-colors"
                     >
                       <User className="w-3.5 h-3.5" />
@@ -901,6 +1081,7 @@ export function ChatView() {
                   </span>
                   {strings.templates.map((tpl, i) => (
                     <button
+                      type="button"
                       key={i}
                       onClick={() => setInputText(tpl.text)}
                       className="shrink-0 px-2.5 py-1 rounded-full bg-[#1e1b17] hover:bg-[#28231e] border border-[#2b251f] hover:border-[#c69f68]/40 text-[11px] text-[#c69f68] transition-colors"
@@ -936,6 +1117,7 @@ export function ChatView() {
                   />
 
                   <button
+                    type="button"
                     disabled={isSending || !inputText.trim()}
                     onClick={handleSendMessage}
                     className="h-[42px] px-4 rounded-xl bg-gradient-to-r from-[#20ba59] to-[#25D366] hover:from-[#25D366] hover:to-[#2ee572] disabled:opacity-40 text-[#0b0a09] text-xs font-bold shadow-md shadow-[#25D366]/20 flex items-center justify-center gap-1.5 transition-all shrink-0"
@@ -965,6 +1147,7 @@ export function ChatView() {
                 {strings.emptySelectionSubtitle}
               </p>
               <button
+                type="button"
                 onClick={() => setIsNewChatOpen(true)}
                 className="mt-2 px-4 py-2 rounded-xl bg-[#c69f68] hover:bg-[#d1ab75] text-[#0b0a09] text-xs font-bold shadow-md transition-all flex items-center gap-2"
               >
@@ -986,6 +1169,7 @@ export function ChatView() {
                 <span>{strings.newChatModalTitle}</span>
               </div>
               <button
+                type="button"
                 onClick={() => setIsNewChatOpen(false)}
                 className="text-[#70665a] hover:text-[#ded8d0] transition-colors"
               >
@@ -993,7 +1177,7 @@ export function ChatView() {
               </button>
             </div>
 
-            {/* Elegir cliente existente */}
+            {/* Elegir cliente existente (cargado de las sesiones del estudio) */}
             <div className="space-y-1.5">
               <label className="text-xs text-[#8c7a6b] font-medium block">
                 {strings.selectExistingClient}
@@ -1004,18 +1188,23 @@ export function ChatView() {
                   const val = e.target.value
                   setNewChatSelectedClientId(val)
                   const cl = clients.find((c) => c.id === val)
-                  if (cl?.phone) {
+                  if (cl?.phone && cl.phone !== "0000000000" && cl.phone.replace(/\D/g, "").length >= 8) {
                     setNewChatPhone(cl.phone)
+                  } else {
+                    setNewChatPhone("")
                   }
                 }}
                 className="w-full py-2 px-3 rounded-xl bg-[#0b0a09] border border-[#26211c] text-xs text-[#ded8d0] focus:border-[#c69f68] focus:outline-none"
               >
                 <option value="">-- {strings.selectExistingClient} --</option>
-                {clients.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.first_name} {c.last_name} {c.phone ? `(${c.phone})` : "(Sans téléphone)"}
-                  </option>
-                ))}
+                {clients.map((c) => {
+                  const hasRealPhone = c.phone && c.phone !== "0000000000" && c.phone.replace(/\D/g, "").length >= 8
+                  return (
+                    <option key={c.id} value={c.id}>
+                      {c.name} {hasRealPhone ? `(${c.phone})` : c.email ? `(${c.email})` : "(Sans téléphone)"}
+                    </option>
+                  )
+                })}
               </select>
             </div>
 
@@ -1050,12 +1239,14 @@ export function ChatView() {
             {/* Botones de acción */}
             <div className="flex items-center justify-end gap-2 pt-2">
               <button
+                type="button"
                 onClick={() => setIsNewChatOpen(false)}
                 className="px-3.5 py-2 rounded-xl bg-[#201c18] hover:bg-[#28231e] text-xs text-[#8c7a6b] transition-colors"
               >
                 {strings.cancel}
               </button>
               <button
+                type="button"
                 disabled={!newChatPhone.trim() && !newChatSelectedClientId}
                 onClick={handleStartNewChat}
                 className="px-4 py-2 rounded-xl bg-[#25D366] hover:bg-[#20ba59] disabled:opacity-50 text-[#0b0a09] text-xs font-bold transition-colors flex items-center gap-1.5"

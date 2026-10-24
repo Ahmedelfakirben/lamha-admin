@@ -206,7 +206,7 @@ export function NotifyClientEmailDialog({
           setStatus("idle")
           setErrorMsg(null)
         }}
-        className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-medium bg-gradient-to-r from-[#c69f68] to-[#ab834b] text-[#0d0c0b] hover:brightness-110 active:scale-95 transition-all shadow-md shadow-[#c69f68]/15 cursor-pointer font-sans"
+        className="w-full inline-flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-gradient-to-r from-[#c69f68] to-[#ab834b] text-[#0d0c0b] hover:brightness-110 active:scale-95 transition-all shadow-md shadow-[#c69f68]/15 cursor-pointer font-sans"
         title={t.triggerTooltip}
       >
         <Mail className="w-3.5 h-3.5" />

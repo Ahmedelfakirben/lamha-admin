@@ -9,7 +9,6 @@ import { SessionMediaManager } from "./session-media-manager"
 import { SessionHubAccordion } from "@/components/session-hub-accordion"
 import { ProjectNotesHistory } from "@/components/project-notes-history"
 import { SessionAuditTimeline } from "@/components/session-audit-timeline"
-import { NotifyClientEmailDialog } from "@/components/notify-client-email-dialog"
 import { format } from "date-fns"
 import { fr, es, enUS, ar } from "date-fns/locale"
 import { useLanguage } from "@/context/language-context"
@@ -141,16 +140,6 @@ export function SessionDetailsClient({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full md:w-auto">
-          {/* Notify Client Email Button */}
-          <NotifyClientEmailDialog
-            sessionId={session.id}
-            clientName={session.client_name}
-            clientEmail={session.client_email}
-            portalPin={session.portal_pin}
-            photosCount={session.media_assets?.length || 0}
-            hasDriveFolder={Boolean(session.gdrive_folder_id || folderLink)}
-          />
-
           {/* Edit Project Button */}
           <SessionDialog
             session={session}
