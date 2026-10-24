@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { Key, Copy, Check, RefreshCw, ExternalLink, MessageSquare, Sparkles, Mail, SlidersHorizontal, Send, Smartphone, Loader2, AlertCircle } from "lucide-react"
-import { updateSessionPin, updateSessionQuota } from "@/app/actions"
+import { updateSessionPin, updateSessionQuota, updateSessionPhone } from "@/app/actions"
 import { useLanguage } from "@/context/language-context"
 import { NotifyClientEmailDialog } from "@/components/notify-client-email-dialog"
 
@@ -103,7 +103,8 @@ export function SessionPinCard({
   const [whatsAppSent, setWhatsAppSent] = useState(false)
   const [whatsAppError, setWhatsAppError] = useState<string | null>(null)
   const [showPhonePrompt, setShowPhonePrompt] = useState(false)
-  const [customPhone, setCustomPhone] = useState(clientPhone || "")
+  const [activePhone, setActivePhone] = useState(isValidPhoneNumber(clientPhone) ? clientPhone : null)
+  const [customPhone, setCustomPhone] = useState(isValidPhoneNumber(clientPhone) ? (clientPhone || "") : "")
 
   const copyPin = () => {
     if (!pin) return
@@ -170,9 +171,18 @@ export function SessionPinCard({
   }
 
   const handleSendWhatsAppAccess = async (targetPhone?: string) => {
-    const rawCandidate = (targetPhone || customPhone || clientPhone || "").trim()
+    const rawCandidate = (targetPhone || customPhone || activePhone || "").trim()
 
     if (!isValidPhoneNumber(rawCandidate)) {
+      setWhatsAppError(
+        language === "ar"
+          ? "يرجى كتابة رقم هاتف صالح للعميل (مثال: 0612345678 أو 212612345678)"
+          : language === "es"
+          ? "Por favor introduce un número de WhatsApp válido (ej: 0612345678 o 212612345678)"
+          : language === "en"
+          ? "Please enter a valid WhatsApp number (e.g. 0612345678 or 212612345678)"
+          : "Veuillez saisir un numéro WhatsApp valide (ex : 0612345678 ou 212612345678)"
+      )
       setShowPhonePrompt(true)
       return
     }
@@ -200,6 +210,15 @@ export function SessionPinCard({
       if (res.ok && data.success) {
         setWhatsAppSent(true)
         setShowPhonePrompt(false)
+        setActivePhone(phoneToSend)
+        // Guardar automáticamente el nuevo número válido en la base de datos de la sesión
+        if (!isValidPhoneNumber(clientPhone) || clientPhone !== phoneToSend) {
+          try {
+            await updateSessionPhone(sessionId, phoneToSend)
+          } catch (e) {
+            console.error("No se pudo actualizar el teléfono en la sesión:", e)
+          }
+        }
         setTimeout(() => setWhatsAppSent(false), 4500)
       } else {
         setWhatsAppError(data.error || "Erreur lors de l'envoi WhatsApp")
@@ -389,9 +408,16 @@ export function SessionPinCard({
                 placeholder={strings.phonePlaceholder}
                 value={customPhone}
                 onChange={(e) => setCustomPhone(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && customPhone.trim()) {
+                    e.preventDefault()
+                    handleSendWhatsAppAccess(customPhone)
+                  }
+                }}
                 className="flex-1 px-3 py-1.5 rounded-lg bg-[#12100e] border border-[#382d20] text-xs font-mono text-[#e5c38e] placeholder:text-[#605549] focus:border-[#c69f68] focus:outline-none"
               />
               <button
+                type="button"
                 disabled={isSendingWhatsApp || !customPhone.trim()}
                 onClick={() => handleSendWhatsAppAccess(customPhone)}
                 className="px-3 py-1.5 rounded-lg bg-[#25D366] hover:bg-[#20ba59] disabled:opacity-50 text-[#0b0a09] text-xs font-bold flex items-center gap-1.5 transition-colors"
@@ -400,6 +426,7 @@ export function SessionPinCard({
                 <span>{strings.confirmSend}</span>
               </button>
               <button
+                type="button"
                 onClick={() => setShowPhonePrompt(false)}
                 className="px-2.5 py-1.5 rounded-lg bg-[#201c18] hover:bg-[#28231e] text-xs text-[#8c7a6b] transition-colors"
               >
@@ -444,9 +471,9 @@ export function SessionPinCard({
               <>
                 <MessageSquare className="w-4 h-4 text-[#25D366]" />
                 <span className="truncate">{strings.sendBtn}</span>
-                {isValidPhoneNumber(clientPhone || customPhone) ? (
+                {isValidPhoneNumber(activePhone) ? (
                   <span className="font-mono text-[10px] text-[#25D366]/80 shrink-0">
-                    ({clientPhone || customPhone})
+                    ({activePhone})
                   </span>
                 ) : (
                   <span className="text-[10px] text-amber-400/90 font-mono shrink-0 italic">

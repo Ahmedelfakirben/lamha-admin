@@ -47,10 +47,16 @@ function getEvolutionConfig() {
 /**
  * Normaliza cualquier número de teléfono dejando solo dígitos internacionales.
  * Si es un número local de Marruecos (06... o 07...), le asigna el prefijo 212.
+ * Si el número consiste en solo ceros o no es válido, devuelve cadena vacía.
  */
 export function normalizePhone(phone: string): string {
   if (!phone) return ""
   let cleaned = phone.replace(/\D/g, "")
+
+  // Rejette les numéros invalides ou fictifs (ex: 0000000000)
+  if (!cleaned || /^0+$/.test(cleaned) || cleaned.length < 8) {
+    return ""
+  }
 
   // Caso: Formato local marroquí con 0 inicial (ej: 0612345678 -> 212612345678)
   if (cleaned.startsWith("0") && cleaned.length === 10) {

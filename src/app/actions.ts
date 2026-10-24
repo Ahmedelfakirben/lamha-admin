@@ -543,6 +543,22 @@ export async function updateSessionQuota(sessionId: string, quota: number) {
   }
 }
 
+export async function updateSessionPhone(sessionId: string, phone: string) {
+  try {
+    const { error } = await supabase
+      .from('sessions')
+      .update({ client_phone: phone.trim() })
+      .eq('id', sessionId);
+
+    if (error) throw error;
+    revalidatePath(`/sessions/${sessionId}`);
+    return { success: true };
+  } catch (error: any) {
+    console.error('Update phone error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
 export async function updateSessionStatus(sessionId: string, status: string, userContext?: UserAuditContext) {
   try {
     const { error } = await supabase
