@@ -129,36 +129,36 @@ export function SessionPinCard({
   }
 
   const buildAccessMessage = () => {
-    const basePortalUrl = process.env.NEXT_PUBLIC_PORTAL_URL || (typeof window !== "undefined" && window.location.hostname.includes("lam7a.ma") ? "https://lam7a.ma/portal" : "http://localhost:3001/portal")
+    const basePortalUrl = process.env.NEXT_PUBLIC_PORTAL_URL || "https://lam7a.ma/portal"
     const emailParam = clientEmail ? `&email=${encodeURIComponent(clientEmail)}` : ""
     const portalUrl = pin
       ? `${basePortalUrl}?pin=${pin}${emailParam}`
       : basePortalUrl
 
     if (language === "es") {
-      return `✨ *Lamha Studios • Espace Privé*\n\nHola ${clientName},\n\nTu suite privada en Lamha Studios está lista para la selección de tus fotografías de autor.\n\n🔗 *Accede a tu Espace Privé:* ${portalUrl}\n` +
-        (clientEmail ? `📧 *Identificador (Email):* ${clientEmail}\n` : "") +
-        `🔑 *Código PIN de seguridad:* *${pin || "----"}*\n` +
-        `📸 *Cantidad de fotos a seleccionar:* ${currentQuota} fotos\n\n` +
+      return `*Lamha Studios • Espace Privé*\n\nHola ${clientName},\n\nTu suite privada en Lamha Studios está lista para la selección de tus fotografías de autor.\n\n*Accede a tu Espace Privé :* ${portalUrl}\n` +
+        (clientEmail ? `*Identificador (Email) :* ${clientEmail}\n` : "") +
+        `*Código PIN de seguridad :* *${pin || "----"}*\n` +
+        `*Cantidad de fotos a seleccionar :* ${currentQuota} fotos\n\n` +
         `Afaf Elaribi • Lamha Studios`
     } else if (language === "ar") {
-      return `✨ *استوديوهات لمحة • Espace Privé*\n\nمرحباً ${clientName}،\n\nجناحكم الخاص في استوديو لمحة جاهز لاختيار صوركم الفنية.\n\n🔗 *رابط الدخول إلى البوابة الخاصة:* ${portalUrl}\n` +
-        (clientEmail ? `📧 *المعرّف (البريد الإلكتروني):* ${clientEmail}\n` : "") +
-        `🔑 *رمز PIN للأمان:* *${pin || "----"}*\n` +
-        `📸 *عدد الصور المطلوب اختيارها:* ${currentQuota} صورة\n\n` +
+      return `*استوديوهات لمحة • Espace Privé*\n\nمرحباً ${clientName}،\n\nجناحكم الخاص في استوديو لمحة جاهز لاختيار صوركم الفنية.\n\n*رابط الدخول إلى البوابة الخاصة :* ${portalUrl}\n` +
+        (clientEmail ? `*المعرّف (البريد الإلكتروني) :* ${clientEmail}\n` : "") +
+        `*رمز PIN للأمان :* *${pin || "----"}*\n` +
+        `*عدد الصور المطلوب اختيارها :* ${currentQuota} صورة\n\n` +
         `عفاف العريبي • استوديوهات لمحة`
     } else if (language === "en") {
-      return `✨ *Lamha Studios • Private Suite*\n\nHello ${clientName},\n\nYour private suite at Lamha Studios is ready for selecting your fine art photographs.\n\n🔗 *Access your Espace Privé:* ${portalUrl}\n` +
-        (clientEmail ? `📧 *Identifier (Email):* ${clientEmail}\n` : "") +
-        `🔑 *Security PIN Code:* *${pin || "----"}*\n` +
-        `📸 *Photos to select:* ${currentQuota} photos\n\n` +
+      return `*Lamha Studios • Private Suite*\n\nHello ${clientName},\n\nYour private suite at Lamha Studios is ready for selecting your fine art photographs.\n\n*Access your Espace Privé :* ${portalUrl}\n` +
+        (clientEmail ? `*Identifier (Email) :* ${clientEmail}\n` : "") +
+        `*Security PIN Code :* *${pin || "----"}*\n` +
+        `*Photos to select :* ${currentQuota} photos\n\n` +
         `Afaf Elaribi • Lamha Studios`
     } else {
       // fr (défaut)
-      return `✨ *Lamha Studios • Espace Privé*\n\nBonjour ${clientName},\n\nVotre suite privée chez Lamha Studios est prête pour la sélection de vos photographies d'art.\n\n🔗 *Accédez à votre Espace Privé :* ${portalUrl}\n` +
-        (clientEmail ? `📧 *Identifiant (Email) :* ${clientEmail}\n` : "") +
-        `🔑 *Code PIN de sécurité :* *${pin || "----"}*\n` +
-        `📸 *Nombre de photos à sélectionner :* ${currentQuota} photos\n\n` +
+      return `*Lamha Studios • Espace Privé*\n\nBonjour ${clientName},\n\nVotre suite privée chez Lamha Studios est prête pour la sélection de vos photographies d'art.\n\n*Accédez à votre Espace Privé :* ${portalUrl}\n` +
+        (clientEmail ? `*Identifiant (Email) :* ${clientEmail}\n` : "") +
+        `*Code PIN de sécurité :* *${pin || "----"}*\n` +
+        `*Nombre de photos à sélectionner :* ${currentQuota} photos\n\n` +
         `Afaf Elaribi • Lamha Studios`
     }
   }
@@ -242,7 +242,7 @@ export function SessionPinCard({
     }
   }
 
-  const basePortalUrl = process.env.NEXT_PUBLIC_PORTAL_URL || (typeof window !== "undefined" && window.location.hostname.includes("lam7a.ma") ? "https://lam7a.ma/portal" : "http://localhost:3001/portal")
+  const basePortalUrl = process.env.NEXT_PUBLIC_PORTAL_URL || "https://lam7a.ma/portal"
   const portalHref = pin
     ? `${basePortalUrl}?pin=${pin}${clientEmail ? `&email=${encodeURIComponent(clientEmail)}` : ""}`
     : basePortalUrl
