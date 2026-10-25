@@ -14,7 +14,9 @@ import {
   Sparkles, 
   Mail,
   X,
-  Clock
+  Clock,
+  Minus,
+  Maximize2
 } from "lucide-react"
 import { useLanguage } from "@/context/language-context"
 import { useTheme } from "@/context/theme-context"
@@ -47,7 +49,7 @@ const I18N = {
     modalSubtitle: "Transfert sécurisé vers le cloud pour la livraison au client",
     sourceLabel: "Fichiers à exporter vers Drive :",
     sourceMaster: "03_Édition_Master",
-    sourceMasterDesc: "Photos & Vidéos montées",
+    sourceMasterDesc: "Photos & Vidéos montées (Format HD Master)",
     sourceSelection: "Sélection Client",
     sourceSelectionDesc: "Favoris avec Cœur",
     sourceDelivery: "04_Livraisons_Finales",
@@ -59,7 +61,7 @@ const I18N = {
     startBtn: "Démarrer la Synchronisation Drive",
     syncingBtn: "Synchronisation vers Drive en cours...",
     successTitle: "Synchronisation Drive Terminée !",
-    successDesc: "Les fichiers ont été téléversés et la carpeta Google Drive est désormais active et liée au projet.",
+    successDesc: "Les fichiers ont été téléversés et le dossier Google Drive est désormais actif et lié au projet.",
     driveFolderLabel: "Lien Google Drive :",
     openDriveBtn: "Ouvrir Google Drive",
     notifyBtn: "Notifier le Client par Email",
@@ -73,7 +75,7 @@ const I18N = {
     modalSubtitle: "Transferencia segura a la nube para la entrega al cliente",
     sourceLabel: "Archivos a exportar a Drive:",
     sourceMaster: "03_Edición_Master",
-    sourceMasterDesc: "Fotos y Videos montados",
+    sourceMasterDesc: "Fotos y Videos montados (Lote Master HD)",
     sourceSelection: "Selección del Cliente",
     sourceSelectionDesc: "Favoritos con Corazón",
     sourceDelivery: "04_Entregas_Finales",
@@ -99,7 +101,7 @@ const I18N = {
     modalSubtitle: "Secure cloud transfer for client delivery",
     sourceLabel: "Files to export to Drive:",
     sourceMaster: "03_Edition_Master",
-    sourceMasterDesc: "Edited Photos & Videos",
+    sourceMasterDesc: "Edited Photos & Videos (HD Master)",
     sourceSelection: "Client Favorites",
     sourceSelectionDesc: "Heart Favorites",
     sourceDelivery: "04_Final_Deliveries",
@@ -125,7 +127,7 @@ const I18N = {
     modalSubtitle: "نقل سحابي آمن وسريع لتسليم العمل للعميل",
     sourceLabel: "الملفات المراد تصديرها إلى Drive:",
     sourceMaster: "03_Édition_Master",
-    sourceMasterDesc: "الصور والفيديوهات بعد المونتاج",
+    sourceMasterDesc: "الصور والفيديوهات بعد المونتاج (نسخة الماستر الأصلية)",
     sourceSelection: "الصور المختارة",
     sourceSelectionDesc: "الصور بعلامة القلب",
     sourceDelivery: "04_Entregas_Finales",
@@ -168,8 +170,9 @@ export function MontageDriveSyncModal({
   const isRtl = activeLang === "ar"
 
   const [isOpen, setIsOpen] = useState(false)
-  const [sourceMode, setSourceMode] = useState<"master" | "selection" | "delivery">("master")
-  const [retentionDays, setRetentionDays] = useState<number>(30)
+  const [isMinimized, setIsMinimized] = useState(false)
+  const [sourceMode] = useState<"master">("master")
+  const [retentionDays] = useState<number>(30)
 
   const [isSyncing, setIsSyncing] = useState(false)
   const [status, setStatus] = useState<"idle" | "running" | "completed" | "error">("idle")
@@ -207,7 +210,7 @@ export function MontageDriveSyncModal({
           folderName,
           clientName,
           retentionDays,
-          preferredSource: sourceMode === "selection" ? "master" : sourceMode,
+          preferredSource: "master",
           language: activeLang,
         }),
       })
@@ -234,20 +237,29 @@ export function MontageDriveSyncModal({
             const data = JSON.parse(line)
             if (data.type === "log") {
               addLog(data.level || "info", data.msg)
-              if (data.msg.includes("%") || data.percent) {
-                setProgressPercent(data.percent || 50)
+              if (data.percent !== undefined) {
+                setProgressPercent(data.percent)
               }
-              if (data.currentFile) {
-                setCurrentFileText(data.currentFile)
+              if (data.currentFile || data.fileName) {
+                setCurrentFileText(data.currentFile || data.fileName)
               }
             } else if (data.type === "progress") {
-              setProgressPercent(data.percent || 50)
-              if (data.currentFile) setCurrentFileText(data.currentFile)
-            } else if (data.type === "done") {
+              const calcPercent = data.percent !== undefined
+                ? data.percent
+                : data.totalBytes > 0
+                  ? Math.round((data.bytesTransferred / data.totalBytes) * 100)
+                  : Math.round(((data.current || 0) / (data.total || 1)) * 100)
+
+              setProgressPercent(Math.min(99, Math.max(0, calcPercent)))
+              if (data.fileName || data.currentFile) {
+                setCurrentFileText(`[${data.current || 1}/${data.total || 1}] ${data.fileName || data.currentFile} (${data.sizeMb || ""} MB)`)
+              }
+            } else if (data.type === "done" || data.type === "completed") {
               setProgressPercent(100)
               setStatus("completed")
-              if (data.url) setGeneratedDriveUrl(data.url)
-              addLog("success", `✦ Terminé avec succès. Lien Drive: ${data.url || ""}`)
+              const driveUrl = data.url || data.folderUrl
+              if (driveUrl) setGeneratedDriveUrl(driveUrl)
+              addLog("success", `✦ Terminé avec succès. Lien Drive: ${driveUrl || ""}`)
               if (onSuccess) onSuccess()
             } else if (data.type === "error") {
               throw new Error(data.error || "Erreur lors de la synchronisation.")
@@ -338,18 +350,39 @@ export function MontageDriveSyncModal({
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setIsOpen(false)}
-                className={cn(
-                  "p-1.5 rounded-lg transition-colors cursor-pointer",
-                  isLight
-                    ? "text-[#8c7a6b] hover:text-[#1f1710] hover:bg-[#ede3d4]"
-                    : "text-[#8c7a6b] hover:text-[#f5f2eb] hover:bg-[#231e19]"
-                )}
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMinimized(true)
+                    setIsOpen(false)
+                  }}
+                  title={activeLang === "ar" ? "تصغير" : activeLang === "fr" ? "Réduire" : activeLang === "en" ? "Minimize" : "Minimizar"}
+                  className={cn(
+                    "p-1.5 rounded-lg transition-colors cursor-pointer",
+                    isLight
+                      ? "text-[#8c7a6b] hover:text-[#1f1710] hover:bg-[#ede3d4]"
+                      : "text-[#8c7a6b] hover:text-[#f5f2eb] hover:bg-[#231e19]"
+                  )}
+                >
+                  <Minus className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsOpen(false)
+                    if (isSyncing) setIsMinimized(true)
+                  }}
+                  className={cn(
+                    "p-1.5 rounded-lg transition-colors cursor-pointer",
+                    isLight
+                      ? "text-[#8c7a6b] hover:text-[#1f1710] hover:bg-[#ede3d4]"
+                      : "text-[#8c7a6b] hover:text-[#f5f2eb] hover:bg-[#231e19]"
+                  )}
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
             {/* Body */}
@@ -419,158 +452,44 @@ export function MontageDriveSyncModal({
               ) : (
                 /* Estado de Configuración o Progreso */
                 <>
-                  {/* Selector de Fuente */}
-                  <div className="space-y-2">
+                  {/* Fuente Seleccionada: 03_Edición_Master */}
+                  <div className="space-y-1.5">
                     <label className={cn(
                       "text-[11px] font-semibold uppercase tracking-wider block",
                       isLight ? "text-[#9e753b]" : "text-[#c69f68]"
                     )}>
                       {t.sourceLabel}
                     </label>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                      {/* Master Card */}
-                      <button
-                        type="button"
-                        disabled={isSyncing}
-                        onClick={() => setSourceMode("master")}
-                        className={cn(
-                          "p-3 rounded-xl border text-start transition-all cursor-pointer",
-                          sourceMode === "master"
-                            ? isLight
-                              ? "bg-[#f5eefc] border-purple-500 text-purple-900 ring-2 ring-purple-500/30 shadow-sm"
-                              : "bg-purple-950/40 border-purple-500/70 text-[#f5f2eb] ring-1 ring-purple-500/40"
-                            : isLight
-                              ? "bg-white border-[#ded5c7] text-[#4d4034] hover:border-purple-400 hover:bg-[#fcfaf7]"
-                              : "bg-[#181512] border-[#29231c] text-[#a89f91] hover:text-[#f5f2eb] hover:bg-[#201c18]"
-                        )}
-                      >
-                        <span className={cn(
-                          "font-bold block text-xs mb-0.5",
-                          sourceMode === "master" && isLight ? "text-purple-900" : ""
-                        )}>
-                          {t.sourceMaster}
-                        </span>
-                        <span className={cn(
-                          "text-[10px] block opacity-80",
-                          sourceMode === "master" && isLight ? "text-purple-700" : ""
-                        )}>
-                          {t.sourceMasterDesc}
-                        </span>
-                      </button>
-
-                      {/* Selection Card */}
-                      <button
-                        type="button"
-                        disabled={isSyncing}
-                        onClick={() => setSourceMode("selection")}
-                        className={cn(
-                          "p-3 rounded-xl border text-start transition-all cursor-pointer",
-                          sourceMode === "selection"
-                            ? isLight
-                              ? "bg-[#fdf6ec] border-[#c69f68] text-[#6b4718] ring-2 ring-[#c69f68]/30 shadow-sm"
-                              : "bg-[#c69f68]/20 border-[#c69f68]/70 text-[#f5f2eb] ring-1 ring-[#c69f68]/40"
-                            : isLight
-                              ? "bg-white border-[#ded5c7] text-[#4d4034] hover:border-[#c69f68] hover:bg-[#fcfaf7]"
-                              : "bg-[#181512] border-[#29231c] text-[#a89f91] hover:text-[#f5f2eb] hover:bg-[#201c18]"
-                        )}
-                      >
-                        <span className={cn(
-                          "font-bold block text-xs mb-0.5 flex items-center justify-between gap-1",
-                          sourceMode === "selection" && isLight ? "text-[#6b4718]" : ""
-                        )}>
-                          <span>❤️ {t.sourceSelection}</span>
-                          <span className={cn(
-                            "text-[10px] px-1.5 py-0.2 rounded font-mono font-bold",
-                            isLight 
-                              ? "bg-[#c69f68]/20 text-[#85531d]" 
-                              : "bg-[#c69f68]/20 text-[#c69f68]"
-                          )}>
-                            {selectedCount}
-                          </span>
-                        </span>
-                        <span className={cn(
-                          "text-[10px] block opacity-80",
-                          sourceMode === "selection" && isLight ? "text-[#85531d]" : ""
-                        )}>
-                          {t.sourceSelectionDesc}
-                        </span>
-                      </button>
-
-                      {/* Final Delivery Card */}
-                      <button
-                        type="button"
-                        disabled={isSyncing}
-                        onClick={() => setSourceMode("delivery")}
-                        className={cn(
-                          "p-3 rounded-xl border text-start transition-all cursor-pointer",
-                          sourceMode === "delivery"
-                            ? isLight
-                              ? "bg-[#edfbf4] border-emerald-500 text-emerald-950 ring-2 ring-emerald-500/30 shadow-sm"
-                              : "bg-emerald-950/40 border-emerald-500/70 text-[#f5f2eb] ring-1 ring-emerald-500/40"
-                            : isLight
-                              ? "bg-white border-[#ded5c7] text-[#4d4034] hover:border-emerald-400 hover:bg-[#fcfaf7]"
-                              : "bg-[#181512] border-[#29231c] text-[#a89f91] hover:text-[#f5f2eb] hover:bg-[#201c18]"
-                        )}
-                      >
-                        <span className={cn(
-                          "font-bold block text-xs mb-0.5",
-                          sourceMode === "delivery" && isLight ? "text-emerald-950" : ""
-                        )}>
-                          {t.sourceDelivery}
-                        </span>
-                        <span className={cn(
-                          "text-[10px] block opacity-80",
-                          sourceMode === "delivery" && isLight ? "text-emerald-700" : ""
-                        )}>
-                          {t.sourceDeliveryDesc}
-                        </span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Periodo de retención */}
-                  <div className={cn(
-                    "p-3.5 rounded-xl border flex items-center justify-between gap-3 transition-colors",
-                    isLight
-                      ? "bg-white border-[#ded5c7] text-[#4d4034]"
-                      : "bg-[#181512] border-[#28221b] text-[#8c7a6b]"
-                  )}>
-                    <span className={cn(
-                      "flex items-center gap-1.5 font-medium",
-                      isLight ? "text-[#5e4f40]" : "text-[#8c7a6b]"
-                    )}>
-                      <Clock className="w-3.5 h-3.5 text-[#c69f68]" />
-                      <span>{t.retentionLabel}</span>
-                    </span>
-
                     <div className={cn(
-                      "flex items-center gap-1 p-0.5 rounded-lg border",
-                      isLight ? "bg-[#f5ede2] border-[#e2d8ca]" : "bg-[#100e0c] border-[#29221b]"
+                      "p-3.5 rounded-xl border flex items-center justify-between gap-3 transition-colors",
+                      isLight
+                        ? "bg-[#f5eefc] border-purple-300 text-purple-950 ring-2 ring-purple-500/20 shadow-sm"
+                        : "bg-purple-950/30 border-purple-500/40 text-[#f5f2eb] ring-1 ring-purple-500/30"
                     )}>
-                      {[
-                        { days: 30, label: t.days30 },
-                        { days: 60, label: t.days60 },
-                        { days: 3650, label: t.permanent },
-                      ].map((item) => (
-                        <button
-                          key={item.days}
-                          type="button"
-                          disabled={isSyncing}
-                          onClick={() => setRetentionDays(item.days)}
-                          className={cn(
-                            "px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer",
-                            retentionDays === item.days
-                              ? isLight
-                                ? "bg-[#c69f68] text-white shadow-sm"
-                                : "bg-[#c69f68] text-[#0d0c0b] shadow-sm font-bold"
-                              : isLight
-                                ? "text-[#7d6c5c] hover:text-[#1f1710] hover:bg-[#ede3d4]"
-                                : "text-[#8c7a6b] hover:text-[#f5f2eb] hover:bg-[#201c18]"
-                          )}
-                        >
-                          {item.label}
-                        </button>
-                      ))}
+                      <div className="flex items-center gap-3">
+                        <div className={cn(
+                          "w-9 h-9 rounded-lg border flex items-center justify-center shrink-0",
+                          isLight
+                            ? "bg-purple-100 border-purple-200 text-purple-700"
+                            : "bg-purple-900/50 border-purple-500/40 text-purple-300"
+                        )}>
+                          <Layers className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <span className="font-bold text-xs block text-purple-900 dark:text-purple-200">
+                            {t.sourceMaster}
+                          </span>
+                          <span className="text-[11px] opacity-80 block text-purple-700 dark:text-purple-300">
+                            {t.sourceMasterDesc}
+                          </span>
+                        </div>
+                      </div>
+                      <span className={cn(
+                        "text-[10px] uppercase font-mono px-2.5 py-1 rounded-md font-bold tracking-wider",
+                        isLight ? "bg-purple-200/80 text-purple-900" : "bg-purple-800/40 text-purple-300"
+                      )}>
+                        RAW / Master HD
+                      </span>
                     </div>
                   </div>
 
@@ -697,6 +616,125 @@ export function MontageDriveSyncModal({
             )}
           </div>
         </div>
+      )}
+
+      {/* Widget flotante en la esquina inferior cuando está minimizado o en progreso */}
+      {isMinimized && (
+        <aside 
+          aria-label="Google Drive Export Progress"
+          className={cn(
+            "fixed bottom-5 right-5 z-50 w-80 sm:w-96 rounded-2xl border shadow-2xl p-3.5 backdrop-blur-md animate-in slide-in-from-bottom-5 duration-200 transition-all",
+            isLight
+              ? "bg-[#ffffff]/95 border-[#ded5c7] text-[#2c2219] shadow-xl shadow-black/10"
+              : "bg-[#13110f]/95 border-[#2c2620] text-[#f5f2eb] shadow-2xl shadow-black/60"
+          )}
+        >
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className={cn(
+                "w-8 h-8 rounded-xl border flex items-center justify-center shrink-0",
+                status === "completed"
+                  ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-500"
+                  : status === "error"
+                  ? "bg-rose-500/15 border-rose-500/30 text-rose-400"
+                  : isSyncing
+                  ? "bg-sky-500/15 border-sky-500/30 text-sky-400"
+                  : "bg-[#c69f68]/15 border-[#c69f68]/30 text-[#c69f68]"
+              )}>
+                {status === "completed" ? (
+                  <CheckCircle2 className="w-4 h-4" />
+                ) : status === "error" ? (
+                  <AlertCircle className="w-4 h-4" />
+                ) : isSyncing ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Cloud className="w-4 h-4" />
+                )}
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-bold truncate">
+                  {clientName} • Google Drive
+                </p>
+                <p className={cn(
+                  "text-[10px] truncate font-mono",
+                  isLight ? "text-[#7d6c5c]" : "text-[#8c7a6b]"
+                )}>
+                  {status === "completed" 
+                    ? (activeLang === "es" ? "¡Sincronización completada!" : "Transfert terminé") 
+                    : status === "error"
+                    ? (errorMessage || "Erreur de transfert")
+                    : (currentFileText || (isSyncing ? "En cours de transfert..." : "En attente"))}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMinimized(false)
+                  setIsOpen(true)
+                }}
+                title={activeLang === "es" ? "Restaurar ventana" : "Agrandir"}
+                className={cn(
+                  "p-1.5 rounded-lg transition-colors cursor-pointer",
+                  isLight ? "hover:bg-[#f2ebe0] text-[#7d6c5c]" : "hover:bg-[#201c18] text-[#a89f92]"
+                )}
+              >
+                <Maximize2 className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsMinimized(false)}
+                title={activeLang === "es" ? "Cerrar widget" : "Fermer"}
+                className={cn(
+                  "p-1.5 rounded-lg transition-colors cursor-pointer",
+                  isLight ? "hover:bg-[#f2ebe0] text-[#7d6c5c]" : "hover:bg-[#201c18] text-[#a89f92]"
+                )}
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Barra de progreso interactiva */}
+          <div className="space-y-1">
+            <div className="flex items-center justify-between text-[10px] font-mono">
+              <span className={cn(
+                "font-bold",
+                status === "completed" 
+                  ? "text-emerald-500" 
+                  : isLight ? "text-[#9e753b]" : "text-[#c69f68]"
+              )}>
+                {status === "completed" ? "100%" : `${progressPercent}%`}
+              </span>
+              <span className={cn(
+                "text-[10px]",
+                isLight ? "text-[#8c7a6b]" : "text-[#a89f92]"
+              )}>
+                {status === "completed" 
+                  ? "✓ Carpeta vinculada" 
+                  : isSyncing 
+                  ? `${progressPercent}% sincronizado` 
+                  : "Listo para iniciar"}
+              </span>
+            </div>
+            <div className={cn(
+              "w-full h-1.5 rounded-full overflow-hidden border",
+              isLight ? "bg-[#ede4d6] border-[#ded3c2]" : "bg-[#1e1b17] border-[#2b251f]"
+            )}>
+              <div 
+                className={cn(
+                  "h-full transition-all duration-300 rounded-full",
+                  status === "completed"
+                    ? "bg-emerald-500"
+                    : "bg-gradient-to-r from-[#c69f68] via-sky-500 to-emerald-500"
+                )}
+                style={{ width: `${status === "completed" ? 100 : progressPercent}%` }}
+              />
+            </div>
+          </div>
+        </aside>
       )}
     </>
   )

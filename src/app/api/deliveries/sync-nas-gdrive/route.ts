@@ -195,7 +195,7 @@ export async function POST(req: NextRequest) {
           folderId,
         })
 
-        // Concurrencia de 1 subida secuencial para concentrar el 100% del ancho de banda y evitar colisiones
+        // Subida secuencial con telemetría en tiempo real de porcentaje exacto
         const CONCURRENCY = 1
         let completedCount = 0
         let bytesTransferred = 0
@@ -209,12 +209,18 @@ export async function POST(req: NextRequest) {
 
             log("info", tLogs.uploadingFile(idx + 1, filesWithStats.length, name, sizeMb))
             
+            const initialPercent = totalBytes > 0 
+              ? Math.min(99, Math.round((bytesTransferred / totalBytes) * 100))
+              : Math.round(((completedCount) / filesWithStats.length) * 100)
+
             // Emitir evento inicial del archivo
             send({
               type: "progress",
+              percent: initialPercent,
               current: completedCount + 1,
               total: filesWithStats.length,
               fileName: name,
+              currentFile: name,
               sizeMb: Number(sizeMb),
               bytesTransferred,
               totalBytes,
@@ -240,15 +246,22 @@ export async function POST(req: NextRequest) {
             const onChunkProgress = (chunkBytes: number) => {
               fileBytesSent += chunkBytes
               const now = Date.now()
-              if (now - lastThrottledSend >= 700) {
+              if (now - lastThrottledSend >= 500) {
                 lastThrottledSend = now
+                const currentTransferred = Math.min(totalBytes, bytesTransferred + fileBytesSent)
+                const currentPercent = totalBytes > 0 
+                  ? Math.min(99, Math.round((currentTransferred / totalBytes) * 100))
+                  : Math.round(((completedCount) / filesWithStats.length) * 100)
+
                 send({
                   type: "progress",
+                  percent: currentPercent,
                   current: completedCount + 1,
                   total: filesWithStats.length,
                   fileName: name,
+                  currentFile: name,
                   sizeMb: Number(sizeMb),
-                  bytesTransferred: Math.min(totalBytes, bytesTransferred + fileBytesSent),
+                  bytesTransferred: currentTransferred,
                   totalBytes,
                 })
               }
@@ -263,11 +276,17 @@ export async function POST(req: NextRequest) {
               log("error", tLogs.errorUploadingFile(name, fileErr.message || fileErr))
             }
 
+            const finishPercent = totalBytes > 0 
+              ? Math.min(99, Math.round((bytesTransferred / totalBytes) * 100))
+              : Math.round((completedCount / filesWithStats.length) * 100)
+
             send({
               type: "progress",
+              percent: finishPercent,
               current: completedCount,
               total: filesWithStats.length,
               fileName: name,
+              currentFile: name,
               sizeMb: Number(sizeMb),
               bytesTransferred,
               totalBytes,
@@ -302,10 +321,10 @@ export async function POST(req: NextRequest) {
             is_active: true,
           })
 
-        // 1. Actualizar sesión en Supabase con el ID de carpeta Drive y fase 'shared'
+        // 1. Actualizar sesión en Supabase con fase 'stage:shared' en tags
         const { data: sessionData } = await supabase
           .from("sessions")
-          .select("id, client_name, client_email, client_phone, portal_pin, tags, pipeline_stage")
+          .select("id, client_name, client_email, client_phone, portal_pin, tags")
           .eq("id", sessionId)
           .single()
 
@@ -316,12 +335,26 @@ export async function POST(req: NextRequest) {
         await supabase
           .from("sessions")
           .update({
-            gdrive_folder_id: folderId,
-            pipeline_stage: "shared",
             tags: updatedTags,
             updated_at: now.toISOString(),
           })
           .eq("id", sessionId)
+
+        // Resolver teléfono si no está configurado directamente en la sesión
+        let clientPhone = sessionData?.client_phone
+        if (!clientPhone && sessionData?.client_email) {
+          const { data: siblingSession } = await supabase
+            .from("sessions")
+            .select("client_phone")
+            .eq("client_email", sessionData.client_email)
+            .not("client_phone", "is", null)
+            .limit(1)
+            .maybeSingle()
+          if (siblingSession?.client_phone) {
+            clientPhone = siblingSession.client_phone
+            await supabase.from("sessions").update({ client_phone: clientPhone }).eq("id", sessionId)
+          }
+        }
 
         // 2. Enviar automáticamente Correo y WhatsApp al cliente con acceso al portal, PIN y carpeta Drive
         if (sessionData?.client_email && sessionData?.portal_pin) {
@@ -340,23 +373,23 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        if (sessionData?.client_phone && sessionData?.portal_pin) {
+        if (clientPhone && sessionData?.portal_pin) {
           try {
             const waText = getPhotosReadyWhatsApp({
               clientName: sessionData.client_name,
               portalPin: sessionData.portal_pin,
-              clientEmail: sessionData.client_email,
+              clientEmail: sessionData.client_email || "",
               driveUrl: folderUrl,
               photosCount: completedCount,
               language: lang || "fr",
             })
 
             await sendWhatsAppMessage({
-              phone: sessionData.client_phone,
+              phone: clientPhone,
               text: waText,
               sessionId,
             })
-            log("success", `✦ Message WhatsApp envoyé à ${sessionData.client_phone} avec le code PIN et le lien Google Drive.`)
+            log("success", `✦ Message WhatsApp envoyé à ${clientPhone} avec le code PIN et le lien Google Drive.`)
           } catch (eWa: any) {
             log("warn", `Notice: Erreur lors de l'envoi auto de WhatsApp : ${eWa?.message || eWa}`)
           }
@@ -365,8 +398,19 @@ export async function POST(req: NextRequest) {
         log("success", tLogs.finalDeliveryDone(completedCount, totalMb, retentionDays))
 
         send({
+          type: "done",
+          success: true,
+          url: folderUrl,
+          folderUrl,
+          folderId,
+          totalFiles: completedCount,
+          totalSizeMb: totalMb,
+          expiresAt: expiresAt.toISOString(),
+        })
+        send({
           type: "completed",
           success: true,
+          url: folderUrl,
           folderUrl,
           folderId,
           totalFiles: completedCount,

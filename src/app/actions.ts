@@ -734,14 +734,15 @@ export async function updateSessionPlannerStage(sessionId: string, newStage: str
   try {
     const { data: session, error: fetchErr } = await supabase
       .from('sessions')
-      .select('client_name, tags, status, pipeline_stage')
+      .select('client_name, tags, status')
       .eq('id', sessionId)
       .single();
 
     if (fetchErr) throw fetchErr;
 
-    const previousStage = session?.pipeline_stage || session?.status;
     const currentTags = Array.isArray(session?.tags) ? session.tags : [];
+    const previousStageTag = currentTags.find((t: string) => t.startsWith('stage:'))?.replace('stage:', '');
+    const previousStage = previousStageTag || session?.status;
     const filteredTags = currentTags.filter((t: string) => !t.startsWith('stage:'));
     const updatedTags = [...filteredTags, `stage:${newStage}`];
 
@@ -752,30 +753,16 @@ export async function updateSessionPlannerStage(sessionId: string, newStage: str
     else if (newStage === 'ready_delivery') mappedStatus = 'edited';
     else if (newStage === 'delivered') mappedStatus = 'delivered';
 
-    // Attempt to update with pipeline_stage first (if column exists)
     let updateRes = await supabase
       .from('sessions')
       .update({
         tags: updatedTags,
         status: mappedStatus,
-        pipeline_stage: newStage,
         updated_by: userContext?.userId || null,
       })
       .eq('id', sessionId);
 
-    // If column pipeline_stage doesn't exist yet in Supabase, fallback to tags + status
-    if (updateRes.error) {
-      const fallbackRes = await supabase
-        .from('sessions')
-        .update({
-          tags: updatedTags,
-          status: mappedStatus,
-          updated_by: userContext?.userId || null,
-        })
-        .eq('id', sessionId);
-
-      if (fallbackRes.error) throw fallbackRes.error;
-    }
+    if (updateRes.error) throw updateRes.error;
 
     // Registrar en auditoría estricta el avance de fase en el Planner
     await recordAuditLog({
@@ -796,6 +783,12 @@ export async function updateSessionPlannerStage(sessionId: string, newStage: str
         await notifyReadyForDeliveryAction(sessionId, userContext);
       } catch (notifyErr) {
         console.warn('Fallo no bloqueante al enviar notificación de Ready for Delivery desde Planner:', notifyErr);
+      }
+    } else if (newStage === 'shared') {
+      try {
+        await sendPhotosReadyEmailAction(sessionId, userContext);
+      } catch (notifyErr) {
+        console.warn('Fallo no bloqueante al enviar notificación de Fotos Compartidas desde Planner:', notifyErr);
       }
     }
 
@@ -922,7 +915,7 @@ export async function sendPhotosReadyEmailAction(
     // 1. Obtener datos del proyecto
     const { data: session, error: sErr } = await supabase
       .from('sessions')
-      .select('id, client_name, client_email, client_phone, client_id, portal_pin, gdrive_folder_id, comments, tags, pipeline_stage')
+      .select('id, client_name, client_email, client_phone, client_id, portal_pin, comments, tags')
       .eq('id', sessionId)
       .single();
 
@@ -930,7 +923,23 @@ export async function sendPhotosReadyEmailAction(
       return { success: false, error: 'No se encontró la sesión o proyecto.' };
     }
 
-    if (!session.client_email && !session.client_phone) {
+    // Resolver teléfono si no está configurado directamente en la sesión
+    let clientPhone = session.client_phone;
+    if (!clientPhone && session.client_email) {
+      const { data: siblingSession } = await supabase
+        .from('sessions')
+        .select('client_phone')
+        .eq('client_email', session.client_email)
+        .not('client_phone', 'is', null)
+        .limit(1)
+        .maybeSingle();
+      if (siblingSession?.client_phone) {
+        clientPhone = siblingSession.client_phone;
+        await supabase.from('sessions').update({ client_phone: clientPhone }).eq('id', sessionId);
+      }
+    }
+
+    if (!session.client_email && !clientPhone) {
       return { success: false, error: 'Este proyecto no tiene ni correo ni teléfono de cliente registrado.' };
     }
 
@@ -946,18 +955,18 @@ export async function sendPhotosReadyEmailAction(
 
     // 3. Buscar enlace de Google Drive
     let driveFolderUrl: string | null = null;
-    if (session.gdrive_folder_id) {
-      driveFolderUrl = `https://drive.google.com/drive/folders/${session.gdrive_folder_id}`;
-    } else {
-      const { data: delivery } = await supabase
-        .from('media_deliveries')
-        .select('url')
-        .eq('session_id', sessionId)
-        .eq('delivery_type', 'folder_link')
-        .maybeSingle();
-      if (delivery?.url) {
-        driveFolderUrl = delivery.url;
-      }
+    const { data: delivery } = await supabase
+      .from('media_deliveries')
+      .select('url, gdrive_folder_id')
+      .eq('session_id', sessionId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (delivery?.url) {
+      driveFolderUrl = delivery.url;
+    } else if (delivery?.gdrive_folder_id) {
+      driveFolderUrl = `https://drive.google.com/drive/folders/${delivery.gdrive_folder_id}`;
     }
 
     const emailLang = language || 'fr';
@@ -992,7 +1001,7 @@ export async function sendPhotosReadyEmailAction(
     }
 
     // 5. Enviar mensaje de WhatsApp si tiene teléfono
-    if (session.client_phone) {
+    if (clientPhone) {
       try {
         const waText = getPhotosReadyWhatsApp({
           clientName: session.client_name,
@@ -1004,7 +1013,7 @@ export async function sendPhotosReadyEmailAction(
         });
 
         await sendWhatsAppMessage({
-          phone: session.client_phone,
+          phone: clientPhone,
           text: waText,
           clientId: session.client_id || null,
           sessionId: session.id,
@@ -1016,7 +1025,7 @@ export async function sendPhotosReadyEmailAction(
           entityId: sessionId,
           entityTitle: session.client_name,
           details: {
-            phone: session.client_phone,
+            phone: clientPhone,
             portal_pin: session.portal_pin,
             photos_count: photosCount || 0,
             language: emailLang,
@@ -1066,7 +1075,7 @@ export async function notifyReadyForDeliveryAction(
   try {
     const { data: session, error: sErr } = await supabase
       .from('sessions')
-      .select('id, client_name, client_email, client_phone, client_id, portal_pin, category, gdrive_folder_id')
+      .select('id, client_name, client_email, client_phone, client_id, portal_pin, category')
       .eq('id', sessionId)
       .single();
 
@@ -1074,17 +1083,35 @@ export async function notifyReadyForDeliveryAction(
       return { success: false, error: 'No se encontró la sesión.' };
     }
 
-    let driveFolderUrl: string | null = null;
-    if (session.gdrive_folder_id) {
-      driveFolderUrl = `https://drive.google.com/drive/folders/${session.gdrive_folder_id}`;
-    } else {
-      const { data: delivery } = await supabase
-        .from('media_deliveries')
-        .select('url')
-        .eq('session_id', sessionId)
-        .eq('delivery_type', 'final_link')
+    // Resolver teléfono si no está configurado directamente en la sesión
+    let clientPhone = session.client_phone;
+    if (!clientPhone && session.client_email) {
+      const { data: siblingSession } = await supabase
+        .from('sessions')
+        .select('client_phone')
+        .eq('client_email', session.client_email)
+        .not('client_phone', 'is', null)
+        .limit(1)
         .maybeSingle();
-      if (delivery?.url) driveFolderUrl = delivery.url;
+      if (siblingSession?.client_phone) {
+        clientPhone = siblingSession.client_phone;
+        await supabase.from('sessions').update({ client_phone: clientPhone }).eq('id', sessionId);
+      }
+    }
+
+    let driveFolderUrl: string | null = null;
+    const { data: delivery } = await supabase
+      .from('media_deliveries')
+      .select('url, gdrive_folder_id')
+      .eq('session_id', sessionId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (delivery?.url) {
+      driveFolderUrl = delivery.url;
+    } else if (delivery?.gdrive_folder_id) {
+      driveFolderUrl = `https://drive.google.com/drive/folders/${delivery.gdrive_folder_id}`;
     }
 
     const emailLang = language || 'fr';
@@ -1121,7 +1148,7 @@ export async function notifyReadyForDeliveryAction(
     }
 
     // 2. Enviar WhatsApp
-    if (session.client_phone) {
+    if (clientPhone) {
       try {
         const text = getReadyForDeliveryWhatsApp({
           clientName: session.client_name,
@@ -1133,7 +1160,7 @@ export async function notifyReadyForDeliveryAction(
         });
 
         await sendWhatsAppMessage({
-          phone: session.client_phone,
+          phone: clientPhone,
           text,
           clientId: session.client_id || null,
           sessionId: session.id,
@@ -1145,7 +1172,7 @@ export async function notifyReadyForDeliveryAction(
           entityId: sessionId,
           entityTitle: session.client_name,
           details: {
-            phone: session.client_phone,
+            phone: clientPhone,
             category: session.category,
             language: emailLang,
           },
