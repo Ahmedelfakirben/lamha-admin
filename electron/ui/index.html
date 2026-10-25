@@ -522,12 +522,12 @@
       </div>
       <div class="card-content">
         <label class="pipeline-step">
-          <input type="checkbox" id="chk-local" checked disabled>
+          <input type="checkbox" id="chk-local" checked>
           <div class="pipeline-step-text">
             <strong id="txt-pipe-local">1. Copie Ultra-Rapide vers SSD Local</strong>
             <span id="txt-pipe-local-desc">Stockage de travail haute vitesse pour le montage immédiat</span>
           </div>
-          <span class="badge-step">SSD Requis</span>
+          <span class="badge-step" id="badge-step-local">Étape 1</span>
         </label>
 
         <label class="pipeline-step">
@@ -606,12 +606,20 @@
         <input type="text" id="cfg-ssd-path" class="text-input">
       </div>
       <div class="form-group">
-        <label>Hôte NAS (FTP) :</label>
-        <input type="text" id="cfg-nas-host" class="text-input">
+        <label>Hôte NAS / IP (QNAP) :</label>
+        <input type="text" id="cfg-nas-host" class="text-input" placeholder="192.168.1.150">
+      </div>
+      <div class="form-group">
+        <label>Utilisateur NAS (QNAP) :</label>
+        <input type="text" id="cfg-nas-user" class="text-input" placeholder="admin">
       </div>
       <div class="form-group">
         <label>Mot de passe NAS :</label>
         <input type="password" id="cfg-nas-pass" class="text-input" placeholder="(Laisser vide pour ne pas modifier)">
+      </div>
+      <div class="form-group">
+        <label>Dossier Racine / Partage NAS :</label>
+        <input type="text" id="cfg-nas-dir" class="text-input" placeholder="/Lamha-Storage">
       </div>
       <div style="display: flex; justify-content: flex-end; gap: 8px;">
         <button id="btn-save-settings" class="btn-primary" style="padding: 10px 18px; font-size: 13px;">Enregistrer</button>
@@ -792,6 +800,8 @@
       document.getElementById("cfg-dashboard-url").value = cfg.dashboardUrl || "";
       document.getElementById("cfg-ssd-path").value = cfg.ssdPath || "";
       document.getElementById("cfg-nas-host").value = cfg.nasHost || "";
+      document.getElementById("cfg-nas-user").value = cfg.nasUser || "admin";
+      document.getElementById("cfg-nas-dir").value = cfg.nasBaseDir || "/Lamha-Storage";
       modalSettings.classList.add("open");
     };
     document.getElementById("btn-close-settings").onclick = () => modalSettings.classList.remove("open");
@@ -800,6 +810,8 @@
         dashboardUrl: document.getElementById("cfg-dashboard-url").value,
         ssdPath: document.getElementById("cfg-ssd-path").value,
         nasHost: document.getElementById("cfg-nas-host").value,
+        nasUser: document.getElementById("cfg-nas-user").value,
+        nasBaseDir: document.getElementById("cfg-nas-dir").value,
       };
       const p = document.getElementById("cfg-nas-pass").value;
       if (p) patch.nasPassword = p;
@@ -838,6 +850,7 @@
       await window.electronAPI.startIngest({
         sourcePath: selectedDrive,
         sessionId: sessId,
+        copyLocal: document.getElementById("chk-local").checked,
         uploadSupabase: document.getElementById("chk-supabase").checked,
         syncNas: document.getElementById("chk-nas").checked,
       });

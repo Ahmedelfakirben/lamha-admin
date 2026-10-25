@@ -35,6 +35,8 @@ import {
 } from "lucide-react"
 import { MasterDeliveryUploadModal } from "@/components/master-delivery-upload-modal"
 import { MontageDriveSyncModal } from "@/components/montage-drive-sync-modal"
+import { ProjectStorageHub } from "@/components/project-storage-hub"
+import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { toggleAssetSharedAction, bulkSetAssetsSharedAction, deleteAssetAction } from "@/app/actions"
 import { useLanguage } from "@/context/language-context"
 import { createClient } from "@/lib/supabase"
@@ -84,7 +86,8 @@ function SafeImage({ src, alt, className }: { src: string; alt: string; classNam
 }
 
 export function SessionMediaManager({ session, initialAssets = [], projectFolder }: SessionMediaManagerProps) {
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
+  const [showStorageHub, setShowStorageHub] = useState(false)
   const [assets, setAssets] = useState<MediaAsset[]>(initialAssets || [])
   const [activeTab, setActiveTab] = useState<"photos" | "videos" | "master" | "selected" | "shared" | "delivery">("photos")
   const [masterSubFilter, setMasterSubFilter] = useState<"all" | "photos" | "videos">("all")
@@ -670,6 +673,26 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Botón Auditer & Sincronizar Almacenamiento Global */}
+          <button
+            type="button"
+            onClick={() => setShowStorageHub(true)}
+            className="px-3 py-1.5 rounded-lg border border-[#c69f68]/40 hover:bg-[#c69f68]/15 bg-[#c69f68]/10 text-[#f5f2eb] text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
+            title={language === "fr" ? "Auditer et synchroniser le stockage (SSD / NAS / Supabase)" : language === "ar" ? "تدقيق ومزامنة التخزين" : language === "en" ? "Audit & sync storage" : "Auditar y sincronizar almacenamiento"}
+          >
+            <Server className="w-3.5 h-3.5 text-[#c69f68]" />
+            <span className="hidden sm:inline">
+              {language === "fr" ? "Auditer Stockage" : language === "ar" ? "تدقيق التخزين" : language === "en" ? "Audit Storage" : "Auditar Stockage"}
+            </span>
+          </button>
+
+          <Dialog open={showStorageHub} onOpenChange={setShowStorageHub}>
+            <DialogContent className="max-w-4xl bg-[#0f0e0c] border-[#26211c] p-0 overflow-hidden text-[#f5f2eb]">
+              <DialogTitle className="sr-only">Stockage du Projet</DialogTitle>
+              <ProjectStorageHub projectFolder={fName} sessionId={session.id} clientName={session.client_name} />
+            </DialogContent>
+          </Dialog>
+
           <button
             onClick={() => handleBulkShare(true)}
             disabled={currentList.length === 0}

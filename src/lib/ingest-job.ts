@@ -28,7 +28,7 @@ export interface IngestStats {
 
 export interface IngestJobState {
   status: "idle" | "running" | "completed" | "error"
-  phase: "idle" | "preparing" | "copying" | "syncing" | "done"
+  phase: "idle" | "preparing" | "copying" | "syncing" | "nas_sync" | "done"
   total: number
   current: number
   percent: number

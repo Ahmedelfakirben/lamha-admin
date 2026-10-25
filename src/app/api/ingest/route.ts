@@ -10,7 +10,8 @@ import {
   createProjectFoldersOnStorage,
   classifyMediaFile,
   PHOTO_EXTENSIONS,
-  VIDEO_EXTENSIONS
+  VIDEO_EXTENSIONS,
+  NAS_FTP_CONFIG
 } from "@/lib/storage-config"
 import { createClient } from "@supabase/supabase-js"
 import {
@@ -618,8 +619,101 @@ async function runIngestJob(body: any) {
     }
   }
 
-  // El resultado del NAS es informativo; no retrasamos el final de la ingesta por él.
-  await Promise.race([nasFoldersPromise, new Promise(r => setTimeout(r, 1500))])
+  // 7. FASE 4: Copia de seguridad idéntica al NAS (FTP)
+  try {
+    await nasFoldersPromise
+  } catch {}
+
+  const nasLangDict: Record<string, { start: string; progress: (done: number, total: number, name: string) => string; done: (total: number) => string; fail: (err: string) => string }> = {
+    es: {
+      start: `📡 Iniciando copia de seguridad idéntica al NAS (FTP: ${NAS_FTP_CONFIG.host})...`,
+      progress: (done, total, name) => `[NAS ${done}/${total}] 📤 ${name}`,
+      done: (total) => `✅ Respaldo NAS completado con éxito: ${total} archivos sincronizados.`,
+      fail: (err) => `⚠️ NAS no disponible (${err}). Los archivos quedan asegurados en el SSD local.`
+    },
+    fr: {
+      start: `📡 Démarrage de la sauvegarde identique sur le NAS (FTP: ${NAS_FTP_CONFIG.host})...`,
+      progress: (done, total, name) => `[NAS ${done}/${total}] 📤 ${name}`,
+      done: (total) => `✅ Sauvegarde NAS terminée avec succès : ${total} fichiers synchronisés.`,
+      fail: (err) => `⚠️ NAS indisponible (${err}). Les fichiers restent sécurisés sur le SSD local.`
+    },
+    en: {
+      start: `📡 Starting identical backup copy to NAS (FTP: ${NAS_FTP_CONFIG.host})...`,
+      progress: (done, total, name) => `[NAS ${done}/${total}] 📤 ${name}`,
+      done: (total) => `✅ NAS backup successfully completed: ${total} files synced.`,
+      fail: (err) => `⚠️ NAS unavailable (${err}). Files remain safely stored on local SSD.`
+    },
+    ar: {
+      start: `📡 بدء النسخ الاحتياطي المتطابق إلى وحدة NAS (FTP: ${NAS_FTP_CONFIG.host})...`,
+      progress: (done, total, name) => `[NAS ${done}/${total}] 📤 ${name}`,
+      done: (total) => `✅ اكتمل النسخ الاحتياطي على NAS بنجاح: تمت مزامنة ${total} ملفًا.`,
+      fail: (err) => `⚠️ وحدة NAS غير متاحة (${err}). الملفات مؤمنة على قرص SSD المحلي.`
+    }
+  }
+  const nMsg = nasLangDict[lang] || nasLangDict["es"]
+
+  if (filesToCopy.length > 0 && NAS_FTP_CONFIG.password) {
+    ingestSetPhase("nas_sync")
+    ingestLog("info", nMsg.start)
+    try {
+      const ftp = await import("basic-ftp")
+      const client = new ftp.Client(90000)
+      client.ftp.verbose = false
+      await client.access({
+        host: NAS_FTP_CONFIG.host,
+        user: NAS_FTP_CONFIG.user,
+        password: NAS_FTP_CONFIG.password,
+        port: 21,
+      })
+
+      const ensuredDirs = new Set<string>()
+      let nasDone = 0
+
+      for (const item of filesToCopy) {
+        const isPhoto = item.type === "photo"
+        const sub = isPhoto ? "Fotos" : "Videos"
+        const targetDir = isPhoto ? rawPhotosDir : rawVideosDir
+        const localFilePath = path.join(targetDir, item.name)
+        const remoteDir = `${NAS_FTP_CONFIG.baseDir}/${folderName}/01_RAW/${sub}`
+        const remoteFilePath = `${remoteDir}/${item.name}`
+
+        try {
+          if (!ensuredDirs.has(remoteDir)) {
+            await client.ensureDir(remoteDir)
+            ensuredDirs.add(remoteDir)
+          }
+
+          let sameSize = false
+          try {
+            const rSize = await client.size(remoteFilePath)
+            if (rSize === item.size) sameSize = true
+          } catch {}
+
+          if (!sameSize && fs.existsSync(localFilePath)) {
+            await client.uploadFrom(localFilePath, remoteFilePath)
+          }
+          nasDone++
+          if (nasDone % 10 === 0 || nasDone === filesToCopy.length) {
+            ingestLog("info", nMsg.progress(nasDone, filesToCopy.length, item.name))
+          }
+        } catch {
+          // Si un archivo falla o socket cae, intentar reconectar
+          try {
+            await client.access({
+              host: NAS_FTP_CONFIG.host,
+              user: NAS_FTP_CONFIG.user,
+              password: NAS_FTP_CONFIG.password,
+              port: 21,
+            })
+          } catch {}
+        }
+      }
+      ingestLog("success", nMsg.done(nasDone))
+      try { client.close() } catch {}
+    } catch (nasErr: any) {
+      ingestLog("warn", nMsg.fail(nasErr.message || String(nasErr)))
+    }
+  }
 
   await ingestComplete(
     {

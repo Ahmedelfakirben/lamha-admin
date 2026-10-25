@@ -75,6 +75,7 @@ function getPublicSettings() {
     dashboardUrl: c.dashboardUrl,
     ssdPath: c.ssdPath,
     nasHost: c.nasHost,
+    nasUser: c.nasUser,
     nasBaseDir: c.nasBaseDir,
     language: c.language,
     theme: c.theme,

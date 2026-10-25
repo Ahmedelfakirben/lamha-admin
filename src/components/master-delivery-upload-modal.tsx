@@ -36,7 +36,7 @@ interface MasterDeliveryUploadModalProps {
   sessionId: string
   folderName: string
   clientName?: string
-  defaultTargetFolder?: "03_Edicion_Master" | "04_Entregas_Finales"
+  defaultTargetFolder?: "03_Edicion_Master"
   triggerButton?: React.ReactNode
   onSuccess?: () => void
 }
@@ -61,7 +61,7 @@ export function MasterDeliveryUploadModal({
 
   // Modo: "upload" (subir nuevos) o "sync_nas" (sincronizar los que ya están en disco)
   const [activeTab, setActiveTab] = useState<"upload" | "sync_nas">("upload")
-  const [targetFolder, setTargetFolder] = useState<"03_Edicion_Master" | "04_Entregas_Finales">(defaultTargetFolder)
+  const [targetFolder, setTargetFolder] = useState<"03_Edicion_Master">("03_Edicion_Master")
   const [replicateNas, setReplicateNas] = useState(true)
 
   // Estado del NAS
@@ -442,73 +442,27 @@ export function MasterDeliveryUploadModal({
 
           {/* Contenido Principal */}
           <div className="p-6 pt-3 space-y-4 max-h-[70vh] overflow-y-auto scrollbar-thin scrollbar-thumb-[#262420] scrollbar-track-transparent">
-            {/* Selector de Carpeta Destino */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <button
-                type="button"
-                disabled={status === "running"}
-                onClick={() => setTargetFolder("03_Edicion_Master")}
-                className={cn(
-                  "p-3.5 rounded-2xl border text-left transition-all flex items-start justify-between gap-3 cursor-pointer",
-                  isRtl && "text-right",
-                  targetFolder === "03_Edicion_Master"
-                    ? "bg-[#c69f68]/15 border-[#c69f68] shadow-[0_0_20px_rgba(198,159,104,0.12)]"
-                    : "bg-[#14120e] border-[#262420] opacity-75 hover:opacity-100 hover:border-[#3b3730]"
-                )}
-              >
-                <div className="flex items-start gap-3 min-w-0 flex-1">
-                  <div className="w-9 h-9 rounded-xl bg-[#c69f68]/15 border border-[#c69f68]/30 flex items-center justify-center text-[#c69f68] shrink-0 mt-0.5">
-                    <Camera className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold text-[#f5f2eb] font-mono">03_Édition_Master</p>
-                    <p className="text-[11px] text-[#a89f91] mt-0.5 leading-snug">
-                      {t.folderMasterDesc}
-                    </p>
-                  </div>
+            {/* Destino Fijo: 03_Édition_Master */}
+            <div className="p-3.5 rounded-2xl border border-[#c69f68]/40 bg-[#c69f68]/10 flex items-center justify-between gap-3 shadow-[0_0_20px_rgba(198,159,104,0.08)]">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className="w-9 h-9 rounded-xl bg-[#c69f68]/20 border border-[#c69f68]/40 flex items-center justify-center text-[#c69f68] shrink-0">
+                  <Camera className="w-4 h-4" />
                 </div>
-                <div className={cn(
-                  "w-4 h-4 rounded-full border shrink-0 flex items-center justify-center mt-1",
-                  targetFolder === "03_Edicion_Master" 
-                    ? "border-[#c69f68] bg-[#c69f68] text-black" 
-                    : "border-[#403b33] bg-[#1a1814]"
-                )}>
-                  {targetFolder === "03_Edicion_Master" && <Check className="w-3 h-3 stroke-[3]" />}
-                </div>
-              </button>
-
-              <button
-                type="button"
-                disabled={status === "running"}
-                onClick={() => setTargetFolder("04_Entregas_Finales")}
-                className={cn(
-                  "p-3.5 rounded-2xl border text-left transition-all flex items-start justify-between gap-3 cursor-pointer",
-                  isRtl && "text-right",
-                  targetFolder === "04_Entregas_Finales"
-                    ? "bg-[#c69f68]/15 border-[#c69f68] shadow-[0_0_20px_rgba(198,159,104,0.12)]"
-                    : "bg-[#14120e] border-[#262420] opacity-75 hover:opacity-100 hover:border-[#3b3730]"
-                )}
-              >
-                <div className="flex items-start gap-3 min-w-0 flex-1">
-                  <div className="w-9 h-9 rounded-xl bg-[#c69f68]/15 border border-[#c69f68]/30 flex items-center justify-center text-[#c69f68] shrink-0 mt-0.5">
-                    <FileCheck className="w-4 h-4" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs font-bold text-[#f5f2eb] font-mono">03_Édition_Master</p>
+                    <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-md bg-[#c69f68]/25 text-[#f5f2eb] border border-[#c69f68]/30 font-semibold">
+                      Master Archive
+                    </span>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold text-[#f5f2eb] font-mono">04_Entregas_Finales</p>
-                    <p className="text-[11px] text-[#a89f91] mt-0.5 leading-snug">
-                      {t.folderDeliveryDesc}
-                    </p>
-                  </div>
+                  <p className="text-[11px] text-[#d1c7b7] mt-0.5 leading-snug">
+                    {t.folderMasterDesc}
+                  </p>
                 </div>
-                <div className={cn(
-                  "w-4 h-4 rounded-full border shrink-0 flex items-center justify-center mt-1",
-                  targetFolder === "04_Entregas_Finales" 
-                    ? "border-[#c69f68] bg-[#c69f68] text-black" 
-                    : "border-[#403b33] bg-[#1a1814]"
-                )}>
-                  {targetFolder === "04_Entregas_Finales" && <Check className="w-3 h-3 stroke-[3]" />}
-                </div>
-              </button>
+              </div>
+              <div className="w-5 h-5 rounded-full border border-[#c69f68] bg-[#c69f68] text-black shrink-0 flex items-center justify-center">
+                <Check className="w-3.5 h-3.5 stroke-[3]" />
+              </div>
             </div>
 
             {/* TAB 1: SUBIR NUEVOS ARCHIVOS */}

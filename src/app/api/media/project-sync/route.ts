@@ -122,21 +122,20 @@ export async function GET(req: NextRequest) {
     let totalLocalFiles = 0
     let totalLocalSizeBytes = 0
 
-    if (localExists) {
-      for (const sub of standardSubfolders) {
-        const subPath = path.join(localProjectPath, ...sub.split("/"))
-        const scan = scanLocalDirectory(subPath)
-        totalLocalFiles += scan.filesCount
-        totalLocalSizeBytes += scan.totalSizeBytes
+    // Siempre inicializar las subcarpetas del proyecto para poder auditar tanto Local como NAS
+    for (const sub of standardSubfolders) {
+      const subPath = path.join(localProjectPath, ...sub.split("/"))
+      const scan = localExists ? scanLocalDirectory(subPath) : { filesCount: 0, totalSizeBytes: 0, files: [] }
+      totalLocalFiles += scan.filesCount
+      totalLocalSizeBytes += scan.totalSizeBytes
 
-        subfolderStats.push({
-          name: sub,
-          localCount: scan.filesCount,
-          localSizeMB: Number((scan.totalSizeBytes / (1024 * 1024)).toFixed(1)),
-          nasCount: 0,
-          isSynced: false
-        })
-      }
+      subfolderStats.push({
+        name: sub,
+        localCount: scan.filesCount,
+        localSizeMB: Number((scan.totalSizeBytes / (1024 * 1024)).toFixed(1)),
+        nasCount: 0,
+        isSynced: false
+      })
     }
 
     // ── 2. Estado SUPABASE CLOUD ──
@@ -200,9 +199,10 @@ export async function GET(req: NextRequest) {
               const subBytes = filesOnly.reduce((acc, f) => acc + (f.size || 0), 0)
               totalNasSizeBytes += subBytes
 
-              // Considerado sincronizado si tiene la misma cantidad de archivos
+              // El NAS es el archivo maestro permanente. Si los archivos están en el NAS aunque no en local
+              // (proyecto archivado o espacio liberado en SSD), es un estado válido y sincronizado.
               subStat.isSynced = subStat.localCount === 0 
-                ? filesOnly.length === 0 
+                ? filesOnly.length > 0 
                 : filesOnly.length >= subStat.localCount
             } catch {
               subStat.nasCount = 0
@@ -219,7 +219,11 @@ export async function GET(req: NextRequest) {
 
     // ── Resumen de Sincronización en 3 Fases ──
     const step1Local = {
-      status: !localExists ? "missing" : totalLocalFiles === 0 ? "empty" : "ready",
+      status: !localExists 
+        ? (totalNasFiles > 0 ? "archived_in_nas" : "missing") 
+        : totalLocalFiles === 0 
+          ? (totalNasFiles > 0 ? "archived_in_nas" : "empty") 
+          : "ready",
       exists: localExists,
       path: localProjectPath,
       filesCount: totalLocalFiles,
@@ -236,8 +240,20 @@ export async function GET(req: NextRequest) {
       isSynced: supabaseAssetsCount > 0 && supabasePreviewsCount >= supabasePhotosCount
     }
 
+    const nasIsFullySynced = !nasReachable 
+      ? false 
+      : totalLocalFiles === 0 
+        ? totalNasFiles > 0 
+        : totalNasFiles >= totalLocalFiles
+
     const step3Nas = {
-      status: !nasReachable ? "unreachable" : !nasFolderExists ? "missing_folder" : (totalLocalFiles > 0 && totalNasFiles >= totalLocalFiles) ? "synced" : "pending_sync",
+      status: !nasReachable 
+        ? "unreachable" 
+        : !nasFolderExists 
+          ? "missing_folder" 
+          : nasIsFullySynced 
+            ? "synced" 
+            : "pending_sync",
       isReachable: nasReachable,
       exists: nasFolderExists,
       path: `ftp://${NAS_FTP_CONFIG.host}${NAS_FTP_CONFIG.baseDir}/${folderName}`,
@@ -245,7 +261,7 @@ export async function GET(req: NextRequest) {
       sizeMB: Number((totalNasSizeBytes / (1024 * 1024)).toFixed(1)),
       sizeGB: Number((totalNasSizeBytes / (1024 * 1024 * 1024)).toFixed(2)),
       pendingFiles: Math.max(0, totalLocalFiles - totalNasFiles),
-      isSynced: totalLocalFiles === 0 ? totalNasFiles === 0 : totalNasFiles >= totalLocalFiles
+      isSynced: nasIsFullySynced
     }
 
     const currentJob = getJobState(folderName)
@@ -256,7 +272,7 @@ export async function GET(req: NextRequest) {
       step2Supabase,
       step3Nas,
       subfolderStats,
-      isFullySynced: step1Local.status === "ready" && step2Supabase.isSynced && step3Nas.isSynced,
+      isFullySynced: (step1Local.status === "ready" || step1Local.status === "archived_in_nas") && step2Supabase.isSynced && step3Nas.isSynced,
       syncJob: currentJob
     })
 
@@ -333,7 +349,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 })
   }
 
-  const { folderName, lang = "es" } = body
+  const { folderName, lang = "es", sessionId } = body
   if (!folderName) {
     return NextResponse.json({ error: "Falta 'folderName'" }, { status: 400 })
   }
@@ -373,7 +389,7 @@ export async function POST(req: NextRequest) {
   syncJobs.set(folderName, job)
 
   // Ejecutar transferencia en background con reconexión automática y timeouts elevados
-  runProjectNasSync(folderName, localProjectPath, scan.files, lang).catch((err) => {
+  runProjectNasSync(folderName, localProjectPath, scan.files, lang, sessionId).catch((err) => {
     console.error(`[Project NAS Sync Error - ${folderName}]:`, err)
     const j = syncJobs.get(folderName)
     if (j) {
@@ -396,7 +412,8 @@ async function runProjectNasSync(
   folderName: string,
   localProjectPath: string,
   filesToSync: Array<{ name: string; relPath: string; size: number }>,
-  lang: string = "es"
+  lang: string = "es",
+  sessionId?: string
 ) {
   const job = syncJobs.get(folderName)
   if (!job) return
@@ -493,6 +510,35 @@ async function runProjectNasSync(
         job.logs.push(`[${new Date().toLocaleTimeString()}] ${t.fileError(file.name, lastErr?.message || "Timeout / Error")}`)
         if (job.logs.length > 100) job.logs.shift()
       } else {
+        if (sessionId) {
+          try {
+            const supabase = getSupabase()
+            const { data: existing } = await supabase
+              .from("media_assets")
+              .select("id")
+              .eq("session_id", sessionId)
+              .eq("filename", file.name)
+              .maybeSingle()
+
+            if (!existing) {
+              const type = classifyMediaFile(file.name)
+              const isPhoto = type === "photo"
+              const ext = path.extname(file.name).toLowerCase()
+              const assetType = isPhoto ? (ext === ".jpg" || ext === ".jpeg" ? "jpg" : "raw_photo") : "raw_video"
+              await supabase.from("media_assets").insert({
+                session_id: sessionId,
+                asset_type: assetType,
+                filename: file.name,
+                nas_path: `${folderName}/${file.relPath}`,
+                size_mb: Number((file.size / (1024 * 1024)).toFixed(2)),
+                preview_url: `/api/media/preview?file=${encodeURIComponent(localFilePath)}`,
+                is_archived: false,
+                notes: `SSD: ${localFilePath}`
+              })
+            }
+          } catch {}
+        }
+
         if (completed % 10 === 0 || completed === filesToSync.length) {
           job.logs.push(`[${new Date().toLocaleTimeString()}] ${t.copiedToNet(completed, filesToSync.length, file.name)}`)
           if (job.logs.length > 100) job.logs.shift()

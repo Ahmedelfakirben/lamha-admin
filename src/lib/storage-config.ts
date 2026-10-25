@@ -11,12 +11,59 @@ export interface StoragePaths {
   storageType?: "nas_ftp" | "network_share" | "local"
 }
 
-export const NAS_FTP_CONFIG = {
-  host: process.env.LAMHA_FTP_HOST || "192.168.11.1",
-  user: process.env.LAMHA_FTP_USER || "admin",
-  password: process.env.LAMHA_FTP_PASSWORD || "Satec2016C@U",
-  baseDir: process.env.LAMHA_FTP_BASE_DIR || "/usb1_1/Lamha-Storage",
+export interface NasFtpConfig {
+  host: string
+  user: string
+  password?: string
+  baseDir: string
 }
+
+function getStoredNasConfigFile(): string {
+  return path.join(process.cwd(), "src", "config", "nas-config.json")
+}
+
+export function getNasFtpConfig(): NasFtpConfig {
+  let fileConfig: Partial<NasFtpConfig> = {}
+  try {
+    const fPath = getStoredNasConfigFile()
+    if (fs.existsSync(fPath)) {
+      fileConfig = JSON.parse(fs.readFileSync(fPath, "utf-8"))
+    }
+  } catch {}
+
+  return {
+    host: fileConfig.host || process.env.LAMHA_FTP_HOST || "192.168.11.1",
+    user: fileConfig.user || process.env.LAMHA_FTP_USER || "admin",
+    password: fileConfig.password || process.env.LAMHA_FTP_PASSWORD || "Satec2016C@U",
+    baseDir: fileConfig.baseDir || process.env.LAMHA_FTP_BASE_DIR || "/usb1_1/Lamha-Storage",
+  }
+}
+
+export function saveNasFtpConfig(patch: Partial<NasFtpConfig>): boolean {
+  try {
+    const current = getNasFtpConfig()
+    const updated: NasFtpConfig = {
+      host: patch.host !== undefined && patch.host.trim() !== "" ? patch.host.trim() : current.host,
+      user: patch.user !== undefined && patch.user.trim() !== "" ? patch.user.trim() : current.user,
+      password: patch.password !== undefined ? patch.password : current.password,
+      baseDir: patch.baseDir !== undefined && patch.baseDir.trim() !== "" ? patch.baseDir.trim() : current.baseDir,
+    }
+    const fPath = getStoredNasConfigFile()
+    const dir = path.dirname(fPath)
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+    fs.writeFileSync(fPath, JSON.stringify(updated, null, 2), "utf-8")
+    return true
+  } catch (err) {
+    console.error("[StorageConfig] Failed to save nas-config.json:", err)
+    return false
+  }
+}
+
+export const NAS_FTP_CONFIG = new Proxy({} as NasFtpConfig, {
+  get: (_target, prop: keyof NasFtpConfig) => {
+    return getNasFtpConfig()[prop]
+  }
+})
 
 // Extensiones de archivo clasificadas para estudios de fotografía y cine
 export const PHOTO_EXTENSIONS = new Set([

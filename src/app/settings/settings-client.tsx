@@ -5,6 +5,7 @@ import { Settings, ShieldCheck, Database, MapPin, Phone, Mail, Sparkles, Key } f
 import { useLanguage } from "@/context/language-context"
 import { TeamManagementCard } from "@/components/team-management-card"
 import { WhatsAppGatewayCard } from "@/components/whatsapp-gateway-card"
+import { NasConfigCard } from "@/components/nas-config-card"
 
 interface SettingsClientProps {
   latencyMs: number
@@ -114,6 +115,9 @@ export function SettingsClient({ latencyMs, dbConnected }: SettingsClientProps) 
             </div>
           </div>
         </div>
+
+        {/* NAS & QNAP Atelier Storage Settings */}
+        <NasConfigCard />
 
         {/* Team Management & User Creation (ERP Multi-User) */}
         <TeamManagementCard />

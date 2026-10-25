@@ -248,9 +248,9 @@ function copyWithProgress(src, dest, onBytes, isCancelled) {
 }
 
 function createTracker(emit, enabled) {
-  const weights = { copy: 35, cloud: 40, nas: 25 }
+  const weights = { copy: enabled.copy ? 35 : 0, cloud: enabled.cloud ? 40 : 0, nas: enabled.nas ? 25 : 0 }
   const stages = {
-    copy: { state: "active", percent: 0 },
+    copy: { state: enabled.copy ? "active" : "off", percent: enabled.copy ? 0 : 100 },
     cloud: { state: enabled.cloud ? "pending" : "off", percent: 0 },
     nas: { state: enabled.nas ? "pending" : "off", percent: 0 },
   }
@@ -258,7 +258,7 @@ function createTracker(emit, enabled) {
   const samples = []
   let bytes = 0
   let lastEmit = 0
-  const state = { phase: "copy", currentFile: "", processed: 0, total: 0 }
+  const state = { phase: enabled.copy ? "copy" : (enabled.cloud ? "cloud" : "nas"), currentFile: "", processed: 0, total: 0 }
 
   const overall = () => {
     let sum = 0
@@ -345,9 +345,10 @@ async function runIngest(params, emit) {
   const cfg = getConfig()
   const lang = T[params.lang] ? params.lang : "fr"
   const t = T[lang]
+  const useLocal = params.copyLocal !== false
   const useCloud = params.uploadSupabase !== false
   const useNas = params.syncNas !== false
-  const tracker = createTracker(emit, { cloud: useCloud, nas: useNas })
+  const tracker = createTracker(emit, { copy: useLocal, cloud: useCloud, nas: useNas })
 
   try {
     const supabase = getClient()
@@ -411,63 +412,77 @@ async function runIngest(params, emit) {
       totalBytes += st.size
     }
     tracker.log("info", t.found(items.length, (totalBytes / 1024 ** 3).toFixed(2)))
-    tracker.log("info", t.copyStart(rootDir))
 
-    // --- FASE 1: SD -> SSD local --------------------------------------------
-    tracker.setPhase("copy")
-    tracker.state.total = items.length
-    const copyStart = Date.now()
-    let copiedBytes = 0
-    let skipped = 0
-    let done = 0
+    // --- FASE 1: SD -> SSD local (si está activado) -------------------------
+    let okItems = items
+    let totalMb = Number((totalBytes / 1024 ** 2).toFixed(1))
     let photos = 0
     let videos = 0
-    for (const it of items) {
-      if (isCancelled()) throw new Error("CANCELLED")
-      tracker.setFile(it.name, done, items.length)
-      let already = false
-      try {
-        already = fs.existsSync(it.dest) && fs.statSync(it.dest).size === it.size
-      } catch {}
-      if (already) {
-        skipped++
-        tracker.addBytes(it.size)
-        copiedBytes += it.size
-      } else {
+
+    if (useLocal) {
+      tracker.log("info", t.copyStart(rootDir))
+      tracker.setPhase("copy")
+      tracker.state.total = items.length
+      const copyStart = Date.now()
+      let copiedBytes = 0
+      let skipped = 0
+      let done = 0
+      for (const it of items) {
+        if (isCancelled()) throw new Error("CANCELLED")
+        tracker.setFile(it.name, done, items.length)
+        let already = false
         try {
-          await copyWithProgress(
-            it.src,
-            it.dest,
-            (n) => {
-              copiedBytes += n
-              tracker.addBytes(n)
-              tracker.stages.copy.percent = Math.min(100, (copiedBytes / totalBytes) * 100)
-              tracker.push()
-            },
-            isCancelled
-          )
-          if (fs.statSync(it.dest).size !== it.size) throw new Error("SIZE_MISMATCH")
-          fs.utimesSync(it.dest, it.atime, it.mtime)
-        } catch (e) {
-          if (e.message === "CANCELLED") throw e
-          tracker.log("warn", t.copyFail(it.name, e.message))
+          already = fs.existsSync(it.dest) && fs.statSync(it.dest).size === it.size
+        } catch {}
+        if (already) {
+          skipped++
+          tracker.addBytes(it.size)
+          copiedBytes += it.size
+        } else {
           try {
-            fs.unlinkSync(it.dest)
-          } catch {}
-          it.failed = true
+            await copyWithProgress(
+              it.src,
+              it.dest,
+              (n) => {
+                copiedBytes += n
+                tracker.addBytes(n)
+                tracker.stages.copy.percent = Math.min(100, (copiedBytes / totalBytes) * 100)
+                tracker.push()
+              },
+              isCancelled
+            )
+            if (fs.statSync(it.dest).size !== it.size) throw new Error("SIZE_MISMATCH")
+            fs.utimesSync(it.dest, it.atime, it.mtime)
+          } catch (e) {
+            if (e.message === "CANCELLED") throw e
+            tracker.log("warn", t.copyFail(it.name, e.message))
+            try {
+              fs.unlinkSync(it.dest)
+            } catch {}
+            it.failed = true
+          }
         }
+        if (!it.failed) it.type === "photo" ? photos++ : videos++
+        done++
+        tracker.stages.copy.percent = (done / items.length) * 100
+        tracker.setFile(it.name, done, items.length)
       }
-      if (!it.failed) it.type === "photo" ? photos++ : videos++
-      done++
-      tracker.stages.copy.percent = (done / items.length) * 100
-      tracker.setFile(it.name, done, items.length)
+      okItems = items.filter((i) => !i.failed)
+      const copySec = Math.max(0.001, (Date.now() - copyStart) / 1000)
+      totalMb = Number((copiedBytes / 1024 ** 2).toFixed(1))
+      if (skipped) tracker.log("info", t.skipped(skipped))
+      tracker.log("success", t.copyDone(okItems.length, totalMb, copySec.toFixed(0), (totalMb / copySec).toFixed(1)))
+      tracker.setStage("copy", { state: "done", percent: 100 }, true)
+    } else {
+      for (const it of items) {
+        it.localDest = it.dest
+        it.dest = it.src
+        if (it.type === "photo") photos++
+        else videos++
+      }
+      okItems = items
+      tracker.setStage("copy", { state: "off", percent: 100 }, true)
     }
-    const okItems = items.filter((i) => !i.failed)
-    const copySec = Math.max(0.001, (Date.now() - copyStart) / 1000)
-    const totalMb = Number((copiedBytes / 1024 ** 2).toFixed(1))
-    if (skipped) tracker.log("info", t.skipped(skipped))
-    tracker.log("success", t.copyDone(okItems.length, totalMb, copySec.toFixed(0), (totalMb / copySec).toFixed(1)))
-    tracker.setStage("copy", { state: "done", percent: 100 }, true)
 
     // --- FASE 2: Supabase (registro + previews WebP) ------------------------
     let cloudOk = 0

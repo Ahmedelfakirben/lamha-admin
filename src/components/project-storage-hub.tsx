@@ -41,7 +41,7 @@ interface FolderStat {
 }
 
 interface StepLocal {
-  status: "missing" | "empty" | "ready"
+  status: "missing" | "empty" | "ready" | "archived_in_nas"
   exists: boolean
   path: string
   filesCount: number
@@ -235,7 +235,7 @@ export function ProjectStorageHub({
       const res = await fetch("/api/media/project-sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ folderName: projectFolder, lang: language }),
+        body: JSON.stringify({ folderName: projectFolder, lang: language, sessionId }),
       })
       const result = await res.json()
       if (!res.ok) {
@@ -473,6 +473,8 @@ export function ProjectStorageHub({
             className={`p-3 rounded-xl border transition-all ${
               data?.step1Local?.filesCount
                 ? "bg-[#181613] border-[#383129]"
+                : data?.step1Local?.status === "archived_in_nas"
+                ? "bg-[#181613] border-emerald-900/40"
                 : "bg-[#141210] border-[#221e1a]"
             }`}
           >
@@ -485,10 +487,14 @@ export function ProjectStorageHub({
                 className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${
                   data?.step1Local?.filesCount
                     ? "bg-emerald-950/60 text-emerald-300 border border-emerald-800/50"
+                    : data?.step1Local?.status === "archived_in_nas"
+                    ? "bg-emerald-950/60 text-emerald-300 border border-emerald-800/50"
                     : "bg-[#201c18] text-[#70665a]"
                 }`}
               >
-                {isFr ? "1º Ingestion" : "1º Ingesta"}
+                {data?.step1Local?.status === "archived_in_nas"
+                  ? (isFr ? "Archivé sur NAS" : "Archivado en NAS")
+                  : (isFr ? "1º Ingestion" : "1º Ingesta")}
               </span>
             </div>
             <p className="text-lg font-mono font-bold text-[#f5f2eb]">
@@ -498,7 +504,9 @@ export function ProjectStorageHub({
               </span>
             </p>
             <p className="text-[10px] text-[#70665a] font-mono mt-0.5">
-              {data?.step1Local?.sizeMB ? `${data.step1Local.sizeMB} MB` : "0 MB"} · C:\Lamha-Storage
+              {data?.step1Local?.status === "archived_in_nas"
+                ? (isFr ? "Archive maître sur NAS (SSD libéré)" : "Archivo maestro en NAS (SSD liberado)")
+                : `${data?.step1Local?.sizeMB ? `${data.step1Local.sizeMB} MB` : "0 MB"} · C:\\Lamha-Storage`}
             </p>
           </div>
 
