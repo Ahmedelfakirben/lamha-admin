@@ -138,13 +138,13 @@
       Lamha Studios Atelier ERP
     </div>
     <h1>Panel <span>Administrador</span></h1>
-    <p>Conectando con el motor de almacenamiento local en <strong>C:\Lamha-Storage</strong> y enlace NAS (192.168.11.1)...</p>
+    <p>Conectando con el portal oficial del estudio en <strong>https://admin.lam7a.ma</strong>...</p>
     
     <div class="progress-bar-container">
       <div class="progress-bar"></div>
     </div>
     
-    <div class="status-text" id="statusLabel">Iniciando motor de escritorio...</div>
+    <div class="status-text" id="statusLabel">Estableciendo enlace seguro...</div>
 
     <div class="btn-group">
       <button onclick="window.desktopAdminAPI && window.desktopAdminAPI.retry ? window.desktopAdminAPI.retry() : location.reload()">
@@ -159,7 +159,7 @@
       dots = (dots + 1) % 4;
       const el = document.getElementById("statusLabel");
       if (el) {
-        el.innerText = "Sincronizando almacenamiento local y base de datos" + ".".repeat(dots);
+        el.innerText = "Conectando con el servidor en la nube" + ".".repeat(dots);
       }
     }, 500);
   </script>

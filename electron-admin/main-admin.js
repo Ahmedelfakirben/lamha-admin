@@ -6,71 +6,9 @@ const net = require("net")
 const { spawn, exec } = require("child_process")
 
 let mainWindow = null
-let connectInterval = null
-let engineChild = null
-const LOCAL_PANEL_URL = "http://127.0.0.1:3000"
+const STUDIO_PANEL_URL = process.env.LAMHA_PANEL_URL || "https://admin.lam7a.ma"
 
 app.setAppUserModelId("com.lamhastudios.erp")
-
-function checkLocalServer(timeoutMs = 1200) {
-  return new Promise((resolve) => {
-    const req = http.get("http://127.0.0.1:3000/login", { timeout: timeoutMs }, (res) => {
-      resolve(res.statusCode >= 200 && res.statusCode < 500)
-    })
-    req.on("error", () => resolve(false))
-    req.on("timeout", () => {
-      req.destroy()
-      resolve(false)
-    })
-  })
-}
-
-function startLocalEngineSilently() {
-  if (engineChild) return
-  const adminDir = path.resolve(__dirname, "..")
-  const standaloneServer = path.join(adminDir, ".next", "standalone", "server.js")
-
-  try {
-    if (fs.existsSync(standaloneServer)) {
-      engineChild = spawn("node", [standaloneServer], {
-        cwd: adminDir,
-        detached: true,
-        windowsHide: true,
-        stdio: "ignore",
-        env: {
-          ...process.env,
-          PORT: "3000",
-          NODE_ENV: "production",
-          NEXT_TELEMETRY_DISABLED: "1",
-        },
-      })
-    } else {
-      const isWin = process.platform === "win32"
-      const npmCmd = isWin ? "npm.cmd" : "npm"
-      engineChild = spawn(npmCmd, ["run", "dev"], {
-        cwd: adminDir,
-        detached: true,
-        windowsHide: true,
-        stdio: "ignore",
-        env: {
-          ...process.env,
-          PORT: "3000",
-          NEXT_TELEMETRY_DISABLED: "1",
-        },
-      })
-    }
-
-    if (engineChild) {
-      engineChild.on("exit", () => {
-        engineChild = null
-      })
-      engineChild.unref()
-    }
-  } catch (err) {
-    engineChild = null
-    console.error("No se pudo iniciar el motor local:", err)
-  }
-}
 
 // Detección nativa de tarjetas SD y unidades de cámara en Windows
 function scanConnectedCards() {
@@ -167,35 +105,27 @@ function createWindow() {
     mainWindow.focus()
   })
 
-  async function loadPanel() {
-    const isOnline = await checkLocalServer(1000)
-    if (isOnline) {
-      if (connectInterval) {
-        clearInterval(connectInterval)
-        connectInterval = null
-      }
-      mainWindow.loadURL(LOCAL_PANEL_URL).catch(() => {
-        mainWindow.loadFile(path.join(__dirname, "offline.html"))
-      })
-    } else {
+  function loadPanel() {
+    mainWindow.loadURL(STUDIO_PANEL_URL).catch((err) => {
+      console.warn("Error cargando panel remoto, mostrando pantalla offline:", err)
       mainWindow.loadFile(path.join(__dirname, "offline.html"))
-      startLocalEngineSilently()
-      if (!connectInterval) {
-        connectInterval = setInterval(async () => {
-          const ready = await checkLocalServer(800)
-          if (ready && mainWindow) {
-            clearInterval(connectInterval)
-            connectInterval = null
-            mainWindow.loadURL(LOCAL_PANEL_URL)
-          }
-        }, 1000)
-      }
-    }
+    })
   }
 
   loadPanel()
 
+  mainWindow.webContents.on("did-fail-load", (_event, errorCode, errorDescription) => {
+    if (errorCode !== -3) {
+      console.warn("Fallo de red al conectar con el servidor:", errorCode, errorDescription)
+      mainWindow.loadFile(path.join(__dirname, "offline.html"))
+    }
+  })
+
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    // Si es una ruta interna de Lamha Studios, mantener dentro de la app
+    if (url.startsWith("https://admin.lam7a.ma") || url.startsWith("https://lam7a.ma")) {
+      return { action: "allow" }
+    }
     // Abrir links externos en el navegador nativo de Windows
     if (url.startsWith("http:") || url.startsWith("https:")) {
       shell.openExternal(url)
@@ -205,10 +135,6 @@ function createWindow() {
   })
 
   mainWindow.on("closed", () => {
-    if (connectInterval) {
-      clearInterval(connectInterval)
-      connectInterval = null
-    }
     mainWindow = null
   })
 }
@@ -348,13 +274,11 @@ ipcMain.handle("launch-ingest-companion", async (_event, params = {}) => {
   }
 })
 
-ipcMain.on("retry-connect", async () => {
+ipcMain.on("retry-connect", () => {
   if (mainWindow) {
-    startLocalEngineSilently()
-    const isOnline = await checkLocalServer(1200)
-    if (isOnline) {
-      mainWindow.loadURL(LOCAL_PANEL_URL)
-    }
+    mainWindow.loadURL(STUDIO_PANEL_URL).catch(() => {
+      mainWindow.loadFile(path.join(__dirname, "offline.html"))
+    })
   }
 })
 

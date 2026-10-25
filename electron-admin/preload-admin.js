@@ -12,4 +12,6 @@ contextBridge.exposeInMainWorld("desktopAdminAPI", {
   checkNasConnection: (host) => ipcRenderer.invoke("check-nas-connection", host),
   launchIngestCompanion: (params) => ipcRenderer.invoke("launch-ingest-companion", params),
   retry: () => ipcRenderer.send("retry-connect"),
+  connectTo: (targetUrl) => ipcRenderer.send("connect-to-url", targetUrl),
+  getServerStatus: () => ipcRenderer.invoke("get-server-status"),
 })

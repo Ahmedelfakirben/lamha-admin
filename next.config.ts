@@ -2,6 +2,13 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  allowedDevOrigins: [
+    "127.0.0.1",
+    "127.0.0.1:3000",
+    "localhost",
+    "localhost:3000",
+    "admin.lam7a.ma",
+  ],
   typescript: {
     ignoreBuildErrors: true,
   },
