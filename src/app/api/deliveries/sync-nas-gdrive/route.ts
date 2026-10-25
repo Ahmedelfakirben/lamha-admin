@@ -4,6 +4,9 @@ import path from "path"
 import { createClient } from "@supabase/supabase-js"
 import { getStorageConfig } from "@/lib/storage-config"
 import { createDeliveryDriveFolder, uploadFileToDrive } from "@/lib/gdrive"
+import { sendPhotosReadyNotification } from "@/lib/email"
+import { sendWhatsAppMessage } from "@/lib/whatsapp"
+import { getPhotosReadyWhatsApp } from "@/lib/whatsapp-templates"
 
 export const maxDuration = 300
 export const dynamic = "force-dynamic"
@@ -299,13 +302,65 @@ export async function POST(req: NextRequest) {
             is_active: true,
           })
 
+        // 1. Actualizar sesión en Supabase con el ID de carpeta Drive y fase 'shared'
+        const { data: sessionData } = await supabase
+          .from("sessions")
+          .select("id, client_name, client_email, client_phone, portal_pin, tags, pipeline_stage")
+          .eq("id", sessionId)
+          .single()
+
+        const currentTags = Array.isArray(sessionData?.tags) ? sessionData.tags : []
+        const filteredTags = currentTags.filter((t: string) => !t.startsWith("stage:"))
+        const updatedTags = [...filteredTags, "stage:shared"]
+
         await supabase
           .from("sessions")
           .update({
-            status: "delivered",
+            gdrive_folder_id: folderId,
+            pipeline_stage: "shared",
+            tags: updatedTags,
             updated_at: now.toISOString(),
           })
           .eq("id", sessionId)
+
+        // 2. Enviar automáticamente Correo y WhatsApp al cliente con acceso al portal, PIN y carpeta Drive
+        if (sessionData?.client_email && sessionData?.portal_pin) {
+          try {
+            await sendPhotosReadyNotification({
+              clientName: sessionData.client_name,
+              clientEmail: sessionData.client_email,
+              portalPin: sessionData.portal_pin,
+              driveFolderUrl: folderUrl,
+              photosCount: completedCount,
+              language: lang || "fr",
+            })
+            log("success", `✦ Email de prestige envoyé à ${sessionData.client_email} avec le code PIN et le lien Google Drive.`)
+          } catch (eEmail: any) {
+            log("warn", `Notice: Erreur lors de l'envoi auto de l'email : ${eEmail?.message || eEmail}`)
+          }
+        }
+
+        if (sessionData?.client_phone && sessionData?.portal_pin) {
+          try {
+            const waText = getPhotosReadyWhatsApp({
+              clientName: sessionData.client_name,
+              portalPin: sessionData.portal_pin,
+              clientEmail: sessionData.client_email,
+              driveUrl: folderUrl,
+              photosCount: completedCount,
+              language: lang || "fr",
+            })
+
+            await sendWhatsAppMessage({
+              phone: sessionData.client_phone,
+              text: waText,
+              sessionId,
+            })
+            log("success", `✦ Message WhatsApp envoyé à ${sessionData.client_phone} avec le code PIN et le lien Google Drive.`)
+          } catch (eWa: any) {
+            log("warn", `Notice: Erreur lors de l'envoi auto de WhatsApp : ${eWa?.message || eWa}`)
+          }
+        }
 
         log("success", tLogs.finalDeliveryDone(completedCount, totalMb, retentionDays))
 

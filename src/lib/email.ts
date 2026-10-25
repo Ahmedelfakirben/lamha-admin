@@ -1,5 +1,10 @@
 import nodemailer from "nodemailer"
-import { renderWelcomeEmail, renderPhotosReadyEmail } from "./email-templates"
+import { 
+  renderWelcomeEmail, 
+  renderPhotosReadyEmail, 
+  renderReadyForDeliveryEmail, 
+  renderSelectionConfirmedEmail 
+} from "./email-templates"
 
 export interface SmtpConfig {
   host: string
@@ -127,7 +132,7 @@ export async function sendPhotosReadyNotification(params: {
     }
 
     const config = getSmtpConfig()
-    const portalBaseUrl = process.env.NEXT_PUBLIC_CLIENT_PORTAL_URL || "https://lam7a.elfakir.com/portal"
+    const portalBaseUrl = process.env.NEXT_PUBLIC_CLIENT_PORTAL_URL || "https://lam7a.ma/portal"
 
     const { subject, html, text } = renderPhotosReadyEmail({
       clientName: params.clientName,
@@ -149,10 +154,120 @@ export async function sendPhotosReadyNotification(params: {
       html,
     })
 
-    console.log(`[EMAIL_SUCCESS] Correo de entrega y fotos listas enviado a ${params.clientEmail}. ID: ${info.messageId}`)
+    console.log(`[EMAIL_SUCCESS] Correo de fotos listas enviado a ${params.clientEmail}. ID: ${info.messageId}`)
     return { success: true, messageId: info.messageId }
   } catch (err: any) {
     console.error("[EMAIL_ERROR] Error enviando correo de fotos listas:", err)
+    return { success: false, error: err?.message || "Error al enviar el correo con Microsoft Exchange." }
+  }
+}
+
+/**
+ * Envía la notificación de proyecto listo para entrega final / recogida en estudio
+ */
+export async function sendReadyForDeliveryNotification(params: {
+  clientName: string
+  clientEmail: string
+  category?: string | null
+  portalPin?: string | null
+  driveFolderUrl?: string | null
+  language?: string
+}): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  try {
+    if (!params.clientEmail) {
+      return { success: false, error: "El cliente no tiene correo electrónico configurado." }
+    }
+
+    if (!isEmailConfigured()) {
+      console.warn("[EMAIL_WARN] Variables SMTP de Microsoft Exchange no configuradas en .env.local")
+      return { 
+        success: false, 
+        error: "Servidor de correo Microsoft Exchange no configurado. Configure SMTP_USER y SMTP_PASS en .env.local" 
+      }
+    }
+
+    const config = getSmtpConfig()
+    const portalBaseUrl = process.env.NEXT_PUBLIC_CLIENT_PORTAL_URL || "https://lam7a.ma/portal"
+
+    const { subject, html, text } = renderReadyForDeliveryEmail({
+      clientName: params.clientName,
+      category: params.category,
+      portalUrl: portalBaseUrl,
+      clientEmail: params.clientEmail,
+      portalPin: params.portalPin,
+      driveFolderUrl: params.driveFolderUrl,
+      studioEmail: config.fromEmail,
+      language: params.language,
+    })
+
+    const transporter = createTransporter()
+    const info = await transporter.sendMail({
+      from: `"${config.fromName}" <${config.fromEmail}>`,
+      to: params.clientEmail,
+      subject,
+      text,
+      html,
+    })
+
+    console.log(`[EMAIL_SUCCESS] Correo Ready for Delivery enviado a ${params.clientEmail}. ID: ${info.messageId}`)
+    return { success: true, messageId: info.messageId }
+  } catch (err: any) {
+    console.error("[EMAIL_ERROR] Error enviando correo Ready for Delivery:", err)
+    return { success: false, error: err?.message || "Error al enviar el correo con Microsoft Exchange." }
+  }
+}
+
+/**
+ * Envía la confirmación al cliente tras enviar su selección en el portal
+ */
+export async function sendSelectionConfirmedNotification(params: {
+  clientName: string
+  clientEmail: string
+  photosCount: number
+  notesCount?: number
+  portalPin?: string | null
+  language?: string
+}): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  try {
+    if (!params.clientEmail) {
+      return { success: false, error: "El cliente no tiene correo electrónico configurado." }
+    }
+
+    if (!isEmailConfigured()) {
+      console.warn("[EMAIL_WARN] Variables SMTP de Microsoft Exchange no configuradas en .env.local")
+      return { 
+        success: false, 
+        error: "Servidor de correo Microsoft Exchange no configurado. Configure SMTP_USER y SMTP_PASS en .env.local" 
+      }
+    }
+
+    const config = getSmtpConfig()
+    const portalBaseUrl = process.env.NEXT_PUBLIC_CLIENT_PORTAL_URL || "https://lam7a.ma/portal"
+
+    const { subject, html, text } = renderSelectionConfirmedEmail({
+      clientName: params.clientName,
+      photosCount: params.photosCount,
+      notesCount: params.notesCount,
+      portalUrl: portalBaseUrl,
+      clientEmail: params.clientEmail,
+      portalPin: params.portalPin,
+      studioEmail: config.fromEmail,
+      language: params.language,
+    })
+
+    const transporter = createTransporter()
+    const info = await transporter.sendMail({
+      from: `"${config.fromName}" <${config.fromEmail}>`,
+      to: params.clientEmail,
+      subject,
+      text,
+      html,
+    })
+
+    console.log(`[EMAIL_SUCCESS] Correo de confirmación de selección enviado a ${params.clientEmail}. ID: ${info.messageId}`)
+    return { success: true, messageId: info.messageId }
+  } catch (err: any) {
+    console.error("[EMAIL_ERROR] Error enviando correo de confirmación de selección:", err)
     return { success: false, error: err?.message || "Error al enviar el correo con Microsoft Exchange." }
   }
 }

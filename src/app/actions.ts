@@ -3,8 +3,20 @@
 import { createClient } from '@supabase/supabase-js';
 import { revalidatePath } from 'next/cache';
 import { recordAuditLog } from '@/lib/audit';
-import { sendWelcomeEmailNotification, sendPhotosReadyNotification } from '@/lib/email';
+import { 
+  sendWelcomeEmailNotification, 
+  sendPhotosReadyNotification,
+  sendReadyForDeliveryNotification,
+  sendSelectionConfirmedNotification
+} from '@/lib/email';
 import { sendWhatsAppMessage } from '@/lib/whatsapp';
+import { 
+  getWelcomeWhatsApp, 
+  getPhotosReadyWhatsApp, 
+  getReadyForDeliveryWhatsApp, 
+  getSelectionReceivedClientWhatsApp, 
+  getStudioSelectionAlertWhatsApp 
+} from '@/lib/whatsapp-templates';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -244,15 +256,33 @@ export async function createSession(data: any, userContext?: UserAuditContext) {
     // Enviar WhatsApp automático de confirmación al cliente si tiene teléfono
     if (insertedSession.client_phone) {
       try {
-        const dateFormatted = insertedSession.session_date || "próximamente";
-        const catName = insertedSession.category ? `(${insertedSession.category})` : '';
-        const text = `¡Hola ${insertedSession.client_name}! 📸 Hemos creado tu proyecto en Lamha Studios ${catName}. Te confirmamos que tu sesión está programada para el día ${dateFormatted}. Si tienes cualquier duda, puedes responder directamente a este mensaje.`;
+        const text = getWelcomeWhatsApp({
+          clientName: insertedSession.client_name,
+          sessionDate: insertedSession.session_date,
+          category: insertedSession.category,
+          portalPin: insertedSession.portal_pin,
+          clientEmail: insertedSession.client_email,
+          language: language || 'fr',
+        });
 
         await sendWhatsAppMessage({
           phone: insertedSession.client_phone,
           text,
           clientId: insertedSession.client_id || null,
           sessionId: insertedSession.id,
+        });
+
+        await recordAuditLog({
+          action: 'WHATSAPP_WELCOME_SENT',
+          entityType: 'session',
+          entityId: insertedSession.id,
+          entityTitle: insertedSession.client_name,
+          details: {
+            phone: insertedSession.client_phone,
+            category: insertedSession.category,
+            language: language || 'fr',
+          },
+          ...userContext,
         });
       } catch (waErr) {
         console.warn('Fallo no bloqueante al enviar WhatsApp de bienvenida:', waErr);
@@ -400,29 +430,12 @@ export async function updateSession(id: string, data: any, userContext?: UserAud
       }
     }
 
-    // Trigger WhatsApp: Si el montaje o estado pasa a "edited" o "delivered", avisar al cliente
-    if (sessionData.status === 'edited' || sessionData.status === 'delivered') {
+    // Trigger Automático: Si el proyecto pasa a "ready_delivery" o "edited", notificar al cliente (Email + WhatsApp)
+    if (sessionData.status === 'ready_delivery' || sessionData.status === 'edited' || sessionData.pipeline_stage === 'ready_delivery') {
       try {
-        const { data: currentSession } = await supabase
-          .from('sessions')
-          .select('client_name, client_phone, client_id, category')
-          .eq('id', id)
-          .single();
-
-        if (currentSession?.client_phone) {
-          const clientName = currentSession.client_name || 'Estimado/a cliente';
-          const projName = currentSession.category ? `de ${currentSession.category}` : 'en Lamha Studios';
-          const text = `¡Hola ${clientName}! 🎉 Tenemos buenas noticias: el montaje de fotos/vídeos de tu proyecto ${projName} ya está finalizado y listo para que lo veas. Puedes acceder desde tu panel o responder directamente a este mensaje si necesitas algo.`;
-
-          await sendWhatsAppMessage({
-            phone: currentSession.client_phone,
-            text,
-            clientId: currentSession.client_id || null,
-            sessionId: id,
-          });
-        }
-      } catch (waStatusErr) {
-        console.warn('Fallo no bloqueante al enviar WhatsApp de montaje listo:', waStatusErr);
+        await notifyReadyForDeliveryAction(id, userContext, language);
+      } catch (notifyErr) {
+        console.warn('Fallo no bloqueante al enviar notificación de Ready for Delivery:', notifyErr);
       }
     }
 
@@ -617,6 +630,14 @@ export async function updateSessionStatus(sessionId: string, status: string, use
       ...userContext,
     });
 
+    if (status === 'ready_delivery' || status === 'edited') {
+      try {
+        await notifyReadyForDeliveryAction(sessionId, userContext);
+      } catch (notifyErr) {
+        console.warn('Fallo no bloqueante al enviar notificación de Ready for Delivery:', notifyErr);
+      }
+    }
+
     revalidatePath(`/sessions/${sessionId}`);
     revalidatePath('/calendar');
     revalidatePath('/photos');
@@ -770,6 +791,14 @@ export async function updateSessionPlannerStage(sessionId: string, newStage: str
       ...userContext,
     });
 
+    if (newStage === 'ready_delivery') {
+      try {
+        await notifyReadyForDeliveryAction(sessionId, userContext);
+      } catch (notifyErr) {
+        console.warn('Fallo no bloqueante al enviar notificación de Ready for Delivery desde Planner:', notifyErr);
+      }
+    }
+
     revalidatePath('/planner');
     revalidatePath('/projects');
     revalidatePath('/calendar');
@@ -881,6 +910,8 @@ export async function updateClientContactInfo(
 /**
  * Server Action para notificar al cliente que sus fotos están listas
  * Incluye credenciales, PIN de acceso al portal y enlace a Google Drive
+ * Envía por Email (Microsoft Exchange) y WhatsApp (Evolution API)
+ * y pasa la fase del proyecto a "shared" (esperando selección)
  */
 export async function sendPhotosReadyEmailAction(
   sessionId: string, 
@@ -891,7 +922,7 @@ export async function sendPhotosReadyEmailAction(
     // 1. Obtener datos del proyecto
     const { data: session, error: sErr } = await supabase
       .from('sessions')
-      .select('id, client_name, client_email, portal_pin, gdrive_folder_id, comments')
+      .select('id, client_name, client_email, client_phone, client_id, portal_pin, gdrive_folder_id, comments, tags, pipeline_stage')
       .eq('id', sessionId)
       .single();
 
@@ -899,8 +930,8 @@ export async function sendPhotosReadyEmailAction(
       return { success: false, error: 'No se encontró la sesión o proyecto.' };
     }
 
-    if (!session.client_email) {
-      return { success: false, error: 'Este proyecto no tiene un correo electrónico de cliente registrado.' };
+    if (!session.client_email && !session.client_phone) {
+      return { success: false, error: 'Este proyecto no tiene ni correo ni teléfono de cliente registrado.' };
     }
 
     if (!session.portal_pin) {
@@ -929,42 +960,367 @@ export async function sendPhotosReadyEmailAction(
       }
     }
 
-    // 4. Enviar mediante el motor Microsoft Exchange
-    const result = await sendPhotosReadyNotification({
-      clientName: session.client_name,
-      clientEmail: session.client_email,
-      portalPin: session.portal_pin,
-      driveFolderUrl,
-      photosCount: photosCount || undefined,
-      language: language || 'fr',
-    });
+    const emailLang = language || 'fr';
 
-    if (!result.success) {
-      return { success: false, error: result.error };
+    // 4. Enviar mediante el motor Microsoft Exchange si tiene email
+    if (session.client_email) {
+      const result = await sendPhotosReadyNotification({
+        clientName: session.client_name,
+        clientEmail: session.client_email,
+        portalPin: session.portal_pin,
+        driveFolderUrl,
+        photosCount: photosCount || undefined,
+        language: emailLang,
+      });
+
+      if (result.success) {
+        await recordAuditLog({
+          action: 'EMAIL_PHOTOS_READY_SENT',
+          entityType: 'session',
+          entityId: sessionId,
+          entityTitle: session.client_name,
+          details: {
+            email: session.client_email,
+            portal_pin: session.portal_pin,
+            photos_count: photosCount || 0,
+            drive_url: driveFolderUrl,
+            messageId: result.messageId,
+          },
+          ...userContext,
+        });
+      }
     }
 
-    // 5. Registrar en Auditoría inmutable
-    await recordAuditLog({
-      action: 'EMAIL_PHOTOS_READY_SENT',
-      entityType: 'session',
-      entityId: sessionId,
-      entityTitle: session.client_name,
-      details: {
-        email: session.client_email,
-        portal_pin: session.portal_pin,
-        photos_count: photosCount || 0,
-        drive_url: driveFolderUrl,
-        messageId: result.messageId,
-      },
-      ...userContext,
-    });
+    // 5. Enviar mensaje de WhatsApp si tiene teléfono
+    if (session.client_phone) {
+      try {
+        const waText = getPhotosReadyWhatsApp({
+          clientName: session.client_name,
+          portalPin: session.portal_pin,
+          clientEmail: session.client_email,
+          driveUrl: driveFolderUrl,
+          photosCount: photosCount || undefined,
+          language: emailLang,
+        });
+
+        await sendWhatsAppMessage({
+          phone: session.client_phone,
+          text: waText,
+          clientId: session.client_id || null,
+          sessionId: session.id,
+        });
+
+        await recordAuditLog({
+          action: 'WHATSAPP_PHOTOS_READY_SENT',
+          entityType: 'session',
+          entityId: sessionId,
+          entityTitle: session.client_name,
+          details: {
+            phone: session.client_phone,
+            portal_pin: session.portal_pin,
+            photos_count: photosCount || 0,
+            language: emailLang,
+          },
+          ...userContext,
+        });
+      } catch (waErr) {
+        console.warn('Fallo no bloqueante al enviar WhatsApp de fotos listas:', waErr);
+      }
+    }
+
+    // 6. Actualizar fase a "shared" (en espera de selección cliente)
+    const currentTags = Array.isArray(session.tags) ? session.tags : [];
+    const filteredTags = currentTags.filter((t: string) => !t.startsWith('stage:'));
+    const updatedTags = [...filteredTags, 'stage:shared'];
+
+    await supabase
+      .from('sessions')
+      .update({
+        pipeline_stage: 'shared',
+        tags: updatedTags,
+        updated_by: userContext?.userId || null,
+      })
+      .eq('id', sessionId);
 
     revalidatePath(`/sessions/${sessionId}`);
+    revalidatePath('/planner');
+    revalidatePath('/projects');
     revalidatePath('/audit');
 
     return { success: true };
   } catch (error: any) {
     console.error('Error en sendPhotosReadyEmailAction:', error);
-    return { success: false, error: error?.message || 'Error inesperado al enviar el correo.' };
+    return { success: false, error: error?.message || 'Error inesperado al enviar las notificaciones.' };
+  }
+}
+
+/**
+ * Server Action para notificar que un proyecto está "Ready for Delivery" (Listo para entrega / recogida en estudio)
+ * Envía Email oficial y WhatsApp con el enlace al portal y opciones de descarga/recogida
+ */
+export async function notifyReadyForDeliveryAction(
+  sessionId: string,
+  userContext?: UserAuditContext,
+  language?: string
+) {
+  try {
+    const { data: session, error: sErr } = await supabase
+      .from('sessions')
+      .select('id, client_name, client_email, client_phone, client_id, portal_pin, category, gdrive_folder_id')
+      .eq('id', sessionId)
+      .single();
+
+    if (sErr || !session) {
+      return { success: false, error: 'No se encontró la sesión.' };
+    }
+
+    let driveFolderUrl: string | null = null;
+    if (session.gdrive_folder_id) {
+      driveFolderUrl = `https://drive.google.com/drive/folders/${session.gdrive_folder_id}`;
+    } else {
+      const { data: delivery } = await supabase
+        .from('media_deliveries')
+        .select('url')
+        .eq('session_id', sessionId)
+        .eq('delivery_type', 'final_link')
+        .maybeSingle();
+      if (delivery?.url) driveFolderUrl = delivery.url;
+    }
+
+    const emailLang = language || 'fr';
+
+    // 1. Enviar Email
+    if (session.client_email) {
+      try {
+        const emailRes = await sendReadyForDeliveryNotification({
+          clientName: session.client_name,
+          clientEmail: session.client_email,
+          category: session.category,
+          portalPin: session.portal_pin,
+          driveFolderUrl,
+          language: emailLang,
+        });
+
+        if (emailRes.success) {
+          await recordAuditLog({
+            action: 'EMAIL_READY_FOR_DELIVERY_SENT',
+            entityType: 'session',
+            entityId: sessionId,
+            entityTitle: session.client_name,
+            details: {
+              email: session.client_email,
+              category: session.category,
+              messageId: emailRes.messageId,
+            },
+            ...userContext,
+          });
+        }
+      } catch (eErr) {
+        console.warn('Error enviando email de Ready for Delivery:', eErr);
+      }
+    }
+
+    // 2. Enviar WhatsApp
+    if (session.client_phone) {
+      try {
+        const text = getReadyForDeliveryWhatsApp({
+          clientName: session.client_name,
+          category: session.category,
+          portalPin: session.portal_pin,
+          clientEmail: session.client_email,
+          driveUrl: driveFolderUrl,
+          language: emailLang,
+        });
+
+        await sendWhatsAppMessage({
+          phone: session.client_phone,
+          text,
+          clientId: session.client_id || null,
+          sessionId: session.id,
+        });
+
+        await recordAuditLog({
+          action: 'WHATSAPP_READY_FOR_DELIVERY_SENT',
+          entityType: 'session',
+          entityId: sessionId,
+          entityTitle: session.client_name,
+          details: {
+            phone: session.client_phone,
+            category: session.category,
+            language: emailLang,
+          },
+          ...userContext,
+        });
+      } catch (wErr) {
+        console.warn('Error enviando WhatsApp de Ready for Delivery:', wErr);
+      }
+    }
+
+    revalidatePath(`/sessions/${sessionId}`);
+    revalidatePath('/planner');
+    revalidatePath('/projects');
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error en notifyReadyForDeliveryAction:', error);
+    return { success: false, error: error?.message || 'Error inesperado' };
+  }
+}
+
+/**
+ * Server Action que procesa la selección de fotos enviada por el cliente desde el portal
+ * 1. Pasa el estado y fase a "client_selected"
+ * 2. Guarda la selección y comentarios en la base de datos
+ * 3. Envía confirmación por Email de lujo al cliente
+ * 4. Envía confirmación por WhatsApp al cliente
+ * 5. Envía alerta interna de selección al WhatsApp del estudio
+ */
+export async function submitClientSelectionAction(params: {
+  sessionId: string;
+  selectedAssets?: string[];
+  notesCount?: number;
+  generalNotes?: string;
+  assetNotes?: Record<string, string>;
+  language?: string;
+}) {
+  try {
+    const { 
+      sessionId, 
+      selectedAssets = [], 
+      notesCount = 0, 
+      generalNotes = '', 
+      assetNotes = {}, 
+      language = 'fr' 
+    } = params;
+
+    const { data: session, error: sErr } = await supabase
+      .from('sessions')
+      .select('id, client_name, client_email, client_phone, client_id, portal_pin, comments, tags')
+      .eq('id', sessionId)
+      .single();
+
+    if (sErr || !session) {
+      return { success: false, error: 'Sesión no encontrada' };
+    }
+
+    const currentTags = Array.isArray(session.tags) ? session.tags : [];
+    const filteredTags = currentTags.filter((t: string) => !t.startsWith('stage:'));
+    const updatedTags = [...filteredTags, 'stage:client_selected'];
+
+    const timestamp = new Date().toLocaleString();
+    const clientNoteEntry = `[${timestamp}] Sélection client: ${selectedAssets.length} photos.${
+      generalNotes ? ` Note: "${generalNotes}"` : ''
+    }`;
+    const updatedComments = session.comments ? `${session.comments}\n${clientNoteEntry}` : clientNoteEntry;
+
+    // Actualizar sesión a client_selected en tags, status y pipeline_stage
+    await supabase
+      .from('sessions')
+      .update({
+        selected_assets: selectedAssets,
+        comments: updatedComments,
+        status: 'client_selected',
+        pipeline_stage: 'client_selected',
+        tags: updatedTags,
+      })
+      .eq('id', sessionId);
+
+    // Actualizar assets individuales
+    if (selectedAssets.length > 0) {
+      await supabase
+        .from('media_assets')
+        .update({ client_selected: true })
+        .eq('session_id', sessionId)
+        .in('filename', selectedAssets);
+
+      for (const [photoFilename, photoNote] of Object.entries(assetNotes)) {
+        if (photoNote && photoNote.trim()) {
+          await supabase
+            .from('media_assets')
+            .update({ client_notes: photoNote.trim() })
+            .eq('session_id', sessionId)
+            .eq('filename', photoFilename);
+        }
+      }
+    }
+
+    // 1. Correo de confirmación de alta gama al cliente
+    if (session.client_email) {
+      try {
+        await sendSelectionConfirmedNotification({
+          clientName: session.client_name,
+          clientEmail: session.client_email,
+          photosCount: selectedAssets.length,
+          notesCount,
+          portalPin: session.portal_pin,
+          language,
+        });
+      } catch (eErr) {
+        console.warn('Error enviando email confirmación cliente:', eErr);
+      }
+    }
+
+    // 2. WhatsApp de confirmación al cliente
+    if (session.client_phone) {
+      try {
+        const clientWaText = getSelectionReceivedClientWhatsApp({
+          clientName: session.client_name,
+          photosCount: selectedAssets.length,
+          language,
+        });
+
+        await sendWhatsAppMessage({
+          phone: session.client_phone,
+          text: clientWaText,
+          clientId: session.client_id || null,
+          sessionId,
+        });
+      } catch (cWaErr) {
+        console.warn('Error enviando WhatsApp confirmación cliente:', cWaErr);
+      }
+    }
+
+    // 3. WhatsApp de alerta al Estudio / Dirección Técnica
+    try {
+      const studioWaText = getStudioSelectionAlertWhatsApp({
+        clientName: session.client_name,
+        photosCount: selectedAssets.length,
+        notesCount,
+        clientPhone: session.client_phone,
+      });
+
+      const studioPhone = process.env.STUDIO_WHATSAPP_PHONE;
+      if (studioPhone) {
+        await sendWhatsAppMessage({
+          phone: studioPhone,
+          text: studioWaText,
+          sessionId,
+        });
+      }
+    } catch (sWaErr) {
+      console.warn('Error enviando WhatsApp alerta al estudio:', sWaErr);
+    }
+
+    // Registrar auditoría inmutable
+    await recordAuditLog({
+      action: 'CLIENT_SELECTION_SUBMITTED',
+      entityType: 'session',
+      entityId: sessionId,
+      entityTitle: session.client_name,
+      details: {
+        photos_count: selectedAssets.length,
+        notes_count: notesCount,
+        email: session.client_email,
+        phone: session.client_phone,
+      },
+    });
+
+    revalidatePath(`/sessions/${sessionId}`);
+    revalidatePath('/planner');
+    revalidatePath('/projects');
+    revalidatePath('/photos');
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error en submitClientSelectionAction:', error);
+    return { success: false, error: error?.message || 'Error inesperado' };
   }
 }
