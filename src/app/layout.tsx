@@ -25,10 +25,25 @@ export default function RootLayout({
   const isAuthPage = pathname === "/login" || pathname?.startsWith("/auth")
 
   useEffect(() => {
-    if ("serviceWorker" in navigator && process.env.NODE_ENV === "production") {
-      navigator.serviceWorker.register("/sw.js").catch((err) => {
-        console.warn("ServiceWorker registration failed: ", err)
-      })
+    if ("serviceWorker" in navigator) {
+      const isLocalhost = typeof window !== "undefined" && (
+        window.location.hostname === "localhost" || 
+        window.location.hostname === "127.0.0.1" || 
+        window.location.hostname === "::1"
+      )
+
+      if (process.env.NODE_ENV === "production" && !isLocalhost) {
+        navigator.serviceWorker.register("/sw.js").catch((err) => {
+          console.warn("ServiceWorker registration failed: ", err)
+        })
+      } else {
+        // En entorno de desarrollo o localhost, desregistrar Service Workers para evitar interceptar rutas, HMR y WebSockets
+        navigator.serviceWorker.getRegistrations().then((registrations) => {
+          for (const registration of registrations) {
+            registration.unregister()
+          }
+        }).catch(() => {})
+      }
     }
   }, [])
 
