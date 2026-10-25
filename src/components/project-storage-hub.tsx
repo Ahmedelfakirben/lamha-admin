@@ -28,6 +28,7 @@ import {
   Terminal,
   Database,
   ArrowUpRight,
+  X,
 } from "lucide-react"
 import { useLanguage } from "@/context/language-context"
 import { openLocalFolderOrFile } from "@/lib/desktop-bridge"
@@ -105,6 +106,7 @@ interface ProjectStorageHubProps {
   projectFolder: string
   sessionId?: string
   clientName?: string
+  onClose?: () => void
 }
 
 function formatBytes(bytes: number): string {
@@ -180,6 +182,7 @@ export function ProjectStorageHub({
   projectFolder,
   sessionId,
   clientName,
+  onClose,
 }: ProjectStorageHubProps) {
   const { language } = useLanguage()
   const isFr = language === "fr" || language === "en" || !language // Defaulting to French as requested
@@ -336,16 +339,21 @@ export function ProjectStorageHub({
   return (
     <div className="rounded-2xl border border-[#26211c] bg-[#141210] shadow-2xl overflow-hidden flex flex-col">
       {/* ── 1. HEADER PRINCIPAL: Identificación estricta del proyecto ── */}
-      <div className="px-5 py-4 border-b border-[#26211c] bg-[#0f0e0c] flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
+      <div className="px-5 py-4 border-b border-[#26211c] bg-[#0f0e0c] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
           <div className="w-10 h-10 rounded-xl bg-[#1d1a16] border border-[#c69f68]/30 flex items-center justify-center text-[#c69f68] shrink-0 shadow-inner">
             <HardDrive className="w-5 h-5" />
           </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs font-bold uppercase tracking-wider text-[#c69f68] font-serif">
                 {isFr ? "Stockage du Projet" : "Almacenamiento del Proyecto"}
               </span>
+              {clientName && (
+                <span className="text-xs text-[#a89f91] font-sans font-medium">
+                  • {clientName}
+                </span>
+              )}
               {data && (
                 <span
                   className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-medium ${
@@ -370,7 +378,7 @@ export function ProjectStorageHub({
               )}
             </div>
             {/* Solo la carpeta del proyecto en el que está */}
-            <p className="text-sm font-mono font-medium text-[#f5f2eb] truncate mt-0.5 flex items-center gap-1.5">
+            <p className="text-sm font-mono font-medium text-[#f5f2eb] truncate mt-0.5 flex items-center gap-1.5" title={projectFolder}>
               <Folder className="w-3.5 h-3.5 text-[#c69f68] shrink-0" />
               <span>{projectFolder}</span>
             </p>
@@ -440,11 +448,23 @@ export function ProjectStorageHub({
           <button
             onClick={fetchSyncStatus}
             disabled={isLoading}
-            className="p-2 rounded-xl bg-[#181613] hover:bg-[#201c18] border border-[#26211c] hover:border-[#c69f68]/40 text-[#a89f91] hover:text-[#f5f2eb] transition-colors"
+            className="p-2 rounded-xl bg-[#181613] hover:bg-[#201c18] border border-[#26211c] hover:border-[#c69f68]/40 text-[#a89f91] hover:text-[#f5f2eb] transition-colors cursor-pointer"
             title={isFr ? "Actualiser l'état" : "Refrescar estado"}
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? "animate-spin" : ""}`} />
           </button>
+
+          {/* Cerrar modal */}
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-2 rounded-xl bg-[#1c1915] hover:bg-rose-500/20 hover:text-rose-400 text-[#8c7a6b] border border-[#26211c] hover:border-rose-800/40 transition-colors cursor-pointer ml-1"
+              title={isFr ? "Fermer" : "Cerrar"}
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -467,7 +487,7 @@ export function ProjectStorageHub({
           </span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {/* PASO 1: Local (SSD) - Primero */}
           <div
             className={`p-3 rounded-xl border transition-all ${

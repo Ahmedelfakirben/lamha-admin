@@ -647,9 +647,17 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
           </button>
 
           <Dialog open={showStorageHub} onOpenChange={setShowStorageHub}>
-            <DialogContent className="max-w-4xl bg-[#0f0e0c] border-[#26211c] p-0 overflow-hidden text-[#f5f2eb]">
+            <DialogContent 
+              showCloseButton={false}
+              className="w-[95vw] sm:max-w-4xl lg:max-w-5xl max-h-[92vh] overflow-y-auto bg-[#0f0e0c] border border-[#2d251e] shadow-2xl p-0 text-[#f5f2eb] rounded-2xl"
+            >
               <DialogTitle className="sr-only">Stockage du Projet</DialogTitle>
-              <ProjectStorageHub projectFolder={fName} sessionId={session.id} clientName={session.client_name} />
+              <ProjectStorageHub 
+                projectFolder={fName} 
+                sessionId={session.id} 
+                clientName={session.client_name} 
+                onClose={() => setShowStorageHub(false)}
+              />
             </DialogContent>
           </Dialog>
 
