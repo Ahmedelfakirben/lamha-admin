@@ -153,11 +153,10 @@ export function Sidebar() {
       {/* ─────────────────────────────────────────────────────────────
           1. MOBILE TOP NAVIGATION BAR (Visible only on < md screens)
           ───────────────────────────────────────────────────────────── */}
-      <header className="md:hidden w-full h-14 shrink-0 bg-[#0b0a09]/95 backdrop-blur-md border-b border-[#26211c] px-4 flex items-center justify-between z-30 select-none">
+      <header className="md:hidden w-full h-14 shrink-0 bg-[#0b0a09]/95 backdrop-blur-md border-b border-[#26211c] px-4 flex items-center justify-center z-30 select-none">
         <Link href="/calendar" className="flex items-center justify-center">
           <BrandLogo width={120} color={theme === "light" ? "#9E753B" : "#C69F68"} showSubtitle={true} />
         </Link>
-        <StorageConnectionBadge compact />
       </header>
 
       {/* ─────────────────────────────────────────────────────────────
@@ -254,9 +253,6 @@ export function Sidebar() {
 
             {/* Mobile Drawer Footer Controls */}
             <div className="p-3.5 border-t border-[#26211c] bg-[#0c0b0a] space-y-3">
-              <div className="w-full">
-                <StorageConnectionBadge />
-              </div>
               <SessionDialog
                 triggerType="add"
                 customTrigger={
@@ -522,11 +518,6 @@ export function Sidebar() {
             }
           />
 
-          {/* Storage Connection Status Badge */}
-          <div className="w-full">
-            <StorageConnectionBadge compact={isCollapsed} />
-          </div>
-
           {/* Unified User & Language Dropdown */}
           <div className="relative w-full">
             <button
@@ -591,6 +582,11 @@ export function Sidebar() {
                         {user?.email || "admin@lamhastudios.com"}
                       </div>
                     </div>
+                  </div>
+
+                  {/* Storage Status in User Menu */}
+                  <div className="pt-0.5">
+                    <StorageConnectionBadge />
                   </div>
 
                   {/* Section: Infrastructure (Audit, NAS, Paramètres) */}

@@ -55,6 +55,7 @@ interface ChatConversation {
   normalizedPhone: string
   remoteJid?: string
   pushName?: string | null
+  contactName?: string | null
   profilePicUrl?: string | null
   client?: ClientContact | null
   sessions: SessionInfo[]
@@ -326,7 +327,7 @@ export function ChatView() {
     // C. Cargar clientes desde la tabla de sesiones (base de datos real del estudio)
     const { data: sessionData } = await supabase
       .from("sessions")
-      .select("id, client_id, client_name, client_phone, client_email, category, status, event_date")
+      .select("id, client_id, client_name, client_phone, client_email, category, status, session_date")
       .order("created_at", { ascending: false })
 
     if (sessionData) {
@@ -344,6 +345,14 @@ export function ChatView() {
               email: s.client_email || null,
               phone: s.client_phone || null,
             })
+          } else {
+            const existing = clientMap.get(key)!
+            if (!existing.phone && s.client_phone) {
+              existing.phone = s.client_phone
+            }
+            if (!existing.email && s.client_email) {
+              existing.email = s.client_email
+            }
           }
         }
       }
@@ -412,12 +421,18 @@ export function ChatView() {
     const clean = normalizePhone(phone)
     if (!clean) return null
     const last9 = clean.slice(-9)
+    const last8 = clean.slice(-8)
 
     for (const c of clients) {
       if (!c.phone) continue
       const cClean = normalizePhone(c.phone)
       if (!cClean) continue
-      if (cClean === clean || (last9 && cClean.endsWith(last9))) {
+      if (
+        cClean === clean ||
+        (last9 && cClean.endsWith(last9)) ||
+        (clean.length >= 9 && cClean.slice(-9) === last9) ||
+        (last8 && cClean.endsWith(last8))
+      ) {
         return c
       }
     }
@@ -429,16 +444,16 @@ export function ChatView() {
     const map = new Map<string, WhatsAppMessage[]>()
     const metaMap = new Map<string, { remoteJid: string; pushName?: string | null; profilePicUrl?: string | null }>()
 
-    // A. Incorporar los 137 chats de Evolution API
+    // A. Incorporar los chats de Evolution API
     for (const ec of evolutionChats) {
       if (!ec.remoteJid) continue
-      const rawDigits = ec.remoteJid.replace(/@.*$/, "")
+      const rawDigits = ec.realPhone || ec.remoteJid.replace(/@.*$/, "")
       const norm = normalizePhone(rawDigits)
       if (!norm) continue
 
       metaMap.set(norm, {
         remoteJid: ec.remoteJid,
-        pushName: ec.pushName || null,
+        pushName: ec.contactName || ec.pushName || null,
         profilePicUrl: ec.profilePicUrl || null,
       })
 
@@ -510,6 +525,7 @@ export function ChatView() {
         normalizedPhone: normPhone,
         remoteJid: meta?.remoteJid || `${normPhone}@s.whatsapp.net`,
         pushName: meta?.pushName,
+        contactName: meta?.pushName,
         profilePicUrl: meta?.profilePicUrl,
         client,
         sessions: matchedSessions,
@@ -608,7 +624,7 @@ export function ChatView() {
       if (!searchQuery.trim()) return true
       const q = searchQuery.toLowerCase()
 
-      const clientName = (c.client?.name || c.pushName || "").toLowerCase()
+      const clientName = (c.client?.name || c.contactName || c.pushName || "").toLowerCase()
       const phone = c.phone.toLowerCase()
       const hasMatchingMsg = c.messages.some((m) =>
         m.content.toLowerCase().includes(q)
@@ -818,7 +834,7 @@ export function ChatView() {
             ) : (
               filteredConversations.map((conv) => {
                 const isSelected = selectedPhone === conv.normalizedPhone
-                const displayName = conv.client?.name || conv.pushName || conv.phone
+                const displayName = conv.client?.name || conv.contactName || conv.pushName || conv.phone
                 const lastMsg = conv.latestMessage
 
                 return (
@@ -850,8 +866,8 @@ export function ChatView() {
                         >
                           {conv.client ? (
                             conv.client.name.substring(0, 2).toUpperCase()
-                          ) : conv.pushName ? (
-                            conv.pushName.substring(0, 2).toUpperCase()
+                          ) : (conv.contactName || conv.pushName) ? (
+                            (conv.contactName || conv.pushName)!.substring(0, 2).toUpperCase()
                           ) : (
                             <Phone className="w-4 h-4" />
                           )}
@@ -933,7 +949,7 @@ export function ChatView() {
                   {activeConversation.profilePicUrl ? (
                     <img
                       src={activeConversation.profilePicUrl}
-                      alt={activeConversation.client?.name || activeConversation.pushName || activeConversation.phone}
+                      alt={activeConversation.client?.name || activeConversation.contactName || activeConversation.pushName || activeConversation.phone}
                       className="w-10 h-10 rounded-full object-cover border border-[#c69f68]/40 shadow-sm shrink-0"
                     />
                   ) : (
@@ -946,8 +962,8 @@ export function ChatView() {
                     >
                       {activeConversation.client ? (
                         activeConversation.client.name.substring(0, 2).toUpperCase()
-                      ) : activeConversation.pushName ? (
-                        activeConversation.pushName.substring(0, 2).toUpperCase()
+                      ) : (activeConversation.contactName || activeConversation.pushName) ? (
+                        (activeConversation.contactName || activeConversation.pushName)!.substring(0, 2).toUpperCase()
                       ) : (
                         <Phone className="w-4 h-4" />
                       )}
@@ -957,7 +973,7 @@ export function ChatView() {
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <h2 className="text-sm font-semibold text-[#f0ebe3] truncate">
-                        {activeConversation.client?.name || activeConversation.pushName || activeConversation.phone}
+                        {activeConversation.client?.name || activeConversation.contactName || activeConversation.pushName || activeConversation.phone}
                       </h2>
                       {activeConversation.client ? (
                         <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-[#c69f68]/20 border border-[#c69f68]/40 text-[#e5c38e]">
