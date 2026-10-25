@@ -391,77 +391,37 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [lightboxIndex, currentList.length])
 
-  // Abrir archivo en Local (SSD) o NAS (FTP) comunicando con la app de escritorio o el servidor
+  // Abrir archivo en Local (SSD) o NAS directamente en el Explorador de Windows
   const handleOpenFile = async (nasPath: string, mode: "open_with" | "reveal" | "open", target: "local" | "nas" = "local") => {
     try {
       setOpenMenuAssetId(null)
       setIsLightboxFolderMenuOpen(false)
 
-      const targetLabel = target === "nas" ? "NAS (Red ZTE)" : "Carpeta Local (SSD)"
-      showNotification(`Abriendo en ${targetLabel}...`)
+      const targetLabel = target === "nas" ? "NAS" : "Carpeta Local (SSD)"
+      showNotification(`Abriendo en el Explorador de Windows (${targetLabel})...`)
 
-      // 0. Prioridad inmediata: Si estamos dentro de la App de Escritorio Electron
-      if (typeof window !== "undefined" && window.desktopAdminAPI?.openLocalPath) {
+      // 0. Si estamos dentro de la App de Escritorio Electron
+      if (typeof window !== "undefined" && (window as any).desktopAdminAPI?.openLocalPath) {
         try {
-          const res = await window.desktopAdminAPI.openLocalPath(nasPath)
+          const res = await (window as any).desktopAdminAPI.openLocalPath(nasPath)
           if (res.success) {
-            showNotification(`Abierto en ${targetLabel}`)
+            showNotification(`Abierto en el Explorador (${targetLabel})`)
             return
           }
         } catch {}
       }
 
-      // 1. Intentar contactar al puente local HTTP del Companion (:41890)
-      let desktopHandled = false
-      try {
-        const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 1200)
-
-        const bridgeRes = await fetch("http://127.0.0.1:41890/open", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ path: nasPath, target, mode }),
-          signal: controller.signal,
-        })
-        clearTimeout(timeoutId)
-
-        if (bridgeRes.ok) {
-          const bridgeData = await bridgeRes.json()
-          if (bridgeData.ok) {
-            showNotification(bridgeData.message || `Abierto en ${targetLabel}`)
-            desktopHandled = true
-          }
-        }
-      } catch (bridgeErr) {
-        // App de escritorio no activa o bloqueada por timeout, continuar con fallback
-      }
-
-      if (desktopHandled) return
-
-      // 2. Si es NAS y no hay app de escritorio, o si se desea abrir directamente desde el navegador:
-      if (target === "nas") {
-        let nasUrl = nasPath.startsWith("ftp://") 
-          ? nasPath 
-          : `ftp://192.168.11.1/usb1_1/Lamha-Storage/${nasPath.replace(/^[\\\/]/, "")}`
-        if (/\.[a-zA-Z0-9]{2,5}$/.test(nasUrl)) {
-          nasUrl = nasUrl.substring(0, nasUrl.lastIndexOf("/"))
-        }
-        window.open(nasUrl, "_blank")
-        showNotification("Enlace FTP del NAS abierto en nueva pestaña")
-        return
-      }
-
-      // 3. Fallback al servidor web Next.js API (/api/media/open-file)
+      // 1. Invocar al servidor para lanzar explorer.exe nativo
       const res = await fetch("/api/media/open-file", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filePath: nasPath, mode })
+        body: JSON.stringify({ filePath: nasPath, mode, target })
       })
       const data = await res.json()
       if (data.success) {
         showNotification(data.message)
       } else {
-        showNotification(`Aviso: ${data.error || "Asegúrate de que la App de Escritorio Lamha esté abierta"}`)
+        showNotification(`Aviso: ${data.error || "No se pudo abrir el explorador de archivos"}`)
       }
     } catch (e: any) {
       showNotification(`Error: ${e.message}`)
@@ -757,7 +717,9 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
             return (
               <div
                 key={asset.id}
-                className={`group rounded-xl overflow-hidden bg-[#141210] border transition-all duration-300 flex flex-col justify-between ${
+                className={`group rounded-xl bg-[#141210] border transition-all duration-300 flex flex-col justify-between ${
+                  openMenuAssetId === asset.id ? "z-30 relative" : "relative"
+                } ${
                   hasClientNote
                     ? "border-amber-500 shadow-lg shadow-amber-950/40 ring-1 ring-amber-500/80"
                     : isClientSelected 
@@ -771,7 +733,7 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
               >
                 {/* Media Image / Preview */}
                 <div 
-                  className="aspect-[4/3] bg-[#0b0a09] relative overflow-hidden flex items-center justify-center cursor-pointer group"
+                  className="aspect-[4/3] bg-[#0b0a09] relative overflow-hidden rounded-t-xl flex items-center justify-center cursor-pointer group"
                   onClick={() => setLightboxIndex(index)}
                 >
                   {asset.preview_url ? (
@@ -890,7 +852,10 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
                       <div className="relative">
                         <button
                           type="button"
-                          onClick={() => setOpenMenuAssetId(openMenuAssetId === asset.id ? null : asset.id)}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setOpenMenuAssetId(openMenuAssetId === asset.id ? null : asset.id)
+                          }}
                           className={`p-1.5 rounded-lg border transition-all cursor-pointer flex items-center gap-0.5 ${
                             openMenuAssetId === asset.id
                               ? "bg-[#c69f68]/20 border-[#c69f68] text-[#f5f2eb]"
@@ -902,38 +867,47 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
                           <ChevronDown className="w-2.5 h-2.5 opacity-70" />
                         </button>
 
-                        {/* Dropdown de opciones: Local SSD o NAS FTP */}
+                        {/* Dropdown de opciones: Local SSD o NAS */}
                         {openMenuAssetId === asset.id && (
-                          <div 
-                            className="absolute right-0 top-full mt-1.5 w-56 rounded-xl bg-[#171411] border border-[#383129] shadow-2xl z-40 py-1.5 text-xs animate-in fade-in zoom-in-95 backdrop-blur-xl"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <div className="px-3 py-1 text-[10px] uppercase font-bold tracking-wider text-[#8c7a6b] border-b border-[#26211c]">
-                              {t.revealInFolder}
+                          <>
+                            <div 
+                              className="fixed inset-0 z-40 cursor-default" 
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setOpenMenuAssetId(null)
+                              }}
+                            />
+                            <div 
+                              className="absolute right-0 bottom-full mb-2 w-56 rounded-xl bg-[#171411] border border-[#383129] shadow-2xl z-50 py-1.5 text-xs animate-in fade-in zoom-in-95 backdrop-blur-xl"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <div className="px-3 py-1 text-[10px] uppercase font-bold tracking-wider text-[#8c7a6b] border-b border-[#26211c]">
+                                {t.revealInFolder}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenFile(asset.nas_path, "reveal", "local")}
+                                className="w-full px-3 py-2 text-left flex items-center gap-2.5 hover:bg-[#26211c] text-[#f5f2eb] transition-colors cursor-pointer"
+                              >
+                                <HardDrive className="w-3.5 h-3.5 text-[#c69f68]" />
+                                <div>
+                                  <div className="font-medium">{t.openInLocalFolder}</div>
+                                  <div className="text-[10px] text-[#8c7a6b]">C:\Lamha-Storage\...</div>
+                                </div>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenFile(asset.nas_path, "reveal", "nas")}
+                                className="w-full px-3 py-2 text-left flex items-center gap-2.5 hover:bg-[#26211c] text-[#f5f2eb] transition-colors cursor-pointer border-t border-[#26211c]/60"
+                              >
+                                <Server className="w-3.5 h-3.5 text-sky-400" />
+                                <div>
+                                  <div className="font-medium">{t.openInNasFolder}</div>
+                                  <div className="text-[10px] text-[#8c7a6b]">Explorador de Windows (NAS)</div>
+                                </div>
+                              </button>
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => handleOpenFile(asset.nas_path, "reveal", "local")}
-                              className="w-full px-3 py-2 text-left flex items-center gap-2.5 hover:bg-[#26211c] text-[#f5f2eb] transition-colors cursor-pointer"
-                            >
-                              <HardDrive className="w-3.5 h-3.5 text-[#c69f68]" />
-                              <div>
-                                <div className="font-medium">{t.openInLocalFolder}</div>
-                                <div className="text-[10px] text-[#8c7a6b]">C:\Lamha-Storage\...</div>
-                              </div>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleOpenFile(asset.nas_path, "reveal", "nas")}
-                              className="w-full px-3 py-2 text-left flex items-center gap-2.5 hover:bg-[#26211c] text-[#f5f2eb] transition-colors cursor-pointer border-t border-[#26211c]/60"
-                            >
-                              <Server className="w-3.5 h-3.5 text-sky-400" />
-                              <div>
-                                <div className="font-medium">{t.openInNasFolder}</div>
-                                <div className="text-[10px] text-[#8c7a6b]">Router ZTE (192.168.11.1)</div>
-                              </div>
-                            </button>
-                          </div>
+                          </>
                         )}
                       </div>
 
@@ -1066,33 +1040,42 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
                 </button>
 
                 {isLightboxFolderMenuOpen && (
-                  <div 
-                    className="absolute right-0 top-full mt-2 w-60 rounded-xl bg-[#171411] border border-[#383129] shadow-2xl z-50 py-1.5 text-xs animate-in fade-in zoom-in-95 backdrop-blur-2xl"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => handleOpenFile(currentList[lightboxIndex].nas_path, "reveal", "local")}
-                      className="w-full px-3 py-2.5 text-left flex items-center gap-2.5 hover:bg-[#26211c] text-[#f5f2eb] transition-colors cursor-pointer"
+                  <>
+                    <div 
+                      className="fixed inset-0 z-40 cursor-default" 
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setIsLightboxFolderMenuOpen(false)
+                      }}
+                    />
+                    <div 
+                      className="absolute right-0 top-full mt-2 w-60 rounded-xl bg-[#171411] border border-[#383129] shadow-2xl z-50 py-1.5 text-xs animate-in fade-in zoom-in-95 backdrop-blur-2xl"
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      <HardDrive className="w-4 h-4 text-[#c69f68]" />
-                      <div>
-                        <div className="font-semibold">{t.openInLocalFolder}</div>
-                        <div className="text-[10px] text-[#8c7a6b]">C:\Lamha-Storage\...</div>
-                      </div>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleOpenFile(currentList[lightboxIndex].nas_path, "reveal", "nas")}
-                      className="w-full px-3 py-2.5 text-left flex items-center gap-2.5 hover:bg-[#26211c] text-[#f5f2eb] transition-colors cursor-pointer border-t border-[#26211c]"
-                    >
-                      <Server className="w-4 h-4 text-sky-400" />
-                      <div>
-                        <div className="font-semibold">{t.openInNasFolder}</div>
-                        <div className="text-[10px] text-[#8c7a6b]">Router ZTE FTP (192.168.11.1)</div>
-                      </div>
-                    </button>
-                  </div>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenFile(currentList[lightboxIndex].nas_path, "reveal", "local")}
+                        className="w-full px-3 py-2.5 text-left flex items-center gap-2.5 hover:bg-[#26211c] text-[#f5f2eb] transition-colors cursor-pointer"
+                      >
+                        <HardDrive className="w-4 h-4 text-[#c69f68]" />
+                        <div>
+                          <div className="font-semibold">{t.openInLocalFolder}</div>
+                          <div className="text-[10px] text-[#8c7a6b]">C:\Lamha-Storage\...</div>
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenFile(currentList[lightboxIndex].nas_path, "reveal", "nas")}
+                        className="w-full px-3 py-2.5 text-left flex items-center gap-2.5 hover:bg-[#26211c] text-[#f5f2eb] transition-colors cursor-pointer border-t border-[#26211c]"
+                      >
+                        <Server className="w-4 h-4 text-sky-400" />
+                        <div>
+                          <div className="font-semibold">{t.openInNasFolder}</div>
+                          <div className="text-[10px] text-[#8c7a6b]">Explorador de Windows (NAS)</div>
+                        </div>
+                      </button>
+                    </div>
+                  </>
                 )}
               </div>
 

@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from "next/server"
 import { exec, spawn } from "child_process"
 import fs from "fs"
 import path from "path"
+import { getDbStorageSettings, checkSmbProbe } from "@/lib/storage-config"
 
 export async function POST(req: NextRequest) {
   try {
-    const { filePath, mode = "open_with", appName } = await req.json()
+    const { filePath, mode = "open_with", appName, target = "local" } = await req.json()
 
     if (!filePath || typeof filePath !== "string") {
       return NextResponse.json(
@@ -14,34 +15,78 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Si es una ruta de red FTP (Router / NAS)
-    if (filePath.startsWith("ftp://")) {
-      const platform = process.platform
+    const platform = process.platform
+
+    // ── GESTIÓN DE ACCESO A NAS (SMB O FTP NATIVO EN EXPLORADOR DE WINDOWS) ──
+    if (target === "nas" || filePath.startsWith("ftp://") || filePath.startsWith("\\\\")) {
+      const dbSettings = await getDbStorageSettings().catch(() => null)
+      const cleanRel = filePath
+        .replace(/^ftp:\/\/[^/]+/, "")
+        .replace(/^usb1_1\/Lamha-Storage\/?/, "")
+        .replace(/^\/usb1_1\/Lamha-Storage\/?/, "")
+        .replace(/^[\\\/]+/, "")
+        .replace(/\//g, "\\")
+
+      const smbBase = dbSettings?.smb_network_path?.replace(/\//g, "\\") || "\\\\usb1_1\\Lamha-Storage"
+      const smbProbeHost = dbSettings?.smb_probe_host || "192.168.1.220"
+      const isSmbOnline = await checkSmbProbe(smbProbeHost, 500)
+
       if (platform === "win32") {
-        const child = spawn("explorer.exe", [filePath], {
-          detached: true,
-          stdio: "ignore",
-          shell: false,
-        })
-        child.unref()
-        return NextResponse.json({
-          success: true,
-          message: "Ubicación de red FTP abierta en el Explorador de Windows.",
-          resolvedPath: filePath,
-        })
+        if (isSmbOnline) {
+          // Si estamos en la red local del estudio, abrir la ruta SMB directa en el Explorador
+          const fullSmbPath = path.join(smbBase, cleanRel)
+          const smbFolder = path.dirname(fullSmbPath)
+          const args = mode === "reveal" ? [`/select,${fullSmbPath}`] : [smbFolder]
+
+          const child = spawn("explorer.exe", args, {
+            detached: true,
+            stdio: "ignore",
+            shell: false,
+          })
+          child.unref()
+
+          return NextResponse.json({
+            success: true,
+            message: "Ubicación del NAS (SMB Red Local) abierta en el Explorador de Windows.",
+            resolvedPath: fullSmbPath,
+          })
+        } else {
+          // Si estamos fuera o en modo remoto, abrir el Explorador de Windows conectado al FTP del NAS
+          const ftpHost = dbSettings?.ftp_remote_host || "192.168.11.1"
+          const ftpBase = (dbSettings?.ftp_remote_base_dir || "/usb1_1/Lamha-Storage").replace(/\/+$/, "")
+          let cleanUrlPart = cleanRel.replace(/\\/g, "/")
+          // Si es un archivo individual, apuntar a su carpeta contenedora para el Explorador
+          if (/\.[a-zA-Z0-9]{2,5}$/.test(cleanUrlPart)) {
+            cleanUrlPart = cleanUrlPart.substring(0, cleanUrlPart.lastIndexOf("/"))
+          }
+          const ftpUrl = `ftp://${ftpHost}${ftpBase}/${cleanUrlPart}`
+
+          const child = spawn("explorer.exe", [ftpUrl], {
+            detached: true,
+            stdio: "ignore",
+            shell: false,
+          })
+          child.unref()
+
+          return NextResponse.json({
+            success: true,
+            message: "Ubicación del NAS (FTP) abierta en el Explorador de Windows.",
+            resolvedPath: ftpUrl,
+          })
+        }
       } else if (platform === "darwin") {
-        spawn("open", [filePath], { detached: true, stdio: "ignore" }).unref()
+        const smbUrl = `smb://${smbBase.replace(/^\\\\/, "").replace(/\\/g, "/")}/${cleanRel.replace(/\\/g, "/")}`
+        spawn("open", [smbUrl], { detached: true, stdio: "ignore" }).unref()
         return NextResponse.json({
           success: true,
-          message: "Ubicación FTP abierta en Finder.",
-          resolvedPath: filePath,
+          message: "Ubicación del NAS abierta en Finder.",
+          resolvedPath: smbUrl,
         })
       }
     }
 
     // Normalizar ruta local
     let normalizedPath = path.normalize(filePath)
-    const platform = process.platform
 
     // Si la ruta no es absoluta, buscar en C:\Lamha-Storage y en otras unidades
     if (!path.isAbsolute(normalizedPath)) {
