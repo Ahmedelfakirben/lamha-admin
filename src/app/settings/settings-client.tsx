@@ -1,7 +1,21 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Settings, ShieldCheck, Database, MapPin, Phone, Mail, Sparkles, Key } from "lucide-react"
+import { 
+  Settings, 
+  ShieldCheck, 
+  Database, 
+  MapPin, 
+  Phone, 
+  Mail, 
+  Sparkles, 
+  Key, 
+  CheckCircle2, 
+  AlertCircle, 
+  Loader2, 
+  ChevronDown, 
+  ChevronUp 
+} from "lucide-react"
 import { useLanguage } from "@/context/language-context"
 import { TeamManagementCard } from "@/components/team-management-card"
 import { WhatsAppGatewayCard } from "@/components/whatsapp-gateway-card"
@@ -69,7 +83,7 @@ export function SettingsClient({ latencyMs, dbConnected }: SettingsClientProps) 
               <Mail className="w-4 h-4 text-[#c69f68] shrink-0 mt-0.5" />
               <div>
                 <span className="text-[#70665a] uppercase tracking-wider text-[10px] block font-semibold">{t.emailLabel}</span>
-                <span className="text-[#f5f2eb] font-medium">Lamha@afafelaribi.com</span>
+                <span className="text-[#f5f2eb] font-medium">contact@lam7a.ma</span>
               </div>
             </div>
           </div>
@@ -143,6 +157,11 @@ function DualDeliverySettingsCard() {
   const [isNasOnline, setIsNasOnline] = useState(false)
   const [hasGDrive, setHasGDrive] = useState(false)
   const [gdriveEmail, setGdriveEmail] = useState("")
+  const [gdrivePrivateKey, setGdrivePrivateKey] = useState("")
+  const [hasGdrivePrivateKey, setHasGdrivePrivateKey] = useState(false)
+  const [showGdriveCredentials, setShowGdriveCredentials] = useState(false)
+  const [testingGDrive, setTestingGDrive] = useState(false)
+  const [gdriveTestResult, setGdriveTestResult] = useState<{ success: boolean; message: string; email?: string } | null>(null)
   const [gdriveParentId, setGdriveParentId] = useState("")
   const [isOAuthConnected, setIsOAuthConnected] = useState(false)
   const [oauthEmail, setOauthEmail] = useState<string | null>(null)
@@ -159,6 +178,7 @@ function DualDeliverySettingsCard() {
           setHasGDrive(data.settings.has_gdrive_credentials)
           setGdriveEmail(data.settings.gdrive_client_email || "")
           setGdriveParentId(data.settings.gdrive_parent_folder_id || "")
+          setHasGdrivePrivateKey(Boolean(data.settings.has_gdrive_private_key))
           setIsOAuthConnected(Boolean(data.settings.isOAuthConnected))
           setOauthEmail(data.settings.oauthEmail || null)
           setIsNasOnline(data.isNasOnline)
@@ -195,22 +215,54 @@ function DualDeliverySettingsCard() {
     } catch {}
   }
 
-  const handleSave = async () => {
-    setSaving(true)
-    setMessage(null)
+  const handleTestGDrive = async () => {
+    setTestingGDrive(true)
+    setGdriveTestResult(null)
     try {
       const res = await fetch("/api/deliveries/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          storage_mode: storageMode,
-          default_retention_days: retentionDays,
-          gdrive_parent_folder_id: gdriveParentId,
+          test_gdrive: true,
+          gdrive_client_email: gdriveEmail || undefined,
+          gdrive_private_key: gdrivePrivateKey || undefined,
+          gdrive_parent_folder_id: gdriveParentId || undefined,
         }),
+      })
+      const data = await res.json()
+      setGdriveTestResult(data)
+    } catch (err: any) {
+      setGdriveTestResult({ success: false, message: err.message })
+    } finally {
+      setTestingGDrive(false)
+    }
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    setMessage(null)
+    try {
+      const payload: any = {
+        storage_mode: storageMode,
+        default_retention_days: retentionDays,
+        gdrive_parent_folder_id: gdriveParentId,
+        gdrive_client_email: gdriveEmail,
+      }
+      if (gdrivePrivateKey.trim()) {
+        payload.gdrive_private_key = gdrivePrivateKey.trim()
+      }
+      const res = await fetch("/api/deliveries/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
       })
       const data = await res.json()
       if (data.success) {
         setMessage("Configuración guardada correctamente.")
+        if (gdrivePrivateKey.trim()) {
+          setHasGdrivePrivateKey(true)
+          setGdrivePrivateKey("")
+        }
       } else {
         setMessage(`Error: ${data.error || "No se pudo guardar"}`)
       }
@@ -421,6 +473,126 @@ function DualDeliverySettingsCard() {
             {t.retentionNotice}
           </p>
         </div>
+      </div>
+
+      {/* Sección Configuración Avanzada Google Drive (Service Account / Raíz) */}
+      <div className="rounded-xl border border-[#26211c] bg-[#100f0d] p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Key className="w-4 h-4 text-[#c69f68]" />
+            <span className="text-xs font-semibold text-[#f5f2eb]">
+              Credenciales Google Drive y Carpeta Raíz
+            </span>
+            {hasGDrive && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium">
+                Configurado
+              </span>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowGdriveCredentials(!showGdriveCredentials)}
+            className="text-xs text-[#c69f68] hover:underline flex items-center gap-1 cursor-pointer"
+          >
+            {showGdriveCredentials ? "Ocultar detalles" : "Editar claves / Carpeta"}
+            {showGdriveCredentials ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
+        </div>
+
+        {/* Resumen rápido si está colapsado */}
+        {!showGdriveCredentials && (
+          <div className="text-[11px] text-[#8c7a6b] flex flex-wrap items-center gap-x-6 gap-y-1">
+            <span>
+              <strong className="text-[#a89f91]">Carpeta Raíz:</strong> {gdriveParentId || "No asignada (carpeta raíz de Drive)"}
+            </span>
+            <span>
+              <strong className="text-[#a89f91]">Service Account:</strong> {gdriveEmail || (isOAuthConnected ? "Usando OAuth" : "No configurado")}
+            </span>
+            <span>
+              <strong className="text-[#a89f91]">Clave Privada:</strong> {hasGdrivePrivateKey ? "Almacenada en BD ✅" : "No configurada"}
+            </span>
+          </div>
+        )}
+
+        {/* Campos editables cuando está expandido */}
+        {showGdriveCredentials && (
+          <div className="space-y-3.5 pt-2 border-t border-[#1e1b18]">
+            <div>
+              <label className="text-[11px] font-medium text-[#c69f68] block mb-1">
+                ID Carpeta Raíz de Entregas (Root Folder ID)
+              </label>
+              <input
+                type="text"
+                value={gdriveParentId}
+                onChange={(e) => setGdriveParentId(e.target.value)}
+                placeholder="ej: 1A2b3C4d5E6f_gHiJkLmNoPqRsTuVw"
+                className="w-full px-3 py-1.5 rounded-lg bg-[#181613] border border-[#26211c] text-[#f5f2eb] font-mono text-xs focus:outline-none focus:border-[#c69f68]"
+              />
+              <p className="text-[10px] text-[#70665a] mt-1">
+                ID extraído de la URL de tu carpeta de Google Drive (drive.google.com/drive/folders/<b>[ESTE_ID]</b>).
+              </p>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="text-[11px] font-medium text-[#c69f68] block mb-1">
+                  Email de la Cuenta de Servicio (Service Account)
+                </label>
+                <input
+                  type="text"
+                  value={gdriveEmail}
+                  onChange={(e) => setGdriveEmail(e.target.value)}
+                  placeholder="ej: lamha-drive@proyect.iam.gserviceaccount.com"
+                  className="w-full px-3 py-1.5 rounded-lg bg-[#181613] border border-[#26211c] text-[#f5f2eb] font-mono text-xs focus:outline-none focus:border-[#c69f68]"
+                />
+                <p className="text-[10px] text-[#70665a] mt-1">
+                  Email bot de Google Cloud. Recuerda compartir tu carpeta raíz con este email con permisos de Editor.
+                </p>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-medium text-[#c69f68] block mb-1">
+                  Clave Privada RSA (Service Account Private Key)
+                  {hasGdrivePrivateKey && (
+                    <span className="ml-2 text-emerald-400 text-[10px] font-normal">
+                      (Ya guardada en BD)
+                    </span>
+                  )}
+                </label>
+                <textarea
+                  rows={2}
+                  value={gdrivePrivateKey}
+                  onChange={(e) => setGdrivePrivateKey(e.target.value)}
+                  placeholder={hasGdrivePrivateKey ? "•••••••••• (Dejar en blanco para mantener la clave existente)" : "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgk..."}
+                  className="w-full px-3 py-1.5 rounded-lg bg-[#181613] border border-[#26211c] text-[#f5f2eb] font-mono text-xs focus:outline-none focus:border-[#c69f68] resize-none"
+                />
+                <p className="text-[10px] text-[#70665a] mt-1">
+                  Pega aquí el campo `private_key` del archivo JSON descargado de Google Cloud Console.
+                </p>
+              </div>
+            </div>
+
+            {/* Botón de Prueba */}
+            <div className="pt-2 flex flex-wrap items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={handleTestGDrive}
+                disabled={testingGDrive}
+                className="px-3.5 py-1.5 rounded-lg border border-[#c69f68]/40 hover:border-[#c69f68] bg-[#c69f68]/10 text-[#c69f68] font-semibold text-xs transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {testingGDrive && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                <span>{testingGDrive ? "Comprobando..." : "Probar Conexión con Google Drive"}</span>
+              </button>
+
+              {gdriveTestResult && (
+                <div className={`text-xs flex items-center gap-1.5 ${gdriveTestResult.success ? "text-emerald-400" : "text-rose-400"}`}>
+                  {gdriveTestResult.success ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                  <span>{gdriveTestResult.message} {gdriveTestResult.email ? `(${gdriveTestResult.email})` : ""}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Botones de Acción */}

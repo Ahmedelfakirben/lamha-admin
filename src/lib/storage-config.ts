@@ -1,6 +1,14 @@
 import path from "path"
 import os from "os"
 import fs from "fs"
+import net from "net"
+import { createClient } from "@supabase/supabase-js"
+
+function getSupabaseAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+  return createClient(url, key, { auth: { persistSession: false } })
+}
 
 export interface StoragePaths {
   platform: "win32" | "darwin" | "linux"
@@ -9,6 +17,7 @@ export interface StoragePaths {
   activeBasePath: string
   isNetworkReachable: boolean
   storageType?: "nas_ftp" | "network_share" | "local"
+  connectionMode?: "smb_local" | "tailscale_ftp" | "local_disk"
 }
 
 export interface NasFtpConfig {
@@ -16,6 +25,99 @@ export interface NasFtpConfig {
   user: string
   password?: string
   baseDir: string
+}
+
+export interface DualAccessSettings {
+  smbNetworkPath: string
+  smbProbeHost: string
+  ftpRemoteHost: string
+  ftpRemotePort: number
+  ftpRemoteUser: string
+  ftpRemotePassword?: string
+  ftpRemoteBaseDir: string
+}
+
+let cachedDbSettings: { data: any; timestamp: number } | null = null
+
+/**
+ * Consulta la configuración de almacenamiento dual guardada en Supabase (studio_delivery_settings) con caché de 30s
+ */
+export async function getDbStorageSettings(): Promise<any> {
+  if (cachedDbSettings && Date.now() - cachedDbSettings.timestamp < 30000) {
+    return cachedDbSettings.data
+  }
+
+  try {
+    const supabase = getSupabaseAdmin()
+    const { data } = await supabase
+      .from("studio_delivery_settings")
+      .select("smb_network_path, smb_probe_host, ftp_remote_host, ftp_remote_port, ftp_remote_user, ftp_remote_password, ftp_remote_base_dir")
+      .eq("id", 1)
+      .maybeSingle()
+
+    if (data) {
+      cachedDbSettings = { data, timestamp: Date.now() }
+      return data
+    }
+  } catch (err) {
+    console.warn("[StorageConfig] No se pudo leer studio_delivery_settings de Supabase:", err)
+  }
+
+  return cachedDbSettings?.data || null
+}
+
+let probeCache: {
+  host: string
+  reachable: boolean
+  timestamp: number
+} | null = null
+
+/**
+ * Verificación rápida de red por Socket TCP al puerto 445 con timeout estricto (500ms).
+ * Evita el congelamiento del kernel de Windows de 15-30 segundos al estar fuera de la oficina.
+ */
+export async function checkSmbProbe(hostOrPath: string, timeoutMs: number = 500): Promise<boolean> {
+  if (!hostOrPath || hostOrPath.trim() === "") return false
+
+  let cleanHost = hostOrPath.trim()
+  if (cleanHost.startsWith("\\\\") || cleanHost.startsWith("//")) {
+    cleanHost = cleanHost.replace(/^[\\/]+/, "").split(/[\\/]/)[0]
+  }
+
+  // Si es una letra de unidad como "Z:" o "Z:\", no es un host directo
+  if (/^[a-zA-Z]:/.test(cleanHost)) {
+    return false
+  }
+
+  // Caché de 15 segundos para no saturar con sockets continuos
+  if (probeCache && probeCache.host === cleanHost && Date.now() - probeCache.timestamp < 15000) {
+    return probeCache.reachable
+  }
+
+  return new Promise((resolve) => {
+    let finished = false
+    const socket = new net.Socket()
+
+    const finish = (result: boolean) => {
+      if (!finished) {
+        finished = true
+        socket.destroy()
+        probeCache = { host: cleanHost, reachable: result, timestamp: Date.now() }
+        resolve(result)
+      }
+    }
+
+    socket.setTimeout(timeoutMs)
+    socket.once("connect", () => finish(true))
+    socket.once("timeout", () => finish(false))
+    socket.once("error", () => finish(false))
+
+    try {
+      socket.connect(445, cleanHost)
+    } catch {
+      finish(false)
+    }
+  })
 }
 
 function getStoredNasConfigFile(): string {
@@ -31,11 +133,22 @@ export function getNasFtpConfig(): NasFtpConfig {
     }
   } catch {}
 
+  // Si tenemos ajustes en DB y estamos fuera de LAN (probe en false), priorizar host de Tailscale
+  const db = cachedDbSettings?.data
+  let effectiveHost = fileConfig.host || process.env.LAMHA_FTP_HOST || "192.168.11.1"
+
+  if (db?.ftp_remote_host && db.ftp_remote_host.trim() !== "") {
+    // Si la LAN no está disponible, usar el host remoto de Tailscale
+    if (probeCache && !probeCache.reachable) {
+      effectiveHost = db.ftp_remote_host.trim()
+    }
+  }
+
   return {
-    host: fileConfig.host || process.env.LAMHA_FTP_HOST || "192.168.11.1",
-    user: fileConfig.user || process.env.LAMHA_FTP_USER || "admin",
-    password: fileConfig.password || process.env.LAMHA_FTP_PASSWORD || "Satec2016C@U",
-    baseDir: fileConfig.baseDir || process.env.LAMHA_FTP_BASE_DIR || "/usb1_1/Lamha-Storage",
+    host: effectiveHost,
+    user: db?.ftp_remote_user || fileConfig.user || process.env.LAMHA_FTP_USER || "admin",
+    password: db?.ftp_remote_password || fileConfig.password || process.env.LAMHA_FTP_PASSWORD || "Satec2016C@U",
+    baseDir: db?.ftp_remote_base_dir || fileConfig.baseDir || process.env.LAMHA_FTP_BASE_DIR || "/usb1_1/Lamha-Storage",
   }
 }
 
@@ -78,53 +191,56 @@ export const VIDEO_EXTENSIONS = new Set([
 
 /**
  * Obtiene la configuración de almacenamiento para el entorno actual (Windows o Mac)
+ * Protección Anti-Freeze: En Windows, si la ruta es un recurso de red (\\ o //) y el sondeo
+ * previo dio inalcanzable, NUNCA ejecuta fs.existsSync de forma síncrona.
  */
 export function getStorageConfig(): StoragePaths {
   const platform = process.platform as "win32" | "darwin" | "linux"
+  const db = cachedDbSettings?.data
   
-  // Rutas en Windows: recurso de red UNC o carpeta local
-  // En macOS: volumen montado en /Volumes o carpeta local
   let networkBasePath = ""
   let localBasePath = ""
 
   if (platform === "win32") {
-    // Ruta en el router/NAS por red local
-    networkBasePath = process.env.LAMHA_NETWORK_STORAGE || `\\\\192.168.11.1\\usb1_1\\Lamha-Storage`
+    networkBasePath = db?.smb_network_path || process.env.LAMHA_NETWORK_STORAGE || `\\\\192.168.1.220\\Proyectos`
     localBasePath = process.env.LAMHA_LOCAL_STORAGE || `C:\\Lamha-Storage`
   } else if (platform === "darwin") {
-    networkBasePath = process.env.LAMHA_NETWORK_STORAGE || `/Volumes/usb1_1/Lamha-Storage`
+    networkBasePath = db?.smb_network_path || process.env.LAMHA_NETWORK_STORAGE || `/Volumes/Proyectos`
     localBasePath = process.env.LAMHA_LOCAL_STORAGE || path.join(os.homedir(), "Lamha-Storage")
   } else {
-    networkBasePath = process.env.LAMHA_NETWORK_STORAGE || `/mnt/usb1_1/Lamha-Storage`
+    networkBasePath = db?.smb_network_path || process.env.LAMHA_NETWORK_STORAGE || `/mnt/Proyectos`
     localBasePath = process.env.LAMHA_LOCAL_STORAGE || path.join(os.homedir(), "Lamha-Storage")
   }
 
-  // Verificar si la ruta de red es accesible
   let isNetworkReachable = false
   let activeBasePath = localBasePath
 
-  try {
-    if (fs.existsSync(/*turbopackIgnore: true*/ networkBasePath)) {
-      isNetworkReachable = true
-      activeBasePath = networkBasePath
-    } else {
-      // Si la red no está montada, asegurar la carpeta local de respaldo
-      if (!fs.existsSync(/*turbopackIgnore: true*/ localBasePath)) {
-        fs.mkdirSync(localBasePath, { recursive: true })
+  const isUnc = networkBasePath.startsWith("\\\\") || networkBasePath.startsWith("//")
+
+  if (isUnc) {
+    // Si el probe rápido está en caché y fue positivo, podemos comprobar la ruta sin congelar
+    if (probeCache && probeCache.reachable) {
+      try {
+        if (fs.existsSync(/*turbopackIgnore: true*/ networkBasePath)) {
+          isNetworkReachable = true
+          activeBasePath = networkBasePath
+        }
+      } catch {
+        isNetworkReachable = false
       }
+    } else {
+      // Fuera de la LAN o sin verificación previa: saltar de inmediato para evitar el timeout de 30s de Windows
+      isNetworkReachable = false
       activeBasePath = localBasePath
     }
-  } catch {
-    activeBasePath = localBasePath
-    if (!fs.existsSync(/*turbopackIgnore: true*/ localBasePath)) {
-      try {
-        fs.mkdirSync(localBasePath, { recursive: true })
-      } catch {
-        // Fallback al directorio temporal del usuario si no hay permisos
-        activeBasePath = path.join(os.tmpdir(), "Lamha-Storage")
-        fs.mkdirSync(activeBasePath, { recursive: true })
+  } else {
+    // Es una ruta local o unidad
+    try {
+      if (fs.existsSync(/*turbopackIgnore: true*/ networkBasePath)) {
+        isNetworkReachable = true
+        activeBasePath = networkBasePath
       }
-    }
+    } catch {}
   }
 
   return {
@@ -132,7 +248,48 @@ export function getStorageConfig(): StoragePaths {
     networkBasePath,
     localBasePath,
     activeBasePath,
-    isNetworkReachable
+    isNetworkReachable,
+    connectionMode: isNetworkReachable ? "smb_local" : "tailscale_ftp"
+  }
+}
+
+/**
+ * Conexión Inteligente Asíncrona: ejecuta el chequeo del puerto 445 en < 500ms
+ * y conmuta automáticamente entre Modo Estudio (SMB) y Modo Remoto (Tailscale FTP).
+ */
+export async function getStorageConfigAsync(): Promise<StoragePaths & { connectionMode: "smb_local" | "tailscale_ftp" | "local_disk" }> {
+  const db = await getDbStorageSettings()
+  const smbHost = db?.smb_probe_host || "192.168.1.220"
+  const isSmbOnline = await checkSmbProbe(smbHost, 500)
+
+  const config = getStorageConfig()
+
+  if (isSmbOnline) {
+    config.isNetworkReachable = true
+    if (db?.smb_network_path) config.networkBasePath = db.smb_network_path
+    config.activeBasePath = config.networkBasePath
+    return {
+      ...config,
+      connectionMode: "smb_local",
+      storageType: "network_share"
+    }
+  }
+
+  // Fallback Remoto por Tailscale FTP
+  if (db?.ftp_remote_host && db.ftp_remote_host.trim() !== "") {
+    return {
+      ...config,
+      isNetworkReachable: false,
+      connectionMode: "tailscale_ftp",
+      storageType: "nas_ftp"
+    }
+  }
+
+  return {
+    ...config,
+    isNetworkReachable: false,
+    connectionMode: "local_disk",
+    storageType: "local"
   }
 }
 
