@@ -48,7 +48,7 @@ export default function RootLayout({
   }, [])
 
   return (
-    <html lang="es" className="dark h-full">
+    <html lang="es" className="dark h-full" suppressHydrationWarning>
       <head>
         <link rel="icon" href="/icon.svg" type="image/svg+xml" />
         <link rel="alternate icon" href="/icon.svg" />
@@ -61,7 +61,10 @@ export default function RootLayout({
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
         <title>Lamha Studios • Studio Atelier</title>
       </head>
-      <body className={`${outfit.className} h-full m-0 p-0 overflow-hidden bg-[#0b0a09] text-[#f5f2eb] flex flex-col`}>
+      <body 
+        className={`${outfit.className} h-full m-0 p-0 overflow-hidden bg-[#0b0a09] text-[#f5f2eb] flex flex-col`}
+        suppressHydrationWarning
+      >
         {/* Luxury Desktop Drag Header Bar */}
         <header
           className="w-full h-9 min-h-[36px] bg-[#0b0a09] border-b border-[#231f1a] flex items-center justify-between px-4 select-none z-50 shrink-0"
