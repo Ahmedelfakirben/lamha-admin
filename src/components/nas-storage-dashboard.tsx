@@ -28,7 +28,7 @@ import {
   FolderPlus
 } from "lucide-react"
 import { useLanguage } from "@/context/language-context"
-import { openLocalFolderOrFile, selectNativeFolder } from "@/lib/desktop-bridge"
+import { openLocalFolderOrFile, selectNativeFolder, checkStudioNas } from "@/lib/desktop-bridge"
 import Link from "next/link"
 
 interface StorageConfigData {
@@ -126,6 +126,14 @@ export function NasStorageDashboard({ initialSessions = [] }: { initialSessions?
       const res = await fetch("/api/media/storage-config")
       const data: StorageConfigData = await res.json()
       if (data.success) {
+        // Si el servidor de la nube no puede alcanzar el NAS local privado, probar desde el PC local
+        if (!data.ftp.isOnline) {
+          const probe = await checkStudioNas(data.ftp.host || ftpHost || "192.168.11.1")
+          if (probe.reachable) {
+            data.ftp.isOnline = true
+            data.isNetworkReachable = true
+          }
+        }
         setConfig(data)
         setFtpHost(data.ftp.host)
         setFtpUser(data.ftp.user)
@@ -133,11 +141,15 @@ export function NasStorageDashboard({ initialSessions = [] }: { initialSessions?
         setLocalPath(data.local.basePath)
       }
     } catch {
-      // Ignorar
+      // Intento de rescate nativo
+      const probe = await checkStudioNas(ftpHost || "192.168.11.1")
+      if (probe.reachable) {
+        setConfig(prev => prev ? { ...prev, isNetworkReachable: true, ftp: { ...prev.ftp, isOnline: true } } : prev)
+      }
     } finally {
       setIsLoadingConfig(false)
     }
-  }, [])
+  }, [ftpHost])
 
   // Scan all projects on storage
   const fetchScan = useCallback(async () => {
@@ -204,12 +216,38 @@ export function NasStorageDashboard({ initialSessions = [] }: { initialSessions?
         }),
       })
       const data = await res.json()
-      setTestResult({
-        success: data.success,
-        message: data.message || (data.success ? "Conexión exitosa" : data.error || "Fallo de conexión")
-      })
+      if (data.success) {
+        setTestResult({
+          success: true,
+          message: data.message || "Conexión exitosa"
+        })
+      } else {
+        // Fallback: Si el servidor cloud no tiene acceso a la IP privada, verificar desde el PC físico
+        const probe = await checkStudioNas(ftpHost)
+        if (probe.reachable) {
+          setTestResult({
+            success: true,
+            message: `Conexión verificada con éxito desde el PC local hacia el NAS en ${ftpHost}:21`
+          })
+          setConfig(prev => prev ? { ...prev, isNetworkReachable: true, ftp: { ...prev.ftp, isOnline: true } } : prev)
+        } else {
+          setTestResult({
+            success: false,
+            message: data.error || "Fallo de conexión"
+          })
+        }
+      }
     } catch (e: any) {
-      setTestResult({ success: false, message: e.message || "Error al conectar" })
+      const probe = await checkStudioNas(ftpHost)
+      if (probe.reachable) {
+        setTestResult({
+          success: true,
+          message: `Conexión verificada con éxito desde el PC local hacia el NAS en ${ftpHost}:21`
+        })
+        setConfig(prev => prev ? { ...prev, isNetworkReachable: true, ftp: { ...prev.ftp, isOnline: true } } : prev)
+      } else {
+        setTestResult({ success: false, message: e.message || "Error al conectar" })
+      }
     } finally {
       setIsTesting(false)
     }

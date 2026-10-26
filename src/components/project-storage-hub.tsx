@@ -31,7 +31,13 @@ import {
   X,
 } from "lucide-react"
 import { useLanguage } from "@/context/language-context"
-import { openLocalFolderOrFile } from "@/lib/desktop-bridge"
+import { 
+  openLocalFolderOrFile,
+  scanLocalProjectStorage,
+  listLocalProjectFiles,
+  createLocalProjectStructure,
+  checkStudioNas
+} from "@/lib/desktop-bridge"
 
 interface FolderStat {
   name: string
@@ -214,13 +220,88 @@ export function ProjectStorageHub({
       const url = `/api/media/project-sync?folder=${encodeURIComponent(projectFolder)}${
         sessionId ? `&sessionId=${sessionId}` : ""
       }`
-      const res = await fetch(url)
-      const json = await res.json()
-      if (res.ok) {
+      let json: ProjectSyncData | null = null
+
+      try {
+        const res = await fetch(url)
+        if (res.ok) {
+          json = await res.json()
+        }
+      } catch {}
+
+      // Si el servidor de la nube no puede ver el disco C: local, consultar mediante puente nativo
+      const localScan = await scanLocalProjectStorage(projectFolder)
+      if (localScan && localScan.exists) {
+        if (!json) {
+          json = {
+            folderName: projectFolder,
+            step1Local: {
+              status: localScan.filesCount > 0 ? "ready" : "empty",
+              exists: true,
+              path: localScan.path || `C:\\Lamha-Storage\\${projectFolder}`,
+              filesCount: localScan.filesCount,
+              sizeMB: localScan.sizeMB,
+              sizeGB: localScan.sizeGB,
+            },
+            step2Supabase: {
+              status: "pending",
+              registeredAssets: 0,
+              previewsCount: 0,
+              photosCount: 0,
+              videosCount: 0,
+              isSynced: false,
+            },
+            step3Nas: {
+              status: "pending_sync",
+              isReachable: false,
+              exists: false,
+              path: `/usb1_1/Lamha-Storage/${projectFolder}`,
+              filesCount: 0,
+              sizeMB: 0,
+              sizeGB: 0,
+              pendingFiles: localScan.filesCount,
+              isSynced: false,
+            },
+            subfolderStats: localScan.subfolders || [],
+            isFullySynced: false,
+            syncJob: {
+              folderName: projectFolder,
+              isSyncing: false,
+              status: "idle",
+              totalFiles: 0,
+              completedFiles: 0,
+              currentFile: "",
+              percent: 0,
+              message: "",
+              logs: [],
+            },
+          }
+        } else {
+          // Fusionar datos locales verificados en el PC físico
+          json.step1Local = {
+            status: localScan.filesCount > 0 ? "ready" : "empty",
+            exists: true,
+            path: localScan.path || `C:\\Lamha-Storage\\${projectFolder}`,
+            filesCount: localScan.filesCount,
+            sizeMB: localScan.sizeMB,
+            sizeGB: localScan.sizeGB,
+          }
+          if (localScan.subfolders && localScan.subfolders.length > 0) {
+            json.subfolderStats = localScan.subfolders
+          }
+        }
+      }
+
+      // Comprobar NAS localmente desde el PC
+      if (json) {
+        const nasProbe = await checkStudioNas()
+        if (nasProbe.reachable) {
+          json.step3Nas.isReachable = true
+        }
         setData(json)
         setError(null)
       } else {
-        setError(json.error || (isFr ? "Impossible d'obtenir l'état du stockage." : "No se pudo obtener el estado de almacenamiento."))
+        setError(isFr ? "Impossible d'obtenir l'état du stockage." : "No se pudo obtener el estado de almacenamiento.")
       }
     } catch (err: any) {
       setError(err.message || (isFr ? "Erreur de connexion avec le serveur." : "Error al conectar con el servidor."))
@@ -258,6 +339,15 @@ export function ProjectStorageHub({
     setActiveSubfolder(subPath)
     setIsLoadingFiles(true)
     try {
+      if (source === "local") {
+        const localEntries = await listLocalProjectFiles(projectFolder, subPath)
+        if (localEntries && localEntries.length > 0) {
+          setFolderFiles(localEntries)
+          setIsLoadingFiles(false)
+          return
+        }
+      }
+
       const fullRelPath = `${projectFolder}/${subPath}`
       const res = await fetch(
         `/api/media/browse?path=${encodeURIComponent(fullRelPath)}&source=${source}`
@@ -290,6 +380,20 @@ export function ProjectStorageHub({
     setIsCreatingFolders(true)
     setCreateMsg(null)
     try {
+      // 1. Intentar creación nativa directa en el PC
+      const localResult = await createLocalProjectStructure(projectFolder)
+      if (localResult.success) {
+        setCreateMsg(
+          isFr
+            ? "Dossiers de production créés avec succès."
+            : "Carpetas estructuradas creadas con éxito en C:\\Lamha-Storage."
+        )
+        await fetchSyncStatus()
+        setTimeout(() => setCreateMsg(null), 5000)
+        return
+      }
+
+      // 2. Fallback vía API
       const res = await fetch("/api/media/create-folder", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

@@ -6,6 +6,31 @@
  * como desde navegador web mediante el Ingest Companion (:41890)
  */
 
+export interface LocalProjectStorageResult {
+  exists: boolean
+  path?: string
+  filesCount: number
+  totalSizeBytes: number
+  sizeMB: number
+  sizeGB: number
+  subfolders: Array<{
+    name: string
+    localCount: number
+    localSizeMB: number
+    nasCount: number
+    isSynced: boolean
+  }>
+  error?: string
+}
+
+export interface LocalBrowseEntry {
+  name: string
+  isDirectory: boolean
+  size: number | null
+  modified: string | null
+  mediaType: "photo" | "video" | "other" | "directory"
+}
+
 export interface DesktopAdminAPI {
   isElectron: boolean
   isDesktopAdmin: boolean
@@ -15,6 +40,9 @@ export interface DesktopAdminAPI {
   revealItemInFolder: (targetPath: string) => Promise<{ success: boolean; error?: string }>
   getActiveCards: () => Promise<Array<{ letter: string; drive: string; path: string; count: number; detectedAt: number }>>
   checkLocalPath: (targetPath: string) => Promise<{ exists: boolean; isDirectory?: boolean; sizeBytes?: number }>
+  scanProjectStorage?: (folderName: string) => Promise<LocalProjectStorageResult>
+  listProjectSubfolder?: (folderName: string, subfolderName?: string) => Promise<LocalBrowseEntry[]>
+  createProjectFolders?: (folderName: string) => Promise<{ success: boolean; path?: string; error?: string }>
   checkNasConnection: (host?: string, port?: number) => Promise<{ reachable: boolean; host: string; port: number; error?: string }>
   launchIngestCompanion: (params?: { sessionId?: string; clientName?: string }) => Promise<{ success: boolean; error?: string }>
   retry?: () => void
@@ -126,3 +154,60 @@ export async function getConnectedCards(): Promise<Array<{ letter: string; drive
 
   return []
 }
+
+/**
+ * Escanea de forma nativa la carpeta del proyecto en C:\Lamha-Storage\<folder>
+ */
+export async function scanLocalProjectStorage(folderName: string): Promise<LocalProjectStorageResult | null> {
+  if (typeof window !== "undefined" && window.desktopAdminAPI?.scanProjectStorage) {
+    try {
+      return await window.desktopAdminAPI.scanProjectStorage(folderName)
+    } catch (e) {
+      console.warn("Fallo en desktopAdminAPI.scanProjectStorage:", e)
+    }
+  }
+  return null
+}
+
+/**
+ * Lista los archivos de una subcarpeta de proyecto local de forma nativa
+ */
+export async function listLocalProjectFiles(folderName: string, subfolderName: string = ""): Promise<LocalBrowseEntry[] | null> {
+  if (typeof window !== "undefined" && window.desktopAdminAPI?.listProjectSubfolder) {
+    try {
+      return await window.desktopAdminAPI.listProjectSubfolder(folderName, subfolderName)
+    } catch (e) {
+      console.warn("Fallo en desktopAdminAPI.listProjectSubfolder:", e)
+    }
+  }
+  return null
+}
+
+/**
+ * Crea las 5 carpetas estructuradas de un proyecto en C:\Lamha-Storage\<folder>
+ */
+export async function createLocalProjectStructure(folderName: string): Promise<{ success: boolean; path?: string; error?: string }> {
+  if (typeof window !== "undefined" && window.desktopAdminAPI?.createProjectFolders) {
+    try {
+      return await window.desktopAdminAPI.createProjectFolders(folderName)
+    } catch (e: any) {
+      return { success: false, error: e.message }
+    }
+  }
+  return { success: false, error: "Puente nativo de escritorio no disponible" }
+}
+
+/**
+ * Comprueba la conexión local con el servidor NAS (192.168.11.1)
+ */
+export async function checkStudioNas(host: string = "192.168.11.1", port: number = 21): Promise<{ reachable: boolean; host: string; port: number; error?: string }> {
+  if (typeof window !== "undefined" && window.desktopAdminAPI?.checkNasConnection) {
+    try {
+      return await window.desktopAdminAPI.checkNasConnection(host, port)
+    } catch (e: any) {
+      return { reachable: false, host, port, error: e.message }
+    }
+  }
+  return { reachable: false, host, port, error: "Desktop bridge no disponible" }
+}
+

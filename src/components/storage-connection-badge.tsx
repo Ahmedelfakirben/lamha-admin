@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { Zap, Globe, WifiOff, RefreshCw } from "lucide-react"
 import { useLanguage } from "@/context/language-context"
 import { cn } from "@/lib/utils"
+import { checkStudioNas } from "@/lib/desktop-bridge"
 
 interface StorageStatus {
   isSmbOnline: boolean
@@ -30,22 +31,39 @@ export function StorageConnectionBadge({
 
   const fetchStatus = async (isManual = false) => {
     if (isManual) setRefreshing(true)
+    let isNas = false
+    let isSmb = false
+
     try {
       const res = await fetch("/api/deliveries/settings")
       const data = await res.json()
+      isNas = Boolean(data.isNasOnline)
+      isSmb = Boolean(data.isSmbOnline)
+
+      // Si el servidor en la nube dice que el NAS está offline, comprobar localmente desde el PC
+      if (!isNas) {
+        const localProbe = await checkStudioNas("192.168.11.1", 21)
+        if (localProbe.reachable) {
+          isNas = true
+        }
+      }
+
       setStatus({
-        isSmbOnline: Boolean(data.isSmbOnline),
-        isNasOnline: Boolean(data.isNasOnline),
-        connectionMode: data.connectionMode || "offline",
-        effectiveMode: data.effectiveMode || "cloud",
+        isSmbOnline: isSmb,
+        isNasOnline: isNas,
+        connectionMode: isNas ? "smb_local" : (data.connectionMode || "offline"),
+        effectiveMode: isNas ? "smb_local" : (data.effectiveMode || "cloud"),
         settings: data.settings,
       })
     } catch {
+      // Intento directo vía desktop bridge
+      const localProbe = await checkStudioNas("192.168.11.1", 21)
+      const nasActive = localProbe.reachable
       setStatus({
         isSmbOnline: false,
-        isNasOnline: false,
-        connectionMode: "offline",
-        effectiveMode: "cloud",
+        isNasOnline: nasActive,
+        connectionMode: nasActive ? "smb_local" : "offline",
+        effectiveMode: nasActive ? "smb_local" : "cloud",
       })
     } finally {
       setLoading(false)

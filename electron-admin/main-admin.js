@@ -238,7 +238,163 @@ ipcMain.handle("check-local-path", async (_event, targetPath) => {
   }
 })
 
-// 7. Comprobar conectividad local con NAS (IP/puerto)
+// Función auxiliar para localizar la carpeta del proyecto en Windows
+function resolveLocalProjectFolder(folderName) {
+  if (!folderName) return null
+  const letters = ["C", "D", "E", "F", "G", "H", "I", "J", "K"]
+  for (const letter of letters) {
+    const candidate1 = path.join(`${letter}:\\Lamha-Storage`, folderName)
+    if (fs.existsSync(candidate1)) return candidate1
+    const candidate2 = path.join(`${letter}:\\`, folderName)
+    if (fs.existsSync(candidate2)) return candidate2
+  }
+  return path.join("C:\\Lamha-Storage", folderName)
+}
+
+// 7. Escanear estado y archivos de un proyecto local (C:\Lamha-Storage\<folder>)
+ipcMain.handle("scan-project-storage", async (_event, folderName) => {
+  if (!folderName) return { exists: false, error: "Nombre de carpeta no especificado" }
+  try {
+    const dirPath = resolveLocalProjectFolder(folderName)
+    if (!fs.existsSync(dirPath)) {
+      return {
+        exists: false,
+        path: dirPath,
+        filesCount: 0,
+        totalSizeBytes: 0,
+        sizeMB: 0,
+        sizeGB: 0,
+        subfolders: []
+      }
+    }
+
+    let filesCount = 0
+    let totalSizeBytes = 0
+    const subfoldersMap = {}
+
+    function walk(current, relSub) {
+      let entries = []
+      try {
+        entries = fs.readdirSync(current, { withFileTypes: true })
+      } catch { return }
+
+      for (const entry of entries) {
+        if (entry.name.startsWith(".")) continue
+        const full = path.join(current, entry.name)
+        const rel = relSub ? `${relSub}/${entry.name}` : entry.name
+
+        if (entry.isDirectory()) {
+          walk(full, rel)
+        } else if (entry.isFile()) {
+          try {
+            const st = fs.statSync(full)
+            filesCount++
+            totalSizeBytes += st.size
+            const topFolder = relSub ? relSub.split("/")[0] : "Raíz"
+            if (!subfoldersMap[topFolder]) {
+              subfoldersMap[topFolder] = { name: topFolder, localCount: 0, localSizeBytes: 0 }
+            }
+            subfoldersMap[topFolder].localCount++
+            subfoldersMap[topFolder].localSizeBytes += st.size
+          } catch {}
+        }
+      }
+    }
+
+    walk(dirPath, "")
+
+    const subfolders = Object.values(subfoldersMap).map(s => ({
+      name: s.name,
+      localCount: s.localCount,
+      localSizeMB: Number((s.localSizeBytes / (1024 * 1024)).toFixed(1)),
+      nasCount: 0,
+      isSynced: false,
+    }))
+
+    const sizeMB = Number((totalSizeBytes / (1024 * 1024)).toFixed(1))
+    const sizeGB = Number((totalSizeBytes / (1024 * 1024 * 1024)).toFixed(2))
+
+    return {
+      exists: true,
+      path: dirPath,
+      filesCount,
+      totalSizeBytes,
+      sizeMB,
+      sizeGB,
+      subfolders,
+    }
+  } catch (err) {
+    return { exists: false, error: err.message }
+  }
+})
+
+// 8. Listar archivos de una subcarpeta local de un proyecto
+ipcMain.handle("list-project-subfolder", async (_event, folderName, subfolderName = "") => {
+  if (!folderName) return []
+  try {
+    const root = resolveLocalProjectFolder(folderName)
+    const targetDir = subfolderName ? path.join(root, subfolderName.replace(/\//g, "\\")) : root
+    if (!fs.existsSync(targetDir)) return []
+
+    const entries = fs.readdirSync(targetDir, { withFileTypes: true })
+    const photoExts = new Set([".cr2", ".cr3", ".nef", ".arw", ".dng", ".raf", ".orf", ".rw2", ".jpg", ".jpeg", ".png", ".webp"])
+    const videoExts = new Set([".mp4", ".mov", ".mkv", ".braw", ".prores", ".avi"])
+
+    return entries
+      .filter(e => !e.name.startsWith("."))
+      .map(entry => {
+        const full = path.join(targetDir, entry.name)
+        let size = null
+        let modified = null
+        try {
+          const st = fs.statSync(full)
+          size = st.size
+          modified = st.mtime.toISOString()
+        } catch {}
+
+        const ext = path.extname(entry.name).toLowerCase()
+        let mediaType = "other"
+        if (entry.isDirectory()) mediaType = "directory"
+        else if (photoExts.has(ext)) mediaType = "photo"
+        else if (videoExts.has(ext)) mediaType = "video"
+
+        return {
+          name: entry.name,
+          isDirectory: entry.isDirectory(),
+          size,
+          modified,
+          mediaType,
+        }
+      })
+  } catch {
+    return []
+  }
+})
+
+// 9. Crear carpetas estructuradas de proyecto en C:\Lamha-Storage\<folder>
+ipcMain.handle("create-project-folders", async (_event, folderName) => {
+  if (!folderName) return { success: false, error: "Nombre vacío" }
+  const root = path.join("C:\\Lamha-Storage", folderName)
+  const subdirs = [
+    "01_RAW\\Fotos",
+    "01_RAW\\Videos",
+    "02_Seleccion_Cliente",
+    "03_Edicion_Master",
+    "04_Entregas_Finales"
+  ]
+  try {
+    if (!fs.existsSync(root)) fs.mkdirSync(root, { recursive: true })
+    for (const sub of subdirs) {
+      const full = path.join(root, sub)
+      if (!fs.existsSync(full)) fs.mkdirSync(full, { recursive: true })
+    }
+    return { success: true, path: root }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+// 10. Comprobar conectividad local con NAS (IP/puerto)
 ipcMain.handle("check-nas-connection", async (_event, host = "192.168.11.1", port = 21, timeoutMs = 1500) => {
   return new Promise((resolve) => {
     const socket = new net.Socket()
@@ -263,7 +419,7 @@ ipcMain.handle("check-nas-connection", async (_event, host = "192.168.11.1", por
   })
 })
 
-// 8. Iniciar o comunicar con Ingest Companion
+// 11. Iniciar o comunicar con Ingest Companion
 ipcMain.handle("launch-ingest-companion", async (_event, params = {}) => {
   const protocolUrl = `lamha://ingest?session_id=${encodeURIComponent(params.sessionId || "")}&client_name=${encodeURIComponent(params.clientName || "")}&auto=true`
   try {
