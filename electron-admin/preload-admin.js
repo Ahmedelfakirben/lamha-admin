@@ -5,7 +5,7 @@ contextBridge.exposeInMainWorld("desktopAdminAPI", {
   isDesktopAdmin: true,
   selectFolder: (options) => ipcRenderer.invoke("select-folder", options),
   selectFile: (options) => ipcRenderer.invoke("select-file", options),
-  openLocalPath: (targetPath) => ipcRenderer.invoke("open-local-path", targetPath),
+  openLocalPath: (targetPath, target = "local") => ipcRenderer.invoke("open-local-path", targetPath, target),
   revealItemInFolder: (targetPath) => ipcRenderer.invoke("reveal-item", targetPath),
   getActiveCards: () => ipcRenderer.invoke("get-active-cards"),
   checkLocalPath: (targetPath) => ipcRenderer.invoke("check-local-path", targetPath),

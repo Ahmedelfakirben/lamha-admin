@@ -36,7 +36,7 @@ export interface DesktopAdminAPI {
   isDesktopAdmin: boolean
   selectFolder: (options?: { title?: string; defaultPath?: string }) => Promise<string | null>
   selectFile: (options?: { title?: string; defaultPath?: string; multiple?: boolean; filters?: Array<{ name: string; extensions: string[] }> }) => Promise<string | string[] | null>
-  openLocalPath: (targetPath: string) => Promise<{ success: boolean; error?: string }>
+  openLocalPath: (targetPath: string, target?: "local" | "nas") => Promise<{ success: boolean; error?: string; resolvedPath?: string }>
   revealItemInFolder: (targetPath: string) => Promise<{ success: boolean; error?: string }>
   getActiveCards: () => Promise<Array<{ letter: string; drive: string; path: string; count: number; detectedAt: number }>>
   checkLocalPath: (targetPath: string) => Promise<{ exists: boolean; isDirectory?: boolean; sizeBytes?: number }>
@@ -62,20 +62,25 @@ export function isDesktopApp(): boolean {
 }
 
 /**
- * Abre una carpeta o archivo directamente en el Explorador de Windows del PC local
+ * Abre una carpeta o archivo directamente en el Explorador de Windows del PC local o en el NAS
  */
 export async function openLocalFolderOrFile(
   targetPath: string,
-  mode: "reveal" | "open" = "reveal"
-): Promise<{ success: boolean; message?: string }> {
+  mode: "reveal" | "open" = "reveal",
+  target: "local" | "nas" = "local"
+): Promise<{ success: boolean; message?: string; resolvedPath?: string }> {
   if (!targetPath) return { success: false, message: "Ruta vacía" }
 
   // 1. Prioridad: Puente nativo directo de la App de Escritorio Electron
   if (typeof window !== "undefined" && window.desktopAdminAPI?.openLocalPath) {
     try {
-      const res = await window.desktopAdminAPI.openLocalPath(targetPath)
+      const res = await window.desktopAdminAPI.openLocalPath(targetPath, target)
       if (res.success) {
-        return { success: true, message: "Abierto en el Explorador de Windows" }
+        return { 
+          success: true, 
+          message: target === "nas" ? "Abierto en NAS (Explorador)" : "Abierto en el Explorador de Windows",
+          resolvedPath: res.resolvedPath 
+        }
       }
     } catch (e) {
       console.warn("Fallo en desktopAdminAPI.openLocalPath:", e)

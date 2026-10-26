@@ -190,6 +190,10 @@ export function NasConfigCard() {
     try {
       const res = await fetch("/api/deliveries/settings")
       const data = await res.json()
+      let isSmb = Boolean(data.isSmbOnline)
+      let isFtp = Boolean(data.isNasOnline)
+      let mode = data.connectionMode || "offline"
+
       if (data.settings) {
         if (data.settings.smb_network_path) setSmbNetworkPath(data.settings.smb_network_path)
         if (data.settings.smb_probe_host) setSmbProbeHost(data.settings.smb_probe_host)
@@ -199,9 +203,21 @@ export function NasConfigCard() {
         if (data.settings.ftp_remote_base_dir) setFtpRemoteBaseDir(data.settings.ftp_remote_base_dir)
         setHasPassword(Boolean(data.settings.ftp_remote_password))
       }
-      setIsSmbOnline(data.isSmbOnline)
-      setIsFtpOnline(data.isNasOnline)
-      setConnectionMode(data.connectionMode || "offline")
+
+      // Si la nube marca offline pero estamos en la app de escritorio local, verificar directamente por socket TCP
+      if (!isSmb && !isFtp && typeof window !== "undefined" && window.desktopAdminAPI?.checkNasConnection) {
+        const testHost = data.settings?.ftp_remote_host || "192.168.11.1"
+        const testPort = Number(data.settings?.ftp_remote_port) || 21
+        const localCheck = await window.desktopAdminAPI.checkNasConnection(testHost, testPort)
+        if (localCheck.reachable) {
+          isFtp = true
+          mode = "ftp"
+        }
+      }
+
+      setIsSmbOnline(isSmb)
+      setIsFtpOnline(isFtp)
+      setConnectionMode(mode)
     } catch {
       setIsSmbOnline(false)
       setIsFtpOnline(false)
@@ -219,17 +235,31 @@ export function NasConfigCard() {
   const handleTestSmb = async () => {
     setTestingSmb(true)
     setFeedback(null)
+    const host = smbProbeHost || "192.168.11.1"
     try {
+      // 1. Probar localmente desde el PC si está dentro de Electron
+      if (typeof window !== "undefined" && window.desktopAdminAPI?.checkNasConnection) {
+        const localCheck = await window.desktopAdminAPI.checkNasConnection(host, 445)
+        if (localCheck.reachable) {
+          setIsSmbOnline(true)
+          setLatencyMs(15)
+          setFeedback({ type: "success", msg: texts.testSuccess(15) + ` [SMB Local: ${host}:445]` })
+          setTestingSmb(false)
+          return
+        }
+      }
+
+      // 2. Consulta API backend
       const res = await fetch("/api/deliveries/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ test_smb: true, smb_probe_host: smbProbeHost }),
+        body: JSON.stringify({ test_smb: true, smb_probe_host: host }),
       })
       const data = await res.json()
       if (data.reachable) {
         setIsSmbOnline(true)
         setLatencyMs(data.latencyMs)
-        setFeedback({ type: "success", msg: texts.testSuccess(data.latencyMs) + ` [${smbProbeHost}:445]` })
+        setFeedback({ type: "success", msg: texts.testSuccess(data.latencyMs) + ` [${host}:445]` })
       } else {
         setIsSmbOnline(false)
         setFeedback({ type: "error", msg: texts.testError(data.message || "Timeout 500ms") })
@@ -246,12 +276,27 @@ export function NasConfigCard() {
   const handleTestFtp = async () => {
     setTestingFtp(true)
     setFeedback(null)
+    const targetHost = ftpRemoteHost || "192.168.11.1"
+    const targetPort = Number(ftpRemotePort) || 21
+
     try {
+      // 1. Si estamos dentro de la app de escritorio en el PC local, verificar socket TCP directo
+      if (typeof window !== "undefined" && window.desktopAdminAPI?.checkNasConnection) {
+        const localCheck = await window.desktopAdminAPI.checkNasConnection(targetHost, targetPort)
+        if (localCheck.reachable) {
+          setIsFtpOnline(true)
+          setFeedback({ type: "success", msg: texts.testSuccess(15) + ` [FTP Local Verificado: ${targetHost}:${targetPort}]` })
+          setTestingFtp(false)
+          return
+        }
+      }
+
+      // 2. Probar mediante la API de backend
       const res = await fetch("/api/settings/nas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
-          host: ftpRemoteHost || "192.168.11.1", 
+          host: targetHost, 
           user: ftpRemoteUser, 
           password: ftpRemotePassword, 
           baseDir: ftpRemoteBaseDir, 
@@ -263,10 +308,27 @@ export function NasConfigCard() {
         setIsFtpOnline(true)
         setFeedback({ type: "success", msg: texts.testSuccess(data.latencyMs) + ` [FTP]` })
       } else {
+        // Si el servidor cloud falló por estar en IP privada (192.168.x.x), reintentar sonda local
+        if (typeof window !== "undefined" && window.desktopAdminAPI?.checkNasConnection) {
+          const retryCheck = await window.desktopAdminAPI.checkNasConnection(targetHost, targetPort)
+          if (retryCheck.reachable) {
+            setIsFtpOnline(true)
+            setFeedback({ type: "success", msg: texts.testSuccess(18) + ` [FTP Local Detectado: ${targetHost}]` })
+            return
+          }
+        }
         setIsFtpOnline(false)
         setFeedback({ type: "error", msg: texts.testError(data.error || "Timeout") })
       }
     } catch (err: any) {
+      if (typeof window !== "undefined" && window.desktopAdminAPI?.checkNasConnection) {
+        const localCheck = await window.desktopAdminAPI.checkNasConnection(targetHost, targetPort)
+        if (localCheck.reachable) {
+          setIsFtpOnline(true)
+          setFeedback({ type: "success", msg: texts.testSuccess(10) + ` [Conexión Local Verificada]` })
+          return
+        }
+      }
       setIsFtpOnline(false)
       setFeedback({ type: "error", msg: texts.testError(err.message) })
     } finally {

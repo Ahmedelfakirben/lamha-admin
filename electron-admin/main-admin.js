@@ -170,30 +170,105 @@ ipcMain.handle("select-file", async (_event, options = {}) => {
   return options.multiple ? result.filePaths : result.filePaths[0]
 })
 
-// 3. Abrir carpetas o archivos en el Explorador de Windows
-ipcMain.handle("open-local-path", async (_event, targetPath) => {
+// 3. Abrir carpetas o archivos en el Explorador de Windows (con resolución inteligente de NAS y SSD)
+ipcMain.handle("open-local-path", async (_event, targetPath, target = "local") => {
   if (!targetPath || typeof targetPath !== "string") {
     return { success: false, error: "Ruta no especificada" }
   }
 
   try {
-    if (fs.existsSync(targetPath)) {
-      const stat = fs.statSync(targetPath)
-      if (stat.isDirectory()) {
-        const error = await shell.openPath(targetPath)
-        return { success: !error, error }
-      } else {
-        shell.showItemInFolder(targetPath)
+    // A) MODO NAS: Abrir recurso compartido SMB o FTP en el Explorador de Windows
+    if (target === "nas" || targetPath.startsWith("ftp://") || targetPath.startsWith("\\\\")) {
+      const cleanRel = targetPath
+        .replace(/^ftp:\/\/[^/]+/, "")
+        .replace(/^\/?usb1_1\/Lamha-Storage\/?/i, "")
+        .replace(/^usb1_1[\\\/]Lamha-Storage[\\\/]?/i, "")
+        .replace(/^[\\\/]+/, "")
+        .replace(/\//g, "\\")
+
+      // 1. Probar ruta UNC SMB directa
+      const smbCandidate = path.join("\\\\192.168.11.1\\usb1_1\\Lamha-Storage", cleanRel)
+      if (fs.existsSync(smbCandidate)) {
+        if (fs.statSync(smbCandidate).isDirectory()) {
+          await shell.openPath(smbCandidate)
+        } else {
+          shell.showItemInFolder(smbCandidate)
+        }
         return { success: true }
       }
-    } else {
-      const parentDir = path.dirname(targetPath)
-      if (fs.existsSync(parentDir)) {
-        const error = await shell.openPath(parentDir)
-        return { success: !error, error }
+
+      // 2. Probar URL FTP directa en explorer.exe
+      let cleanUrlPart = cleanRel.replace(/\\/g, "/")
+      if (/\.[a-zA-Z0-9]{2,5}$/.test(cleanUrlPart)) {
+        cleanUrlPart = cleanUrlPart.substring(0, cleanUrlPart.lastIndexOf("/"))
       }
-      return { success: false, error: `La ruta no existe: ${targetPath}` }
+      const ftpUrl = `ftp://192.168.11.1/usb1_1/Lamha-Storage/${cleanUrlPart}`
+      spawn("explorer.exe", [ftpUrl], { detached: true, stdio: "ignore" }).unref()
+      return { success: true }
     }
+
+    // B) MODO LOCAL (SSD): Resolver en disco C:\Lamha-Storage y unidades secundarias
+    // 1. Si la ruta ya es absoluta y existe
+    if (path.isAbsolute(targetPath) && fs.existsSync(targetPath)) {
+      const stat = fs.statSync(targetPath)
+      if (stat.isDirectory()) {
+        await shell.openPath(targetPath)
+      } else {
+        shell.showItemInFolder(targetPath)
+      }
+      return { success: true }
+    }
+
+    // 2. Limpiar ruta quitando prefijos de NAS o URLs relativas
+    const cleanRel = targetPath
+      .replace(/^ftp:\/\/[^/]+/, "")
+      .replace(/^\/?usb1_1\/Lamha-Storage\/?/i, "")
+      .replace(/^usb1_1[\\\/]Lamha-Storage[\\\/]?/i, "")
+      .replace(/^[\\\/]+/, "")
+      .replace(/\//g, "\\")
+
+    // 3. Probar en C:\Lamha-Storage y unidades D:, E:, F:, G:
+    const drives = ["C", "D", "E", "F", "G"]
+    for (const drive of drives) {
+      const candidate = path.join(`${drive}:\\Lamha-Storage`, cleanRel)
+      if (fs.existsSync(candidate)) {
+        const stat = fs.statSync(candidate)
+        if (stat.isDirectory()) {
+          await shell.openPath(candidate)
+        } else {
+          shell.showItemInFolder(candidate)
+        }
+        return { success: true, resolvedPath: candidate }
+      }
+
+      // Probar si existe la carpeta contenedora
+      const candidateDir = path.dirname(candidate)
+      if (fs.existsSync(candidateDir)) {
+        await shell.openPath(candidateDir)
+        return { success: true, resolvedPath: candidateDir }
+      }
+    }
+
+    // 4. Probar abriendo la carpeta raíz del proyecto
+    const projectFolder = cleanRel.split("\\")[0]
+    if (projectFolder) {
+      for (const drive of drives) {
+        const candidateProj = path.join(`${drive}:\\Lamha-Storage`, projectFolder)
+        if (fs.existsSync(candidateProj)) {
+          await shell.openPath(candidateProj)
+          return { success: true, resolvedPath: candidateProj }
+        }
+      }
+    }
+
+    // 5. Fallback general: Abrir C:\Lamha-Storage
+    const defaultRoot = "C:\\Lamha-Storage"
+    if (fs.existsSync(defaultRoot)) {
+      await shell.openPath(defaultRoot)
+      return { success: true, message: "Abierta raíz C:\\Lamha-Storage" }
+    }
+
+    return { success: false, error: `No se encontró la ruta: ${targetPath}` }
   } catch (err) {
     return { success: false, error: err.message }
   }

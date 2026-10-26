@@ -41,6 +41,7 @@ import { toggleAssetSharedAction, bulkSetAssetsSharedAction, deleteAssetAction }
 import { useLanguage } from "@/context/language-context"
 import { createClient } from "@/lib/supabase"
 import { SessionDeliveryHub } from "./session-delivery-hub"
+import { openLocalFolderOrFile } from "@/lib/desktop-bridge"
 
 interface MediaAsset {
   id: string
@@ -400,29 +401,13 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
       const targetLabel = target === "nas" ? "NAS" : "Carpeta Local (SSD)"
       showNotification(`Abriendo en el Explorador de Windows (${targetLabel})...`)
 
-      // 0. Si estamos dentro de la App de Escritorio Electron
-      if (typeof window !== "undefined" && (window as any).desktopAdminAPI?.openLocalPath) {
-        try {
-          const res = await (window as any).desktopAdminAPI.openLocalPath(nasPath)
-          if (res.success) {
-            showNotification(`Abierto en el Explorador (${targetLabel})`)
-            return
-          }
-        } catch {}
+      const res = await openLocalFolderOrFile(nasPath, mode === "open" ? "open" : "reveal", target)
+      if (res.success) {
+        showNotification(res.message || `Abierto en el Explorador (${targetLabel})`)
+        return
       }
 
-      // 1. Invocar al servidor para lanzar explorer.exe nativo
-      const res = await fetch("/api/media/open-file", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filePath: nasPath, mode, target })
-      })
-      const data = await res.json()
-      if (data.success) {
-        showNotification(data.message)
-      } else {
-        showNotification(`Aviso: ${data.error || "No se pudo abrir el explorador de archivos"}`)
-      }
+      showNotification(`Aviso: ${res.message || "No se pudo abrir el explorador de archivos"}`)
     } catch (e: any) {
       showNotification(`Error: ${e.message}`)
     }
