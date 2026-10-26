@@ -10,10 +10,10 @@
     "lint": "eslint",
     "desktop": "electron electron/main.js",
     "desktop:pack": "electron-builder --dir",
-    "desktop:dist": "electron-builder --win portable",
+    "desktop:dist": "electron-builder --win dir portable nsis",
     "desktop:admin": "electron electron-admin/main-admin.js",
     "desktop:admin:pack": "electron-builder --config electron-builder-admin.json --dir",
-    "desktop:admin:dist": "electron-builder --config electron-builder-admin.json --win portable"
+    "desktop:admin:dist": "electron-builder --config electron-builder-admin.json --win dir portable nsis"
   },
   "build": {
     "appId": "com.lamhastudios.atelier",
@@ -24,7 +24,8 @@
     "win": {
       "target": [
         "dir",
-        "portable"
+        "portable",
+        "nsis"
       ],
       "icon": "electron/assets/icon.ico"
     },

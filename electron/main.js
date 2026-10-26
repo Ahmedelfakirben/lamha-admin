@@ -4,7 +4,7 @@ if (process.env.LAMHA_APP === "admin" || (process.execPath && process.execPath.t
   return
 }
 
-const { app, BrowserWindow, ipcMain, shell, dialog, screen, Notification } = require("electron")
+const { app, BrowserWindow, ipcMain, shell, dialog, screen, Notification, nativeImage } = require("electron")
 const path = require("path")
 const fs = require("fs")
 
@@ -138,7 +138,12 @@ function showMain() {
 function createWindow() {
   const cfg = getConfig()
   const isLight = cfg.theme === "light"
-  const appIcon = path.join(__dirname, "assets", "icon.ico")
+  let iconPath = path.join(__dirname, "assets", "icon.ico")
+  if (!fs.existsSync(iconPath)) {
+    iconPath = path.join(__dirname, "assets", "icon.png")
+  }
+  const appIcon = nativeImage.createFromPath(iconPath)
+
   mainWindow = new BrowserWindow({
     width: 1140,
     height: 800,
@@ -146,7 +151,7 @@ function createWindow() {
     minHeight: 680,
     title: "Lam7a Studios Atelier - Ingest Companion",
     backgroundColor: isLight ? "#faf8f5" : "#12100e",
-    icon: appIcon,
+    icon: !appIcon.isEmpty() ? appIcon : iconPath,
     titleBarStyle: "hidden",
     titleBarOverlay: {
       color: isLight ? "#f4ede4" : "#171411",
@@ -161,7 +166,9 @@ function createWindow() {
     autoHideMenuBar: true,
     show: true,
   })
-  mainWindow.setIcon(appIcon)
+  if (!appIcon.isEmpty()) {
+    mainWindow.setIcon(appIcon)
+  }
 
   mainWindow.webContents.on("console-message", (_event, _level, message, line, sourceId) => {
     logToFile(`[RENDERER] ${message} (${sourceId}:${line})`)
@@ -212,7 +219,11 @@ function showMini() {
   const w = 372
   const h = 188
   const cfg = getConfig()
-  const appIcon = path.join(__dirname, "assets", "icon.ico")
+  let iconPath = path.join(__dirname, "assets", "icon.ico")
+  if (!fs.existsSync(iconPath)) {
+    iconPath = path.join(__dirname, "assets", "icon.png")
+  }
+  const appIcon = nativeImage.createFromPath(iconPath)
   miniWindow = new BrowserWindow({
     width: w,
     height: h,
@@ -226,7 +237,7 @@ function showMini() {
     alwaysOnTop: true,
     skipTaskbar: true,
     show: false,
-    icon: appIcon,
+    icon: !appIcon.isEmpty() ? appIcon : iconPath,
     backgroundColor: cfg.theme === "light" ? "#faf8f5" : "#12100e",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
