@@ -3,8 +3,8 @@ import { Suspense } from "react"
 import { ChatView } from "./chat-view"
 
 export const metadata: Metadata = {
-  title: "Messagerie WhatsApp • Lamha Studios",
-  description: "Centre de messagerie WhatsApp en direct pour Lamha Studios",
+  title: "Messagerie WhatsApp • Lam7a Studios",
+  description: "Centre de messagerie WhatsApp en direct pour Lam7a Studios",
 }
 
 export default function ChatPage() {

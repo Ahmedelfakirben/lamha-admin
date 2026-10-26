@@ -17,7 +17,7 @@
   },
   "build": {
     "appId": "com.lamhastudios.atelier",
-    "productName": "Lamha Studios",
+    "productName": "Lam7a Studios - Ingest Companion",
     "directories": {
       "output": "dist"
     },

@@ -136,11 +136,11 @@ export function SessionPinCard({
       : basePortalUrl
 
     if (language === "es") {
-      return `*Lamha Studios • Espace Privé*\n\nHola ${clientName},\n\nTu suite privada en Lamha Studios está lista para la selección de tus fotografías de autor.\n\n*Accede a tu Espace Privé :* ${portalUrl}\n` +
+      return `*Lam7a Studios • Espace Privé*\n\nHola ${clientName},\n\nTu suite privada en Lam7a Studios está lista para la selección de tus fotografías de autor.\n\n*Accede a tu Espace Privé :* ${portalUrl}\n` +
         (clientEmail ? `*Identificador (Email) :* ${clientEmail}\n` : "") +
         `*Código PIN de seguridad :* *${pin || "----"}*\n` +
         `*Cantidad de fotos a seleccionar :* ${currentQuota} fotos\n\n` +
-        `Afaf Elaribi • Lamha Studios`
+        `Afaf Elaribi • Lam7a Studios`
     } else if (language === "ar") {
       return `*استوديوهات لمحة • Espace Privé*\n\nمرحباً ${clientName}،\n\nجناحكم الخاص في استوديو لمحة جاهز لاختيار صوركم الفنية.\n\n*رابط الدخول إلى البوابة الخاصة :* ${portalUrl}\n` +
         (clientEmail ? `*المعرّف (البريد الإلكتروني) :* ${clientEmail}\n` : "") +
@@ -148,18 +148,18 @@ export function SessionPinCard({
         `*عدد الصور المطلوب اختيارها :* ${currentQuota} صورة\n\n` +
         `عفاف العريبي • استوديوهات لمحة`
     } else if (language === "en") {
-      return `*Lamha Studios • Private Suite*\n\nHello ${clientName},\n\nYour private suite at Lamha Studios is ready for selecting your fine art photographs.\n\n*Access your Espace Privé :* ${portalUrl}\n` +
+      return `*Lam7a Studios • Private Suite*\n\nHello ${clientName},\n\nYour private suite at Lam7a Studios is ready for selecting your fine art photographs.\n\n*Access your Espace Privé :* ${portalUrl}\n` +
         (clientEmail ? `*Identifier (Email) :* ${clientEmail}\n` : "") +
         `*Security PIN Code :* *${pin || "----"}*\n` +
         `*Photos to select :* ${currentQuota} photos\n\n` +
-        `Afaf Elaribi • Lamha Studios`
+        `Afaf Elaribi • Lam7a Studios`
     } else {
       // fr (défaut)
-      return `*Lamha Studios • Espace Privé*\n\nBonjour ${clientName},\n\nVotre suite privée chez Lamha Studios est prête pour la sélection de vos photographies d'art.\n\n*Accédez à votre Espace Privé :* ${portalUrl}\n` +
+      return `*Lam7a Studios • Espace Privé*\n\nBonjour ${clientName},\n\nVotre suite privée chez Lam7a Studios est prête pour la sélection de vos photographies d'art.\n\n*Accédez à votre Espace Privé :* ${portalUrl}\n` +
         (clientEmail ? `*Identifiant (Email) :* ${clientEmail}\n` : "") +
         `*Code PIN de sécurité :* *${pin || "----"}*\n` +
         `*Nombre de photos à sélectionner :* ${currentQuota} photos\n\n` +
-        `Afaf Elaribi • Lamha Studios`
+        `Afaf Elaribi • Lam7a Studios`
     }
   }
 

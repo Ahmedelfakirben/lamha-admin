@@ -271,7 +271,7 @@ export function Sidebar() {
                   </div>
                   <div className="min-w-0">
                     <div className="text-xs font-bold text-[#f5f2eb] truncate">{user?.name || "Studio Admin"}</div>
-                    <div className="text-[10px] text-[#70665a] truncate">{user?.email || "Lamha Studios"}</div>
+                    <div className="text-[10px] text-[#70665a] truncate">{user?.email || "Lam7a Studios"}</div>
                   </div>
                 </div>
 
@@ -545,7 +545,7 @@ export function Sidebar() {
                       {user?.name || "Studio Admin"}
                     </div>
                     <div className="text-[10px] text-[#70665a] truncate">
-                      {user?.email || "Lamha Studios"}
+                      {user?.email || "Lam7a Studios"}
                     </div>
                   </div>
                 )}
@@ -579,7 +579,7 @@ export function Sidebar() {
                         {user?.name || t.adminRole}
                       </div>
                       <div className="text-[10px] text-[#8c7a6b] truncate">
-                        {user?.email || "admin@lamhastudios.com"}
+                        {user?.email || "admin@lam7a.ma"}
                       </div>
                     </div>
                   </div>

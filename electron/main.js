@@ -144,7 +144,7 @@ function createWindow() {
     height: 800,
     minWidth: 980,
     minHeight: 680,
-    title: "Lamha Studios Atelier - Ingest Companion",
+    title: "Lam7a Studios Atelier - Ingest Companion",
     backgroundColor: isLight ? "#faf8f5" : "#12100e",
     icon: appIcon,
     titleBarStyle: "hidden",

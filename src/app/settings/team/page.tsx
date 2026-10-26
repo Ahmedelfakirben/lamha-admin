@@ -19,7 +19,7 @@ export default function TeamSettingsPage() {
             Gestión del Equipo & Colaboradores
           </h1>
           <p className="text-xs text-[#8c7a6b]">
-            Altas, bajas, contraseñas y asignación de roles en el ERP de Lamha Studios
+            Altas, bajas, contraseñas y asignación de roles en el ERP de Lam7a Studios
           </p>
         </div>
       </div>

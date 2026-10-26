@@ -177,11 +177,11 @@ export function WhatsAppChatPanel({
   const applyTemplate = (templateType: "confirm" | "ready" | "portal") => {
     const name = clientName || "Estimado/a cliente"
     if (templateType === "confirm") {
-      setInputText(`¡Hola ${name}! 📸 Te confirmamos tu sesión de fotos en Lamha Studios. Si tienes alguna consulta previa, puedes responder a este mensaje.`)
+      setInputText(`¡Hola ${name}! 📸 Te confirmamos tu sesión de fotos en Lam7a Studios. Si tienes alguna consulta previa, puedes responder a este mensaje.`)
     } else if (templateType === "ready") {
       setInputText(`¡Hola ${name}! 🎉 El montaje de fotos y vídeos de tu sesión ya está completamente finalizado y disponible para ti.`)
     } else if (templateType === "portal") {
-      setInputText(`¡Hola ${name}! Puedes acceder a tu galería privada de selección en el portal de clientes de Lamha Studios.`)
+      setInputText(`¡Hola ${name}! Puedes acceder a tu galería privada de selección en el portal de clientes de Lam7a Studios.`)
     }
   }
 

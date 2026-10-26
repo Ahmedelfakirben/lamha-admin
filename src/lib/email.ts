@@ -23,8 +23,8 @@ export function getSmtpConfig(): SmtpConfig {
     secure: process.env.SMTP_SECURE === "true",
     user: process.env.SMTP_USER || "",
     pass: process.env.SMTP_PASS || "",
-    fromName: process.env.SMTP_FROM_NAME || "Lamha Studios",
-    fromEmail: process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER || "contact@lamhastudios.ma",
+    fromName: process.env.SMTP_FROM_NAME || "Lam7a Studios",
+    fromEmail: process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER || "contact@lam7a.ma",
   }
 }
 

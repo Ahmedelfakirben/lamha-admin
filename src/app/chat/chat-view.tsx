@@ -99,11 +99,11 @@ const CHAT_I18N = {
     templates: [
       {
         title: "Confirmación de Sesión",
-        text: "¡Hola! Te confirmamos que tu sesión en Lamha Studios está agendada. ¿Tienes alguna consulta antes del día del shooting?",
+        text: "¡Hola! Te confirmamos que tu sesión en Lam7a Studios está agendada. ¿Tienes alguna consulta antes del día del shooting?",
       },
       {
         title: "Acceso Espace Privé",
-        text: "¡Hola! Tu suite privada en Lamha Studios ya está disponible para que puedas seleccionar tus fotos favoritas.",
+        text: "¡Hola! Tu suite privada en Lam7a Studios ya está disponible para que puedas seleccionar tus fotos favoritas.",
       },
       {
         title: "Fotos Listas",
@@ -111,7 +111,7 @@ const CHAT_I18N = {
       },
       {
         title: "Recordatorio Cita",
-        text: "Recordatorio de Lamha Studios: Te esperamos mañana en nuestro estudio a la hora programada. ¡Hasta pronto!",
+        text: "Recordatorio de Lam7a Studios: Te esperamos mañana en nuestro estudio a la hora programada. ¡Hasta pronto!",
       },
     ],
   },
@@ -149,11 +149,11 @@ const CHAT_I18N = {
     templates: [
       {
         title: "Confirmation Séance",
-        text: "Bonjour ! Nous vous confirmons que votre séance chez Lamha Studios est bien réservée. Avez-vous des questions avant le jour du shooting ?",
+        text: "Bonjour ! Nous vous confirmons que votre séance chez Lam7a Studios est bien réservée. Avez-vous des questions avant le jour du shooting ?",
       },
       {
         title: "Accès Espace Privé",
-        text: "Bonjour ! Votre suite privée Lamha Studios est désormais prête pour sélectionner vos photographies d'art préférées.",
+        text: "Bonjour ! Votre suite privée Lam7a Studios est désormais prête pour sélectionner vos photographies d'art préférées.",
       },
       {
         title: "Photos Prêtes",
@@ -161,7 +161,7 @@ const CHAT_I18N = {
       },
       {
         title: "Rappel Rendez-vous",
-        text: "Rappel Lamha Studios : Nous avons le plaisir de vous accueillir demain à l'atelier à l'heure convenue. À très vite !",
+        text: "Rappel Lam7a Studios : Nous avons le plaisir de vous accueillir demain à l'atelier à l'heure convenue. À très vite !",
       },
     ],
   },
@@ -199,11 +199,11 @@ const CHAT_I18N = {
     templates: [
       {
         title: "Session Confirmation",
-        text: "Hello! We are confirming your photo session booking at Lamha Studios. Do you have any questions before shoot day?",
+        text: "Hello! We are confirming your photo session booking at Lam7a Studios. Do you have any questions before shoot day?",
       },
       {
         title: "Private Suite Access",
-        text: "Hello! Your private suite at Lamha Studios is now ready for you to select your favorite fine art photographs.",
+        text: "Hello! Your private suite at Lam7a Studios is now ready for you to select your favorite fine art photographs.",
       },
       {
         title: "Photos Ready",
@@ -211,7 +211,7 @@ const CHAT_I18N = {
       },
       {
         title: "Appointment Reminder",
-        text: "Lamha Studios Reminder: We look forward to welcoming you tomorrow at our atelier at the scheduled time. See you soon!",
+        text: "Lam7a Studios Reminder: We look forward to welcoming you tomorrow at our atelier at the scheduled time. See you soon!",
       },
     ],
   },

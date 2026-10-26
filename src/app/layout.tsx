@@ -56,10 +56,10 @@ export default function RootLayout({
         <meta name="theme-color" content="#0b0a09" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="apple-mobile-web-app-title" content="Lamha Studios" />
+        <meta name="apple-mobile-web-app-title" content="Lam7a Studios" />
         <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-        <title>Lamha Studios • Studio Atelier</title>
+        <title>Lam7a Studios • Studio Atelier</title>
       </head>
       <body 
         className={`${outfit.className} h-full m-0 p-0 overflow-hidden bg-[#0b0a09] text-[#f5f2eb] flex flex-col`}
@@ -72,7 +72,7 @@ export default function RootLayout({
         >
           <div className="flex items-center gap-2 text-xs">
             <span className="w-2 h-2 rounded-full bg-[#c69f68] shadow-[0_0_8px_rgba(198,159,104,0.6)]"></span>
-            <span className="font-serif tracking-wider text-[#f5f2eb] font-medium text-[11px] uppercase">Lamha Studios</span>
+            <span className="font-serif tracking-wider text-[#f5f2eb] font-medium text-[11px] uppercase">Lam7a Studios</span>
             <span className="text-[#c69f68]/40">•</span>
             <span className="text-[#c69f68]/80 text-[11px] font-sans tracking-wide">Studio Atelier</span>
           </div>

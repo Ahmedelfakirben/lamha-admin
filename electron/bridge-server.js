@@ -42,7 +42,7 @@ class LamhaBridgeServer {
         res.writeHead(200)
         res.end(JSON.stringify({
           ok: true,
-          app: "Lamha Studios Ingest Companion",
+          app: "Lam7a Studios Ingest Companion",
           version: "1.0.0",
           connected: true,
           activeCards: cards,

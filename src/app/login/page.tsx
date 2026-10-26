@@ -144,10 +144,10 @@ export default function LoginPage() {
               <BrandLogo width={180} color="#f5f2eb" showSubtitle={false} />
               <h1 className="sr-only">
                 {language === "es" 
-                  ? "Lamha Studios - Iniciar Sesión" 
+                  ? "Lam7a Studios - Iniciar Sesión" 
                   : language === "ar" 
                   ? "استوديوهات لمحة - تسجيل الدخول" 
-                  : "Lamha Studios - Connexion Studio"}
+                  : "Lam7a Studios - Connexion Studio"}
               </h1>
             </Link>
 
@@ -187,7 +187,7 @@ export default function LoginPage() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@lamhastudios.com"
+                  placeholder="admin@lam7a.ma"
                   className="w-full pl-10 pr-3 py-2.5 rounded-xl bg-[#0b0a09] border border-[#2b251f] text-xs text-[#f5f2eb] placeholder:text-[#554c42] focus:border-[#c69f68] focus:ring-1 focus:ring-[#c69f68]/30 outline-none transition-all"
                 />
               </div>
@@ -273,7 +273,7 @@ export default function LoginPage() {
 
       {/* Footer */}
       <footer className="w-full py-4 text-center text-xs text-[#554c42] z-10">
-        © 2026 Lamha Studios. Tous droits réservés. Système d'Ingestion & Gestion.
+        © 2026 Lam7a Studios. Tous droits réservés. Système d'Ingestion & Gestion.
       </footer>
     </div>
   )

@@ -8,8 +8,8 @@
 
 const TRAY_I18N = {
   fr: {
-    appTitle: "Lamha Studios Atelier",
-    trayTooltip: "Lamha Studios — Surveillance Matériel & Ingestion Active",
+    appTitle: "Lam7a Studios Atelier",
+    trayTooltip: "Lam7a Studios — Surveillance Matériel & Ingestion Active",
     statusIdle: "Système en veille (Prêt)",
     statusIngesting: "Ingestion en cours...",
     quickIngest: (drive) => `Lancer l'ingestion de la carte (${drive})`,
@@ -28,12 +28,12 @@ const TRAY_I18N = {
     nasOnlineBody: "Le serveur NAS 192.168.11.1 est en ligne. Le double miroir est actif.",
     nasOfflineTitle: "Alerte NAS Déconnecté",
     nasOfflineBody: "Le NAS 192.168.11.1 n'est pas joignable. Les fichiers seront sécurisés sur le SSD local.",
-    minimizedToTrayTitle: "Lamha Studios reste actif",
+    minimizedToTrayTitle: "Lam7a Studios reste actif",
     minimizedToTrayBody: "L'application continue de surveiller vos cartes SD et clés USB en arrière-plan.",
   },
   es: {
-    appTitle: "Lamha Studios Atelier",
-    trayTooltip: "Lamha Studios — Vigilancia de Hardware e Ingesta Activa",
+    appTitle: "Lam7a Studios Atelier",
+    trayTooltip: "Lam7a Studios — Vigilancia de Hardware e Ingesta Activa",
     statusIdle: "Sistema en espera (Listo)",
     statusIngesting: "Ingesta en curso...",
     quickIngest: (drive) => `Iniciar ingesta de tarjeta (${drive})`,
@@ -42,7 +42,7 @@ const TRAY_I18N = {
     checkNas: "Comprobar estado del NAS (192.168.11.1)",
     rescanDrives: "Escanear tarjetas y discos USB",
     languageMenu: "Idioma",
-    quitApp: "Salir de Lamha Studios",
+    quitApp: "Salir de Lam7a Studios",
 
     // Notificaciones Windows
     cardDetectedTitle: "Tarjeta de memoria detectada",
@@ -52,12 +52,12 @@ const TRAY_I18N = {
     nasOnlineBody: "El servidor NAS 192.168.11.1 está en línea. La réplica dual está activa.",
     nasOfflineTitle: "Aviso: NAS Desconectado",
     nasOfflineBody: "No se puede conectar al NAS 192.168.11.1. Los archivos se protegerán en el SSD local.",
-    minimizedToTrayTitle: "Lamha Studios sigue activo",
+    minimizedToTrayTitle: "Lam7a Studios sigue activo",
     minimizedToTrayBody: "La aplicación sigue vigilando la inserción de tarjetas SD y discos en segundo plano.",
   },
   en: {
-    appTitle: "Lamha Studios Atelier",
-    trayTooltip: "Lamha Studios — Hardware Monitoring & Ingest Active",
+    appTitle: "Lam7a Studios Atelier",
+    trayTooltip: "Lam7a Studios — Hardware Monitoring & Ingest Active",
     statusIdle: "System idle (Ready)",
     statusIngesting: "Ingestion in progress...",
     quickIngest: (drive) => `Start card ingestion (${drive})`,
@@ -66,7 +66,7 @@ const TRAY_I18N = {
     checkNas: "Check studio NAS status (192.168.11.1)",
     rescanDrives: "Rescan removable media",
     languageMenu: "Language",
-    quitApp: "Quit Lamha Studios",
+    quitApp: "Quit Lam7a Studios",
 
     // Windows Notifications
     cardDetectedTitle: "Memory card detected",
@@ -76,7 +76,7 @@ const TRAY_I18N = {
     nasOnlineBody: "NAS Server 192.168.11.1 is online. Dual backup mirror is active.",
     nasOfflineTitle: "Warning: NAS Disconnected",
     nasOfflineBody: "Cannot reach NAS 192.168.11.1. Files will be safely preserved on local SSD.",
-    minimizedToTrayTitle: "Lamha Studios is still running",
+    minimizedToTrayTitle: "Lam7a Studios is still running",
     minimizedToTrayBody: "The app continues watching for SD cards and USB drives in the background.",
   },
   ar: {

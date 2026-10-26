@@ -70,7 +70,7 @@ const TEAM_I18N = {
     deleteError: "Error al eliminar:",
     passwordUpdated: "Contraseña actualizada con éxito para",
     namePlaceholder: "Ej: Karim Benali",
-    emailPlaceholder: "colaborador@lamhastudio.com",
+    emailPlaceholder: "colaborador@lam7a.ma",
     passwordPlaceholder: "Mínimo 6 caracteres",
   },
   fr: {
@@ -109,7 +109,7 @@ const TEAM_I18N = {
     deleteError: "Erreur lors de la suppression :",
     passwordUpdated: "Mot de passe mis à jour avec succès pour",
     namePlaceholder: "Ex : Karim Benali",
-    emailPlaceholder: "collaborateur@lamhastudio.com",
+    emailPlaceholder: "collaborateur@lam7a.ma",
     passwordPlaceholder: "Minimum 6 caractères",
   },
   en: {
@@ -148,7 +148,7 @@ const TEAM_I18N = {
     deleteError: "Error while deleting:",
     passwordUpdated: "Password successfully updated for",
     namePlaceholder: "e.g. Karim Benali",
-    emailPlaceholder: "collaborator@lamhastudio.com",
+    emailPlaceholder: "collaborator@lam7a.ma",
     passwordPlaceholder: "Minimum 6 characters",
   },
   ar: {
@@ -187,7 +187,7 @@ const TEAM_I18N = {
     deleteError: "خطأ أثناء الحذف:",
     passwordUpdated: "تم تحديث كلمة المرور بنجاح للمستخدم",
     namePlaceholder: "مثال: كريم بنعلي",
-    emailPlaceholder: "member@lamhastudio.com",
+    emailPlaceholder: "member@lam7a.ma",
     passwordPlaceholder: "6 أحرف كحد أدنى",
   }
 }

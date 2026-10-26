@@ -81,7 +81,7 @@ function createWindow() {
     height: 920,
     minWidth: 1080,
     minHeight: 720,
-    title: "Lamha Studios • Studio Atelier",
+    title: "Lam7a Studios • Studio Atelier",
     backgroundColor: "#0b0a09",
     icon: fs.existsSync(iconPath) ? iconPath : undefined,
     titleBarStyle: "hidden",

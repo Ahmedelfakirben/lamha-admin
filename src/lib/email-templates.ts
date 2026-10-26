@@ -1,5 +1,5 @@
-/**
- * Plantillas HTML Responsivas y de Lujo para Lamha Studios Atelier
+﻿/**
+ * Plantillas HTML Responsivas y de Lujo para Lam7a Studios Atelier
  * Soporte Completo para las 4 Lenguas del Sistema:
  * - fr (Français - Atelier Standard)
  * - ar (العربية - RTL)
@@ -77,23 +77,23 @@ const WELCOME_I18N = {
   fr: {
     atelierTag: "ATELIER PHOTOGRAPHIQUE",
     tagline: "Capturer l'éternité dans chaque instant",
-    subject: (name: string) => `✦ Bienvenue chez Lamha Studios — Confirmation de Réservation : ${name}`,
+    subject: (name: string) => `✦ Bienvenue chez Lam7a Studios — Confirmation de Réservation : ${name}`,
     greeting: (name: string) => `Cher/Chère <span style="color: #c69f68;">${name}</span>,`,
-    intro: "C'est un véritable honneur de vous accueillir au sein de <strong>Lamha Studios</strong>. Nous avons bien enregistré votre projet et réservé la date dans l'agenda de notre atelier.",
+    intro: "C'est un véritable honneur de vous accueillir au sein de <strong>Lam7a Studios</strong>. Nous avons bien enregistré votre projet et réservé la date dans l'agenda de notre atelier.",
     dateLabel: "Date Programmée",
     catLabel: "Catégorie & Spécialité",
     notesLabel: "Notes & Détails",
     noDate: "Date à confirmer",
     desc: "Notre équipe de photographes et directeurs artistiques prépare déjà l'ensemble du dispositif créatif pour immortaliser vos précieux moments avec le plus haut niveau d'exigence et d'élégance.",
     contactPrompt: "Pour toute question, coordination de tenues ou précision avant le jour J, notre équipe reste à votre entière disposition.",
-    footerText: "Lamha Studios Atelier • Tous droits réservés.",
+    footerText: "Lam7a Studios Atelier • Tous droits réservés.",
   },
   ar: {
     atelierTag: "استوديو التصوير الفني",
     tagline: "تخليد اللحظات الأبدية بأرقى المعايير",
     subject: (name: string) => `✦ مرحباً بكم في استوديو لمحة — تأكيد حجز جلسة التصوير: ${name}`,
     greeting: (name: string) => `عزيزنا/عزيزتنا <span style="color: #c69f68;">${name}</span>،`,
-    intro: "إنه لمن دواعي سرورنا واعتزازنا أن نرحب بكم في <strong>استوديو لمحة (Lamha Studios)</strong>. لقد تم تسجيل مشروعكم وتثبيت الموعد المحدد في جدول مواعيد الاستوديو.",
+    intro: "إنه لمن دواعي سرورنا واعتزازنا أن نرحب بكم في <strong>استوديو لمحة (Lam7a Studios)</strong>. لقد تم تسجيل مشروعكم وتثبيت الموعد المحدد في جدول مواعيد الاستوديو.",
     dateLabel: "الموعد المحدد",
     catLabel: "الفئة والتخصص",
     notesLabel: "ملاحظات وتفاصيل",
@@ -105,30 +105,30 @@ const WELCOME_I18N = {
   en: {
     atelierTag: "PHOTOGRAPHIC ATELIER",
     tagline: "Capturing eternity in every instant",
-    subject: (name: string) => `✦ Welcome to Lamha Studios — Booking Confirmation: ${name}`,
+    subject: (name: string) => `✦ Welcome to Lam7a Studios — Booking Confirmation: ${name}`,
     greeting: (name: string) => `Dear <span style="color: #c69f68;">${name}</span>,`,
-    intro: "It is a true honor to welcome you to <strong>Lamha Studios</strong>. We have officially registered your project and reserved your date in our atelier's calendar.",
+    intro: "It is a true honor to welcome you to <strong>Lam7a Studios</strong>. We have officially registered your project and reserved your date in our atelier's calendar.",
     dateLabel: "Scheduled Date",
     catLabel: "Category & Specialty",
     notesLabel: "Notes & Details",
     noDate: "Date to be confirmed",
     desc: "Our team of photographers and creative directors is already preparing the artistic and technical direction to immortalize your moments with the highest level of craftsmanship and elegance.",
     contactPrompt: "Should you have any inquiries regarding styling, locations, or special requests prior to your session, we remain at your complete disposal.",
-    footerText: "Lamha Studios Atelier • All rights reserved.",
+    footerText: "Lam7a Studios Atelier • All rights reserved.",
   },
   es: {
     atelierTag: "ATELIER FOTOGRÁFICO",
     tagline: "Capturando la eternidad en cada instante",
-    subject: (name: string) => `✦ Bienvenida a Lamha Studios — Confirmación de Reserva: ${name}`,
+    subject: (name: string) => `✦ Bienvenida a Lam7a Studios — Confirmación de Reserva: ${name}`,
     greeting: (name: string) => `Estimado/a <span style="color: #c69f68;">${name}</span>,`,
-    intro: "Es un honor darte la más cálida bienvenida a <strong>Lamha Studios</strong>. Hemos registrado formalmente tu proyecto y reservado la fecha en la agenda de nuestro atelier.",
+    intro: "Es un honor darte la más cálida bienvenida a <strong>Lam7a Studios</strong>. Hemos registrado formalmente tu proyecto y reservado la fecha en la agenda de nuestro atelier.",
     dateLabel: "Fecha Programada",
     catLabel: "Categoría & Especialidad",
     notesLabel: "Notas y Detalles",
     noDate: "Fecha por confirmar",
     desc: "Nuestro equipo de fotógrafos y directores de arte ya está preparando todo el despliegue técnico y creativo para inmortalizar tus mejores momentos con la máxima fidelidad, elegancia y cuidado del detalle.",
     contactPrompt: "Si necesitas realizar cualquier consulta, coordinar la vestimenta, ubicación o afinar detalles antes del día señalado, estamos a tu entera disposición.",
-    footerText: "Lamha Studios Atelier • Todos los derechos reservados.",
+    footerText: "Lam7a Studios Atelier • Todos los derechos reservados.",
   },
 }
 
@@ -136,7 +136,7 @@ const PHOTOS_READY_I18N = {
   fr: {
     atelierTag: "ESPACE PRIVÉ & SÉLECTION",
     tagline: "Vos précieux souvenirs sont désormais disponibles",
-    subject: (name: string) => `✦ Vos photos sont prêtes sur votre Espace Privé — Lamha Studios (${name})`,
+    subject: (name: string) => `✦ Vos photos sont prêtes sur votre Espace Privé — Lam7a Studios (${name})`,
     greeting: (name: string) => `Bonjour <span style="color: #c69f68;">${name}</span>,`,
     intro: (count?: number) => `Nous avons le plaisir de vous annoncer que votre reportage photo a été traité et calibré par notre atelier. ${count ? `Vous avez <strong>${count} photographies</strong> prêtes à être consultées.` : "Vos photos sont prêtes."}`,
     boxTitle: "VOS IDENTIFIANTS D'ACCÈS",
@@ -152,7 +152,7 @@ const PHOTOS_READY_I18N = {
     step3Desc: "Vous pouvez télécharger le dossier complet en haute résolution directement via :",
     driveBtn: "📁 Ouvrir le dossier Google Drive →",
     closing: "Nous espérons de tout cœur que vous apprécierez revivre ces instants autant que nous avons aimé les capturer.",
-    footerText: "Lamha Studios Atelier • Tous droits réservés.",
+    footerText: "Lam7a Studios Atelier • Tous droits réservés.",
   },
   ar: {
     atelierTag: "المساحة الخاصة واختيار الصور",
@@ -178,7 +178,7 @@ const PHOTOS_READY_I18N = {
   en: {
     atelierTag: "PRIVATE CLIENT SPACE & SELECTION",
     tagline: "Your precious memories are now available",
-    subject: (name: string) => `✦ Your photos are ready in your Private Space — Lamha Studios (${name})`,
+    subject: (name: string) => `✦ Your photos are ready in your Private Space — Lam7a Studios (${name})`,
     greeting: (name: string) => `Hello <span style="color: #c69f68;">${name}</span>!`,
     intro: (count?: number) => `We are delighted to inform you that your photoshoot has been processed and calibrated by our atelier. ${count ? `You have <strong>${count} photographs</strong> ready to view.` : "Your photos are now ready."}`,
     boxTitle: "YOUR ACCESS CREDENTIALS",
@@ -194,12 +194,12 @@ const PHOTOS_READY_I18N = {
     step3Desc: "You can download the full high-resolution collection directly from:",
     driveBtn: "📁 Open Google Drive Folder →",
     closing: "We sincerely hope you cherish reliving these moments as much as we enjoyed creating them.",
-    footerText: "Lamha Studios Atelier • All rights reserved.",
+    footerText: "Lam7a Studios Atelier • All rights reserved.",
   },
   es: {
     atelierTag: "ESPACIO PRIVADO & SELECCIÓN",
     tagline: "Tus recuerdos más bellos ya están disponibles",
-    subject: (name: string) => `✦ Tus fotos están listas en tu Espace Privé — Lamha Studios (${name})`,
+    subject: (name: string) => `✦ Tus fotos están listas en tu Espace Privé — Lam7a Studios (${name})`,
     greeting: (name: string) => `¡Hola <span style="color: #c69f68;">${name}</span>!`,
     intro: (count?: number) => `Nos alegra comunicarte que el reportaje fotográfico ha sido procesado y calibrado por nuestro atelier. ${count ? `Ya tienes <strong>${count} fotografías</strong> disponibles para visualizar.` : "Tus fotos ya están listas para ti."}`,
     boxTitle: "TUS CREDENCIALES DE ACCESO",
@@ -215,7 +215,7 @@ const PHOTOS_READY_I18N = {
     step3Desc: "Puedes descargar la carpeta completa en máxima resolución directamente desde:",
     driveBtn: "📁 Abrir Carpeta de Fotos en Google Drive →",
     closing: "Esperamos de corazón que disfrutes reviviendo estos momentos tanto como nosotros disfrutamos capturándolos.",
-    footerText: "Lamha Studios Atelier • Todos los derechos reservados.",
+    footerText: "Lam7a Studios Atelier • Todos los derechos reservados.",
   },
 }
 
@@ -223,7 +223,7 @@ const READY_DELIVERY_I18N = {
   fr: {
     atelierTag: "LIVRAISON ATELIER & MONTAGE FINAL",
     tagline: "Votre commande est prête pour le retrait à l'Atelier",
-    subject: (name: string) => `✦ Vos photographies d'art sont prêtes à l'Atelier — Lamha Studios (${name})`,
+    subject: (name: string) => `✦ Vos photographies d'art sont prêtes à l'Atelier — Lam7a Studios (${name})`,
     greeting: (name: string) => `Cher/Chère <span style="color: #c69f68;">${name}</span>,`,
     intro: "Nous avons l'immense honneur de vous annoncer que les tirages d'art, la reliure de votre album et les finitions de votre projet sont désormais <strong>prêts et finalisés</strong> à notre atelier.",
     pickupTitle: "Retrait à l'Atelier & Téléchargement Final",
@@ -232,9 +232,9 @@ const READY_DELIVERY_I18N = {
     driveTitle: "Fichiers Haute Résolution Master :",
     driveDesc: "Vos fichiers d'art en taille réelle sont accessibles sur votre dossier Google Drive sécurisé :",
     driveBtn: "📁 Accéder au dossier Google Drive Master →",
-    studioAddress: "Lamha Studios Atelier • Tanger, Maroc",
-    closing: "Toute l'équipe de Lamha Studios vous remercie chaleureusement pour votre confiance et a hâte de vous remettre vos précieux souvenirs.",
-    footerText: "Lamha Studios Atelier • Tous droits réservés.",
+    studioAddress: "Lam7a Studios Atelier • Tanger, Maroc",
+    closing: "Toute l'équipe de Lam7a Studios vous remercie chaleureusement pour votre confiance et a hâte de vous remettre vos précieux souvenirs.",
+    footerText: "Lam7a Studios Atelier • Tous droits réservés.",
   },
   ar: {
     atelierTag: "التسليم النهائي في الاستوديو",
@@ -255,7 +255,7 @@ const READY_DELIVERY_I18N = {
   en: {
     atelierTag: "ATELIER DELIVERY & MASTER ARTWORKS",
     tagline: "Your artworks and fine album are ready for pickup",
-    subject: (name: string) => `✦ Your Master Collection is ready at the Atelier — Lamha Studios (${name})`,
+    subject: (name: string) => `✦ Your Master Collection is ready at the Atelier — Lam7a Studios (${name})`,
     greeting: (name: string) => `Dear <span style="color: #c69f68;">${name}</span>,`,
     intro: "It is our absolute pleasure to inform you that your fine art prints, luxury linen album, and final edits are now <strong>completed and ready for collection</strong> at our atelier.",
     pickupTitle: "Studio Collection & Digital Delivery",
@@ -264,14 +264,14 @@ const READY_DELIVERY_I18N = {
     driveTitle: "Master High-Resolution Archive:",
     driveDesc: "All your master original files can be downloaded directly from your secure Google Drive folder:",
     driveBtn: "📁 Open Google Drive Master Folder →",
-    studioAddress: "Lamha Studios Atelier • Tangier, Morocco",
-    closing: "The entire Lamha Studios team thanks you for your trust and looks forward to handing over your cherished memories.",
-    footerText: "Lamha Studios Atelier • All rights reserved.",
+    studioAddress: "Lam7a Studios Atelier • Tangier, Morocco",
+    closing: "The entire Lam7a Studios team thanks you for your trust and looks forward to handing over your cherished memories.",
+    footerText: "Lam7a Studios Atelier • All rights reserved.",
   },
   es: {
     atelierTag: "ENTREGA ATELIER & MONTAJE FINAL",
     tagline: "Tu pedido y álbum de arte ya están listos en el estudio",
-    subject: (name: string) => `✦ Tu entrega final está lista en el Atelier — Lamha Studios (${name})`,
+    subject: (name: string) => `✦ Tu entrega final está lista en el Atelier — Lam7a Studios (${name})`,
     greeting: (name: string) => `Estimado/a <span style="color: #c69f68;">${name}</span>,`,
     intro: "Es un auténtico placer comunicarte que las impresiones de arte, el encuadernado de tu álbum y los acabados finales de tu proyecto ya están <strong>totalmente terminados y listos</strong> en nuestro atelier.",
     pickupTitle: "Recogida en el Estudio y Descarga Digital",
@@ -280,9 +280,9 @@ const READY_DELIVERY_I18N = {
     driveTitle: "Archivos Finales Master en Alta Resolución:",
     driveDesc: "Tus archivos en máxima calidad original están disponibles en tu carpeta protegida de Google Drive:",
     driveBtn: "📁 Abrir Carpeta Master en Google Drive →",
-    studioAddress: "Lamha Studios Atelier • Tánger, Marruecos",
-    closing: "Todo el equipo de Lamha Studios te agradece enormemente tu confianza y estamos deseando entregarte tus recuerdos más especiales.",
-    footerText: "Lamha Studios Atelier • Todos los derechos reservados.",
+    studioAddress: "Lam7a Studios Atelier • Tánger, Marruecos",
+    closing: "Todo el equipo de Lam7a Studios te agradece enormemente tu confianza y estamos deseando entregarte tus recuerdos más especiales.",
+    footerText: "Lam7a Studios Atelier • Todos los derechos reservados.",
   },
 }
 
@@ -290,12 +290,12 @@ const SELECTION_CONFIRMED_I18N = {
   fr: {
     atelierTag: "SÉLECTION VALIDÉE & EN ÉDITION",
     tagline: "Nous avons bien reçu votre sélection de photographies",
-    subject: (name: string) => `✦ Confirmation de votre sélection d'art — Lamha Studios (${name})`,
+    subject: (name: string) => `✦ Confirmation de votre sélection d'art — Lam7a Studios (${name})`,
     greeting: (name: string) => `Bonjour <span style="color: #c69f68;">${name}</span>,`,
     intro: (count: number) => `Nous confirmons la bonne réception de votre sélection de <strong>${count} photographies</strong> validées depuis votre Espace Privé.`,
     desc: "Notre équipe de direction artistique et de retouche d'art prend immédiatement le relais pour la calibration colorimétrique avancée et la mise en page de votre album.",
     ctaBtn: "✦ Revoir ma Sélection sur le Portail →",
-    footerText: "Lamha Studios Atelier • Tous droits réservés.",
+    footerText: "Lam7a Studios Atelier • Tous droits réservés.",
   },
   ar: {
     atelierTag: "تم اعتماد الاختيار وبدء المونتاج",
@@ -310,22 +310,22 @@ const SELECTION_CONFIRMED_I18N = {
   en: {
     atelierTag: "SELECTION CONFIRMED & IN PRODUCTION",
     tagline: "Your photo selection has been safely received",
-    subject: (name: string) => `✦ Photo Selection Confirmed — Lamha Studios (${name})`,
+    subject: (name: string) => `✦ Photo Selection Confirmed — Lam7a Studios (${name})`,
     greeting: (name: string) => `Hello <span style="color: #c69f68;">${name}</span>!`,
     intro: (count: number) => `We confirm the successful receipt of your curated selection of <strong>${count} photographs</strong> from your Private Space.`,
     desc: "Our creative team has commenced the master retouching, color grading, and custom book layout for your project.",
     ctaBtn: "✦ Review Selection on Portal →",
-    footerText: "Lamha Studios Atelier • All rights reserved.",
+    footerText: "Lam7a Studios Atelier • All rights reserved.",
   },
   es: {
     atelierTag: "SELECCIÓN CONFIRMADA & EN EDICIÓN",
     tagline: "Hemos recibido tu selección de fotografías",
-    subject: (name: string) => `✦ Confirmación de tu Selección — Lamha Studios (${name})`,
+    subject: (name: string) => `✦ Confirmación de tu Selección — Lam7a Studios (${name})`,
     greeting: (name: string) => `¡Hola <span style="color: #c69f68;">${name}</span>!`,
     intro: (count: number) => `Confirmamos la recepción de tu selección de <strong>${count} fotografías</strong> enviada desde tu Espace Privé.`,
     desc: "Nuestro equipo editorial y de retoque de arte comienza ahora la fase de postproducción y maquetación de tu álbum.",
     ctaBtn: "✦ Revisar mi Selección en el Portal →",
-    footerText: "Lamha Studios Atelier • Todos los derechos reservados.",
+    footerText: "Lam7a Studios Atelier • Todos los derechos reservados.",
   },
 }
 
@@ -337,13 +337,13 @@ function renderHeader(tag: string, tagline: string) {
     <tr>
       <td align="center" style="padding: 40px 30px 25px; border-bottom: 1px solid #231e19; background: linear-gradient(180deg, #181512 0%, #12100e 100%);">
         <a href="https://lam7a.ma" target="_blank" style="text-decoration: none; display: inline-block;">
-          <img src="${LOGO_URL}" alt="Lamha Studios" width="60" height="60" style="display: block; margin: 0 auto 16px; border: 0; outline: none; width: 60px; height: 60px;" />
+          <img src="${LOGO_URL}" alt="Lam7a Studios" width="60" height="60" style="display: block; margin: 0 auto 16px; border: 0; outline: none; width: 60px; height: 60px;" />
         </a>
         <span style="display: inline-block; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: #c69f68; border: 1px solid rgba(198, 159, 104, 0.4); padding: 5px 14px; border-radius: 20px; font-weight: 600; margin-bottom: 14px;">
           ${tag}
         </span>
         <h1 style="margin: 0; font-family: Georgia, serif; font-size: 26px; font-weight: normal; color: #f5f2eb; letter-spacing: 2px;">
-          LAMHA STUDIOS
+          LAM7A STUDIOS
         </h1>
         <p style="margin: 8px 0 0; font-size: 13px; color: #9c8e7f; font-style: italic;">
           ${tagline}
@@ -373,7 +373,7 @@ function renderFooter(portalUrl: string, studioEmail: string, studioPhone: strin
           <a href="${portalWithLang('es')}" style="color: #c69f68; text-decoration: none; margin: 0 4px; font-weight: 600;">Español</a>
         </div>
         <p style="margin: 0 0 8px; font-size: 13px; font-weight: 600; color: #c69f68; font-family: Georgia, serif;">
-          Lamha Studios Atelier • Haute Photographie
+          Lam7a Studios Atelier • Haute Photographie
         </p>
         <p style="margin: 0 0 14px; font-size: 12px; color: #7a6e61;">
           ✉ ${studioEmail} &nbsp;|&nbsp; ☎ ${studioPhone} &nbsp;|&nbsp; 🌐 <a href="https://lam7a.ma" style="color: #c69f68; text-decoration: none;">www.lam7a.ma</a>
@@ -400,7 +400,7 @@ export function renderWelcomeEmail(params: WelcomeEmailParams): { subject: strin
     category = "Studio Photography",
     sessionType,
     notes,
-    studioEmail = "contact@lamhastudios.ma",
+    studioEmail = "contact@lam7a.ma",
     studioPhone = "+212 600-000000",
   } = params
 
@@ -487,7 +487,7 @@ export function renderWelcomeEmail(params: WelcomeEmailParams): { subject: strin
 `
 
   const text = `
-${t.atelierTag} — LAMHA STUDIOS
+${t.atelierTag} — LAM7A STUDIOS
 ${t.greeting(clientName).replace(/<[^>]+>/g, "")}
 
 ${t.intro.replace(/<[^>]+>/g, "")}
@@ -519,7 +519,7 @@ export function renderPhotosReadyEmail(params: PhotosReadyEmailParams): { subjec
     portalPin,
     driveFolderUrl,
     photosCount,
-    studioEmail = "contact@lamhastudios.ma",
+    studioEmail = "contact@lam7a.ma",
     studioPhone = "+212 600-000000",
   } = params
 
@@ -632,7 +632,7 @@ export function renderPhotosReadyEmail(params: PhotosReadyEmailParams): { subjec
 `
 
   const text = `
-${t.atelierTag} — LAMHA STUDIOS
+${t.atelierTag} — LAM7A STUDIOS
 ${t.greeting(clientName).replace(/<[^>]+>/g, "")}
 
 ${t.intro(photosCount).replace(/<[^>]+>/g, "")}
@@ -668,7 +668,7 @@ export function renderReadyForDeliveryEmail(params: ReadyForDeliveryEmailParams)
     clientEmail = "",
     portalPin = "",
     driveFolderUrl,
-    studioEmail = "contact@lamhastudios.ma",
+    studioEmail = "contact@lam7a.ma",
     studioPhone = "+212 600-000000",
   } = params
 
@@ -760,7 +760,7 @@ export function renderReadyForDeliveryEmail(params: ReadyForDeliveryEmailParams)
 `
 
   const text = `
-${t.atelierTag} — LAMHA STUDIOS
+${t.atelierTag} — LAM7A STUDIOS
 ${t.greeting(clientName).replace(/<[^>]+>/g, "")}
 
 ${t.intro.replace(/<[^>]+>/g, "")}
@@ -793,7 +793,7 @@ export function renderSelectionConfirmedEmail(params: SelectionConfirmedEmailPar
     photosCount,
     clientEmail = "",
     portalPin = "",
-    studioEmail = "contact@lamhastudios.ma",
+    studioEmail = "contact@lam7a.ma",
     studioPhone = "+212 600-000000",
   } = params
 
@@ -858,7 +858,7 @@ export function renderSelectionConfirmedEmail(params: SelectionConfirmedEmailPar
 `
 
   const text = `
-${t.atelierTag} — LAMHA STUDIOS
+${t.atelierTag} — LAM7A STUDIOS
 ${t.greeting(clientName).replace(/<[^>]+>/g, "")}
 
 ${t.intro(photosCount).replace(/<[^>]+>/g, "")}
@@ -872,3 +872,4 @@ Portal: ${targetPortalUrl}
 
   return { subject, html, text }
 }
+

@@ -54,7 +54,7 @@ export function DashboardHomeClient({ sessions, categoryData, statusData }: Dash
               <span>{t.atelierTag}</span>
             </div>
             <h1 className="text-2xl sm:text-3xl lg:text-4xl font-serif tracking-wide text-[#f5f2eb]">
-              Lamha Studios <span className="text-[#c69f68] italic">{t.overviewTitle}</span>
+              Lam7a Studios <span className="text-[#c69f68] italic">{t.overviewTitle}</span>
             </h1>
             <p className="text-xs sm:text-sm text-[#8c7a6b] max-w-xl">
               {t.overviewDesc}

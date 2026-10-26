@@ -1,5 +1,5 @@
-/**
- * Lamha Studios — Plantillas de Mensajes WhatsApp Multilingües
+﻿/**
+ * Lam7a Studios — Plantillas de Mensajes WhatsApp Multilingües
  * Soporte Completo: Français (fr), العربية (ar), English (en), Español (es)
  * 
  * Reglas:
@@ -57,16 +57,16 @@ export function getWelcomeWhatsApp({
 ${clientEmail ? `البريد الإلكتروني: ${clientEmail}\n` : ""}${portalPin ? `رمز الأمان (PIN): *${portalPin}*\n` : ""}
 فريقنا الفني يتطلع للقائكم وتقديم تجربة تصوير استثنائية. لأي استفسار يمكنكم الرد مباشرة على هذه المحادثة.
 
-*استوديو لمحة • Lamha Studios*
+*استوديو لمحة • Lam7a Studios*
 https://lam7a.ma`
   }
 
   if (l === "en") {
-    return `*Lamha Studios • Project Confirmation*
+    return `*Lam7a Studios • Project Confirmation*
 
 Hello ${clientName},
 
-We are delighted to confirm your booking with *Lamha Studios* (${catStr}).
+We are delighted to confirm your booking with *Lam7a Studios* (${catStr}).
 Scheduled Date: *${dateStr}*
 
 Your private client suite has been set up on our official portal:
@@ -74,16 +74,16 @@ Access Link: ${portalUrl}
 ${clientEmail ? `Login Email: ${clientEmail}\n` : ""}${portalPin ? `Security PIN: *${portalPin}*\n` : ""}
 Our creative team is looking forward to capturing your timeless memories. If you have any questions, feel free to reply directly to this message.
 
-*Lamha Studios Atelier*
+*Lam7a Studios Atelier*
 https://lam7a.ma`
   }
 
   if (l === "es") {
-    return `*Lamha Studios • Confirmación de Proyecto*
+    return `*Lam7a Studios • Confirmación de Proyecto*
 
 Hola ${clientName},
 
-Es un placer darte la bienvenida a *Lamha Studios* y confirmar el registro de tu proyecto (${catStr}).
+Es un placer darte la bienvenida a *Lam7a Studios* y confirmar el registro de tu proyecto (${catStr}).
 Fecha programada: *${dateStr}*
 
 Hemos preparado tu Suite Privada en nuestro portal oficial:
@@ -91,16 +91,16 @@ Acceso directo: ${portalUrl}
 ${clientEmail ? `Correo: ${clientEmail}\n` : ""}${portalPin ? `Código PIN de seguridad: *${portalPin}*\n` : ""}
 Nuestro equipo artístico está preparando todo para tu sesión. Si tienes cualquier consulta, puedes responder directamente a este mensaje.
 
-*Lamha Studios Atelier*
+*Lam7a Studios Atelier*
 https://lam7a.ma`
   }
 
   // Français (Défaut)
-  return `*Lamha Studios • Confirmation de Réservation*
+  return `*Lam7a Studios • Confirmation de Réservation*
 
 Bonjour ${clientName},
 
-Nous avons l'honneur de vous confirmer l'enregistrement de votre projet chez *Lamha Studios* (${catStr}).
+Nous avons l'honneur de vous confirmer l'enregistrement de votre projet chez *Lam7a Studios* (${catStr}).
 Date programmée : *${dateStr}*
 
 Votre suite privée est d'ores et déjà accessible sur notre portail officiel :
@@ -108,7 +108,7 @@ Lien d'accès : ${portalUrl}
 ${clientEmail ? `Identifiant Email : ${clientEmail}\n` : ""}${portalPin ? `Code PIN de sécurité : *${portalPin}*\n` : ""}
 Notre équipe artistique prépare votre séance avec le plus grand soin. Pour toute question, vous pouvez répondre directement à ce message.
 
-*Lamha Studios Atelier*
+*Lam7a Studios Atelier*
 https://lam7a.ma`
 }
 
@@ -148,12 +148,12 @@ export function getPhotosReadyWhatsApp({
 ${driveUrl ? `\nلتحميل كافة الصور بجودتها وحجمها الأصلي عبر Google Drive:\n${driveUrl}\n` : ""}
 نتمنى لكم وقتاً ممتعاً في استرجاع هذه اللحظات المميزة.
 
-*استوديو لمحة • Lamha Studios*
+*استوديو لمحة • Lam7a Studios*
 https://lam7a.ma`
   }
 
   if (l === "en") {
-    return `*Lamha Studios • Private Suite Ready*
+    return `*Lam7a Studios • Private Suite Ready*
 
 Hello ${clientName},
 
@@ -166,16 +166,16 @@ Security PIN: *${portalPin}*
 ${driveUrl ? `\nDownload all original full-resolution files directly via Google Drive:\n${driveUrl}\n` : ""}
 We hope you enjoy reliving these precious moments.
 
-*Lamha Studios Atelier*
+*Lam7a Studios Atelier*
 https://lam7a.ma`
   }
 
   if (l === "es") {
-    return `*Lamha Studios • Espace Privé Listo*
+    return `*Lam7a Studios • Espace Privé Listo*
 
 Hola ${clientName},
 
-Nos complace informarte que ${countStr} de tu reportaje ya están calibradas y listas para ti en Lamha Studios.
+Nos complace informarte que ${countStr} de tu reportaje ya están calibradas y listas para ti en Lam7a Studios.
 
 Accede a tu Suite Privada para ver y seleccionar tus fotografías favoritas para el álbum:
 Acceso directo: ${portalUrl}
@@ -184,12 +184,12 @@ Código PIN: *${portalPin}*
 ${driveUrl ? `\nDescarga todos los archivos originales en su tamaño real desde Google Drive:\n${driveUrl}\n` : ""}
 Esperamos de corazón que disfrutes reviviendo estos instantes inolvidables.
 
-*Lamha Studios Atelier*
+*Lam7a Studios Atelier*
 https://lam7a.ma`
   }
 
   // Français (Défaut)
-  return `*Lamha Studios • Espace Privé Prêt*
+  return `*Lam7a Studios • Espace Privé Prêt*
 
 Bonjour ${clientName},
 
@@ -202,7 +202,7 @@ Code PIN de sécurité : *${portalPin}*
 ${driveUrl ? `\nTélécharger l'ensemble des fichiers originaux en pleine résolution sur Google Drive :\n${driveUrl}\n` : ""}
 Nous espérons que vous prendrez autant de plaisir à les découvrir que nous en avons eu à les capturer.
 
-*Lamha Studios Atelier*
+*Lam7a Studios Atelier*
 https://lam7a.ma`
 }
 
@@ -242,12 +242,12 @@ export function getReadyForDeliveryWhatsApp({
 ${portalPin ? `رمز الأمان: *${portalPin}*\n` : ""}${driveUrl ? `رابط التحميل المباشر Google Drive:\n${driveUrl}\n` : ""}
 يسعدنا تواصلكم لتأكيد موعد استلامكم.
 
-*استوديو لمحة • Lamha Studios*
+*استوديو لمحة • Lam7a Studios*
 https://lam7a.ma`
   }
 
   if (l === "en") {
-    return `*Lamha Studios • Your Master Collection is Ready*
+    return `*Lam7a Studios • Your Master Collection is Ready*
 
 Dear ${clientName},
 
@@ -258,12 +258,12 @@ Client Portal: ${portalUrl}
 ${portalPin ? `Security PIN: *${portalPin}*\n` : ""}${driveUrl ? `Download HD Master Files (Google Drive):\n${driveUrl}\n` : ""}
 Please contact us to coordinate your pickup time.
 
-*Lamha Studios Atelier*
+*Lam7a Studios Atelier*
 https://lam7a.ma`
   }
 
   if (l === "es") {
-    return `*Lamha Studios • Tu Pedido está Listo en el Estudio*
+    return `*Lam7a Studios • Tu Pedido está Listo en el Estudio*
 
 Estimado/a ${clientName},
 
@@ -274,12 +274,12 @@ Acceso al portal: ${portalUrl}
 ${portalPin ? `Código PIN: *${portalPin}*\n` : ""}${driveUrl ? `Descarga Final HD en Google Drive:\n${driveUrl}\n` : ""}
 Por favor, confírmanos cuándo te gustaría pasar a recogerlo.
 
-*Lamha Studios Atelier*
+*Lam7a Studios Atelier*
 https://lam7a.ma`
   }
 
   // Français (Défaut)
-  return `*Lamha Studios • Vos Photos & Coffret sont Prêts à l'Atelier*
+  return `*Lam7a Studios • Vos Photos & Coffret sont Prêts à l'Atelier*
 
 Cher/Chère ${clientName},
 
@@ -290,7 +290,7 @@ Lien Espace Privé : ${portalUrl}
 ${portalPin ? `Code PIN de sécurité : *${portalPin}*\n` : ""}${driveUrl ? `Téléchargement Haute Définition (Google Drive) :\n${driveUrl}\n` : ""}
 N'hésitez pas à nous contacter pour convenir de l'horaire de votre passage.
 
-*Lamha Studios Atelier*
+*Lam7a Studios Atelier*
 https://lam7a.ma`
 }
 
@@ -318,12 +318,12 @@ export function getSelectionReceivedClientWhatsApp({
 
 سنوافيكم بإشعار فور اكتمال التجهيز النهائي.
 
-*استوديو لمحة • Lamha Studios*
+*استوديو لمحة • Lam7a Studios*
 https://lam7a.ma`
   }
 
   if (l === "en") {
-    return `*Lamha Studios • Selection Successfully Received*
+    return `*Lam7a Studios • Selection Successfully Received*
 
 Thank you ${clientName},
 
@@ -332,26 +332,26 @@ Our atelier team has now commenced post-production, fine retouching, and book pr
 
 We will notify you as soon as your collection is ready for delivery.
 
-*Lamha Studios Atelier*
+*Lam7a Studios Atelier*
 https://lam7a.ma`
   }
 
   if (l === "es") {
-    return `*Lamha Studios • Selección Recibida con Éxito*
+    return `*Lam7a Studios • Selección Recibida con Éxito*
 
 ¡Muchas gracias ${clientName}!
 
 Hemos recibido formalmente tu selección de ${photosCount} fotografías.
-El equipo de retoque y encuadernación de Lamha Studios ha comenzado el proceso editorial para tu entrega final.
+El equipo de retoque y encuadernación de Lam7a Studios ha comenzado el proceso editorial para tu entrega final.
 
 Te avisaremos en cuanto esté listo para entrega.
 
-*Lamha Studios Atelier*
+*Lam7a Studios Atelier*
 https://lam7a.ma`
   }
 
   // Français (Défaut)
-  return `*Lamha Studios • Sélection Bien Reçue*
+  return `*Lam7a Studios • Sélection Bien Reçue*
 
 Merci beaucoup ${clientName},
 
@@ -360,7 +360,7 @@ Notre équipe de retouche et de reliure commence dès à présent le travail d'�
 
 Nous vous informerons dès que votre commande sera prête pour la livraison finale.
 
-*Lamha Studios Atelier*
+*Lam7a Studios Atelier*
 https://lam7a.ma`
 }
 
@@ -388,3 +388,4 @@ ${clientPhone ? `📞 Teléfono: ${clientPhone}\n` : ""}
 El proyecto ha avanzado a la etapa *Client Selection / Montaje*. Puedes consultarlo en el panel de administración:
 https://admin.lam7a.ma/projects`
 }
+
