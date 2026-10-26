@@ -21,7 +21,7 @@ process.on("uncaughtException", (err) => logToFile("UNCAUGHT_EXCEPTION:", err &&
 process.on("unhandledRejection", (err) => logToFile("UNHANDLED_REJECTION:", err && err.stack ? err.stack : err))
 
 const { LamhaSystemTray } = require("./tray")
-const { WindowsDriveWatcher } = require("./watcher")
+const { WindowsDriveWatcher, MasterFolderWatcher } = require("./watcher")
 const { getConfig, getPublicSettings, updateSettings } = require("./config")
 const { LamhaBridgeServer } = require("./bridge-server")
 const engine = require("./ingest-engine")
@@ -31,6 +31,7 @@ let miniWindow = null
 let miniCloseTimer = null
 let systemTray = null
 let driveWatcher = null
+let masterWatcher = null
 let bridgeServer = null
 let currentLanguage = "fr"
 let hasShownMinimizeBalloon = false
@@ -38,8 +39,8 @@ let lastIngestState = null // último evento relevante, para pintar la mini vent
 
 logToFile("--- INICIANDO PROCESO ELECTRON (PID:", process.pid, ") ---")
 
-// Asigna AppUserModelId para que Windows use el icono oficial en la barra de tareas
-app.setAppUserModelId("com.lamhastudios.atelier")
+// Asigna AppUserModelId único para que Windows registre el icono oficial en la barra de tareas
+app.setAppUserModelId("ma.lam7a.studios.ingest")
 
 // Registrar protocolo lamha:// para permitir lanzamientos directos desde la web
 if (process.defaultApp) {
@@ -283,6 +284,13 @@ const DONE_TEXT = {
   ar: (c) => ["اكتمل التفريغ", `صور ${c} جاهزة.`],
 }
 
+const MASTER_NOTIFY_TEXT = {
+  fr: (f, p) => ["Synchronisation Édition Master terminée", `${f} est synchronisé avec Supabase et le NAS (${p}).`],
+  es: (f, p) => ["Sincronización Edición Master completada", `${f} está sincronizado con Supabase y el NAS (${p}).`],
+  en: (f, p) => ["Master Edition Sync Complete", `${f} has been synced to Supabase and NAS (${p}).`],
+  ar: (f, p) => ["اكتملت مزامنة نسخة ماستر", `تمت مزامنة ${f} مع Supabase و NAS (${p}).`],
+}
+
 // ---------------------------------------------------------------------------
 // Arranque
 // ---------------------------------------------------------------------------
@@ -320,6 +328,24 @@ app.whenReady().then(() => {
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("card-removed", cardInfo)
   })
   driveWatcher.start()
+
+  // Observador de archivos en 03_Edicion_Master
+  masterWatcher = new MasterFolderWatcher()
+  masterWatcher.on("master-file-added", async (item) => {
+    logToFile("[MASTER_WATCHER] Archivo detectado en 03_Edicion_Master:", item.filePath)
+    showMini()
+    const cfg = getConfig()
+    const lang = cfg.language || currentLanguage || "fr"
+    const res = await engine.syncMasterFile(item, lang, (ev) => {
+      broadcastIngest(ev)
+    })
+    if (res && res.ok) {
+      const notifyFn = MASTER_NOTIFY_TEXT[lang] || MASTER_NOTIFY_TEXT.fr
+      const [title, body] = notifyFn(item.fileName, res.client || item.projectFolder)
+      notify(title, body)
+    }
+  })
+  masterWatcher.start()
 
   // --- IPC: sistema ---------------------------------------------------------
   ipcMain.on("language-changed", (_e, lang) => {

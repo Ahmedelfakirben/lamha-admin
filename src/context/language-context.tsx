@@ -349,6 +349,8 @@ export interface Translations {
   revealInFolder: string
   openInLocalFolder: string
   openInNasFolder: string
+  playNativeVideo: string
+  playNativeVideoHint: string
   rotatePhoto: string
   zoomIn: string
   zoomOut: string
@@ -986,6 +988,8 @@ const translations: Record<Language, Translations> = {
     revealInFolder: "Mostrar en carpeta del sistema",
     openInLocalFolder: "Abrir en Carpeta Local (SSD)",
     openInNasFolder: "Abrir en Servidor NAS (Red / FTP)",
+    playNativeVideo: "Reproducir en VLC / Windows",
+    playNativeVideoHint: "Abrir vídeo original con el reproductor nativo del sistema",
     rotatePhoto: "Rotar Imagen",
     zoomIn: "Acercar",
     zoomOut: "Alejar",
@@ -1617,6 +1621,8 @@ const translations: Record<Language, Translations> = {
     revealInFolder: "Afficher dans le dossier système",
     openInLocalFolder: "Ouvrir dans le dossier local (SSD)",
     openInNasFolder: "Ouvrir sur le serveur NAS (Réseau / FTP)",
+    playNativeVideo: "Lire dans VLC / Windows",
+    playNativeVideoHint: "Ouvrir la vidéo originale avec le lecteur système",
     rotatePhoto: "Faire pivoter la photo",
     zoomIn: "Zoom avant",
     zoomOut: "Zoom arrière",
@@ -2248,6 +2254,8 @@ const translations: Record<Language, Translations> = {
     revealInFolder: "Reveal in system folder",
     openInLocalFolder: "Open in Local Folder (SSD)",
     openInNasFolder: "Open on NAS Server (Network / FTP)",
+    playNativeVideo: "Play in VLC / Windows",
+    playNativeVideoHint: "Open original video in system media player",
     rotatePhoto: "Rotate Photo",
     zoomIn: "Zoom In",
     zoomOut: "Zoom Out",
@@ -2879,6 +2887,8 @@ const translations: Record<Language, Translations> = {
     revealInFolder: "عرض في مجلد النظام",
     openInLocalFolder: "فتح في المجلد المحلي (SSD)",
     openInNasFolder: "فتح على سيرفر NAS (الشبكة / FTP)",
+    playNativeVideo: "تشغيل في VLC / Windows",
+    playNativeVideoHint: "فتح الفيديو الأصلي باستخدام مشغل النظام",
     rotatePhoto: "تدوير الصورة",
     zoomIn: "تكبير",
     zoomOut: "تصغير",

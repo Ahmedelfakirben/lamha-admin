@@ -16,7 +16,7 @@
     "desktop:admin:dist": "electron-builder --config electron-builder-admin.json --win dir portable nsis"
   },
   "build": {
-    "appId": "com.lamhastudios.atelier",
+    "appId": "ma.lam7a.studios.ingest",
     "productName": "Lam7a Studios - Ingest Companion",
     "directories": {
       "output": "dist"

@@ -729,30 +729,37 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
                   className="aspect-[4/3] bg-[#0b0a09] relative overflow-hidden rounded-t-xl flex items-center justify-center cursor-pointer group"
                   onClick={() => setLightboxIndex(index)}
                 >
-                  {asset.preview_url ? (
-                    isVideo ? (
-                      <div className="w-full h-full relative group-hover:scale-105 transition-transform duration-500 flex items-center justify-center bg-[#090807]">
-                        <video 
-                          src={`${asset.preview_url}#t=0.1`} 
-                          preload="metadata"
-                          className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity"
+                  {isVideo ? (
+                    <div className="w-full h-full relative group-hover:scale-105 transition-transform duration-500 flex items-center justify-center bg-[#090807]">
+                      {asset.preview_url ? (
+                        <SafeImage
+                          src={asset.preview_url}
+                          alt={asset.filename || "Preview"}
+                          className="w-full h-full object-cover opacity-85 group-hover:opacity-100 transition-opacity"
                         />
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/10 group-hover:bg-transparent transition-colors">
-                          <div className="w-10 h-10 rounded-full bg-[#c69f68] text-[#0b0a09] flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                            <Play className="w-4 h-4 ml-0.5" />
-                          </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center text-[#554c42] p-4 text-center">
+                          <Film className="w-8 h-8 mb-1 text-[#c69f68]/70" />
+                          <span className="text-[10px] uppercase font-mono text-[#c69f68]">
+                            {asset.filename ? asset.filename.split(".").pop()?.toUpperCase() : "VIDEO"}
+                          </span>
+                        </div>
+                      )}
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/25 group-hover:bg-transparent transition-colors">
+                        <div className="w-10 h-10 rounded-full bg-[#c69f68] text-[#0b0a09] flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                          <Play className="w-4 h-4 ml-0.5 fill-current" />
                         </div>
                       </div>
-                    ) : (
-                      <SafeImage
-                        src={asset.preview_url}
-                        alt={asset.filename || "Preview"}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      />
-                    )
+                    </div>
+                  ) : asset.preview_url ? (
+                    <SafeImage
+                      src={asset.preview_url}
+                      alt={asset.filename || "Preview"}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
                   ) : (
                     <div className="flex flex-col items-center justify-center text-[#554c42] p-4 text-center">
-                      {isVideo ? <Film className="w-8 h-8 mb-1" /> : <Camera className="w-8 h-8 mb-1" />}
+                      <Camera className="w-8 h-8 mb-1" />
                       <span className="text-[10px] uppercase font-mono">{t.networkOriginal}</span>
                     </div>
                   )}
@@ -831,15 +838,15 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
                       <span className="text-[10px]">{asset.is_shared ? t.sharedStatus : t.hiddenStatus}</span>
                     </button>
 
-                    {/* Open With / Reveal in Folder (Local or NAS) */}
+                    {/* Open With / Play Video (Local or NAS) */}
                     <div className="flex items-center gap-1 relative">
                       <button
                         type="button"
-                        onClick={() => handleOpenFile(asset.nas_path, "open_with", "local")}
+                        onClick={() => handleOpenFile(asset.nas_path, isVideo ? "open" : "open_with", "local")}
                         className="p-1.5 rounded-lg bg-[#181613] hover:bg-[#201c18] border border-[#26211c] text-[#a89f91] hover:text-[#c69f68] transition-colors cursor-pointer"
-                        title={t.openWithApp}
+                        title={isVideo ? t.playNativeVideo : t.openWithApp}
                       >
-                        <PenTool className="w-3.5 h-3.5" />
+                        {isVideo ? <Play className="w-3.5 h-3.5 fill-current text-[#c69f68]" /> : <PenTool className="w-3.5 h-3.5" />}
                       </button>
 
                       <div className="relative">
@@ -1108,12 +1115,58 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
               }}
             >
               {currentList[lightboxIndex].asset_type.includes("video") ? (
-                <video 
-                  src={currentList[lightboxIndex].preview_url || ""} 
-                  controls 
-                  autoPlay 
-                  className="max-w-full max-h-[68vh] rounded-xl shadow-2xl ring-1 ring-white/15 object-contain"
-                />
+                <div className="flex flex-col items-center justify-center max-w-full max-h-[70vh] gap-3">
+                  <div className="relative flex items-center justify-center max-w-full max-h-[60vh] rounded-2xl overflow-hidden shadow-2xl ring-1 ring-white/15 bg-black/60">
+                    {currentList[lightboxIndex].preview_url ? (
+                      <img
+                        src={currentList[lightboxIndex].preview_url || ""}
+                        alt={currentList[lightboxIndex].filename || "Video poster"}
+                        className="max-w-full max-h-[56vh] object-contain rounded-xl"
+                      />
+                    ) : (
+                      <div className="w-[420px] h-[260px] max-w-[85vw] flex flex-col items-center justify-center text-[#70665a] p-6 text-center">
+                        <Film className="w-16 h-16 mb-2 text-[#c69f68]/80 animate-pulse" />
+                        <span className="text-xs uppercase font-mono text-[#c69f68] font-bold">
+                          {currentList[lightboxIndex].filename || "RAW VIDEO"}
+                        </span>
+                        <span className="text-[10px] text-[#8c7a6b] mt-1">{t.playNativeVideoHint}</span>
+                      </div>
+                    )}
+
+                    {/* Central Play Badge */}
+                    <button
+                      type="button"
+                      onClick={() => handleOpenFile(currentList[lightboxIndex].nas_path, "open", "local")}
+                      className="absolute inset-0 flex items-center justify-center bg-black/30 hover:bg-black/10 transition-colors cursor-pointer group"
+                      title={t.playNativeVideo}
+                    >
+                      <div className="w-16 h-16 rounded-full bg-[#c69f68] hover:bg-[#dfba85] text-[#0b0a09] flex items-center justify-center shadow-2xl transition-transform hover:scale-110 active:scale-95">
+                        <Play className="w-7 h-7 ml-1 fill-current" />
+                      </div>
+                    </button>
+                  </div>
+
+                  {/* Primary Native Play Action Bar */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenFile(currentList[lightboxIndex].nas_path, "open", "local")}
+                      className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#c69f68] via-[#dfba85] to-[#c69f68] text-[#0b0a09] font-bold text-xs flex items-center gap-2 shadow-lg shadow-[#c69f68]/20 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                      title={t.playNativeVideoHint}
+                    >
+                      <Play className="w-4 h-4 fill-current" />
+                      <span>{t.playNativeVideo}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenFile(currentList[lightboxIndex].nas_path, "reveal", "local")}
+                      className="px-3 py-2 rounded-xl bg-[#1c1814] hover:bg-[#28221c] border border-[#383129] text-[#f5f2eb] text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <FolderOpen className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>{t.revealInFolder}</span>
+                    </button>
+                  </div>
+                </div>
               ) : (
                 <img 
                   src={currentList[lightboxIndex].preview_url || ""} 

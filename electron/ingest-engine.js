@@ -742,6 +742,284 @@ async function runIngest(params, emit) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Sincronización Automática de 03_Edicion_Master
+// ---------------------------------------------------------------------------
+function getFfmpegPath() {
+  const { execSync } = require("child_process")
+  try {
+    const out = execSync("where ffmpeg", { stdio: ["pipe", "pipe", "ignore"], encoding: "utf-8" }).trim()
+    const firstLine = out.split(/\r?\n/)[0].trim()
+    if (firstLine && fs.existsSync(firstLine)) return firstLine
+  } catch {}
+
+  const localApp = process.env.LOCALAPPDATA || ""
+  if (localApp) {
+    const wingetDir = path.join(localApp, "Microsoft", "WinGet", "Packages")
+    if (fs.existsSync(wingetDir)) {
+      try {
+        const pkgs = fs.readdirSync(wingetDir)
+        for (const pkg of pkgs) {
+          if (pkg.toLowerCase().includes("ffmpeg")) {
+            const candidateDir = path.join(wingetDir, pkg)
+            const sub = fs.readdirSync(candidateDir)
+            for (const s of sub) {
+              const binP = path.join(candidateDir, s, "bin", "ffmpeg.exe")
+              if (fs.existsSync(binP)) return binP
+              const rootP = path.join(candidateDir, s, "ffmpeg.exe")
+              if (fs.existsSync(rootP)) return rootP
+            }
+          }
+        }
+      } catch {}
+    }
+  }
+
+  return "ffmpeg"
+}
+
+async function syncMasterFile(item, lang = "fr", onProgress = () => {}) {
+  const startTime = Date.now()
+  onProgress({
+    type: "progress",
+    isMasterSync: true,
+    currentFile: item.fileName,
+    percent: 15,
+    speed: 0,
+    processed: 1,
+    total: 1,
+    stages: {
+      copy: { state: "done", percent: 100 },
+      cloud: { state: "active", percent: 15 },
+      nas: { state: "pending", percent: 0 },
+    },
+  })
+
+  let sessionId = null
+  let clientName = ""
+  const supabase = getClient()
+
+  // 1. Resolver Sesión en Supabase
+  try {
+    const { data: matchedAsset } = await supabase
+      .from("media_assets")
+      .select("session_id")
+      .ilike("nas_path", `${item.projectFolder}/%`)
+      .not("session_id", "is", null)
+      .limit(1)
+
+    if (matchedAsset && matchedAsset.length > 0 && matchedAsset[0].session_id) {
+      sessionId = matchedAsset[0].session_id
+    } else {
+      const parts = item.projectFolder.split("_")
+      const dateCandidate = parts.find((p) => /^\d{4}-\d{2}-\d{2}$/.test(p))
+      let query = supabase.from("sessions").select("id, client_name")
+      if (dateCandidate) query = query.eq("session_date", dateCandidate)
+      const { data: sessList } = await query.limit(20)
+      if (sessList && sessList.length > 0) {
+        const found = sessList.find((s) => s.client_name && item.projectFolder.toLowerCase().includes(s.client_name.toLowerCase()))
+        sessionId = found ? found.id : sessList[0].id
+        clientName = found ? found.client_name : sessList[0].client_name
+      }
+    }
+
+    if (sessionId && !clientName) {
+      const { data: s } = await supabase.from("sessions").select("client_name").eq("id", sessionId).single()
+      if (s) clientName = s.client_name
+    }
+  } catch (e) {
+    console.warn("Error resolviendo sesión para master file:", e.message)
+  }
+
+  // 2. Generar Previsualización WebP (Fotos y Vídeos)
+  let previewWebpBuffer = null
+  let sharp = null
+  try {
+    sharp = require("sharp")
+    sharp.concurrency(2)
+    sharp.cache(false)
+  } catch {}
+
+  if (!item.isVideo && sharp) {
+    try {
+      previewWebpBuffer = await sharp(item.filePath, { failOn: "none" })
+        .rotate()
+        .resize({ width: 1600, height: 1600, fit: "inside", withoutEnlargement: true })
+        .webp({ quality: 80, effort: 2 })
+        .toBuffer()
+    } catch (err) {
+      console.warn("Error Sharp en imagen master:", err.message)
+    }
+  } else if (item.isVideo) {
+    const ffmpegBin = getFfmpegPath()
+    const tempThumb = path.join(app.getPath("temp"), `lamha_thumb_${Date.now()}_${Math.random().toString(36).substring(7)}.jpg`)
+    try {
+      const { execFile } = require("child_process")
+      await new Promise((resolve) => {
+        execFile(ffmpegBin, ["-ss", "00:00:01", "-i", item.filePath, "-vframes", "1", "-q:v", "2", tempThumb, "-y"], (err) => {
+          if (err) {
+            execFile(ffmpegBin, ["-ss", "00:00:00.1", "-i", item.filePath, "-vframes", "1", "-q:v", "2", tempThumb, "-y"], () => resolve())
+          } else {
+            resolve()
+          }
+        })
+      })
+
+      if (fs.existsSync(tempThumb) && sharp) {
+        previewWebpBuffer = await sharp(tempThumb, { failOn: "none" })
+          .resize({ width: 1280, height: 720, fit: "inside", withoutEnlargement: true })
+          .webp({ quality: 80, effort: 2 })
+          .toBuffer()
+      }
+    } catch (err) {
+      console.warn("Error extrayendo fotograma de vídeo:", err.message)
+    } finally {
+      try {
+        if (fs.existsSync(tempThumb)) fs.unlinkSync(tempThumb)
+      } catch {}
+    }
+  }
+
+  // 3. Subir WebP a Supabase Storage (bucket session-previews)
+  let previewUrl = null
+  if (previewWebpBuffer) {
+    const cleanBase = path.parse(item.fileName).name
+    const storagePath = `master/${sessionId || "unassigned"}/${cleanBase}_preview.webp`
+    try {
+      const { error: upErr } = await supabase.storage.from("session-previews").upload(storagePath, previewWebpBuffer, {
+        contentType: "image/webp",
+        cacheControl: "31536000",
+        upsert: true,
+      })
+      if (!upErr) {
+        const { data: pub } = supabase.storage.from("session-previews").getPublicUrl(storagePath)
+        previewUrl = pub?.publicUrl || null
+      }
+    } catch (err) {
+      console.warn("Error subiendo preview a Supabase Storage:", err.message)
+    }
+  }
+
+  // 4. Registrar o Actualizar en media_assets
+  const nasRelativePath = `${item.projectFolder}/${item.masterSubfolder}/${item.fileName}`
+  const sizeMb = Number((item.size / 1024 ** 2).toFixed(2))
+  const assetType = item.isVideo ? "raw_video" : "jpg"
+
+  try {
+    const { data: existing } = await supabase
+      .from("media_assets")
+      .select("id")
+      .eq("filename", item.fileName)
+      .eq("nas_path", nasRelativePath)
+      .limit(1)
+
+    if (existing && existing.length > 0) {
+      await supabase
+        .from("media_assets")
+        .update({
+          session_id: sessionId || null,
+          asset_type: assetType,
+          size_mb: sizeMb,
+          preview_url: previewUrl,
+          notes: `Master: ${item.filePath}`,
+          is_archived: false,
+        })
+        .eq("id", existing[0].id)
+    } else {
+      await supabase.from("media_assets").insert([
+        {
+          session_id: sessionId || null,
+          asset_type: assetType,
+          filename: item.fileName,
+          nas_path: nasRelativePath,
+          size_mb: sizeMb,
+          preview_url: previewUrl,
+          notes: `Master: ${item.filePath}`,
+          is_archived: false,
+        },
+      ])
+    }
+  } catch (dbErr) {
+    console.warn("Error registrando archivo master en base de datos:", dbErr.message)
+  }
+
+  onProgress({
+    type: "progress",
+    isMasterSync: true,
+    currentFile: item.fileName,
+    percent: 60,
+    speed: 0,
+    stages: {
+      copy: { state: "done", percent: 100 },
+      cloud: { state: "done", percent: 100 },
+      nas: { state: "active", percent: 10 },
+    },
+  })
+
+  // 5. Transferencia a NAS por FTP
+  const cfg = getConfig()
+  if (cfg.nasPassword && cfg.nasHost) {
+    const ftp = require("basic-ftp")
+    const client = new ftp.Client(120000)
+    try {
+      await client.access({
+        host: cfg.nasHost,
+        user: cfg.nasUser,
+        password: cfg.nasPassword,
+        port: 21,
+      })
+      const remoteDir = `${cfg.nasBaseDir}/${item.projectFolder}/${item.masterSubfolder}`
+      await client.ensureDir(remoteDir)
+
+      let lastBytes = 0
+      client.trackProgress((info) => {
+        const delta = info.bytes - lastBytes
+        lastBytes = info.bytes
+        const pct = Math.min(100, Math.round((info.bytes / item.size) * 100))
+        const elapsedSec = Math.max(1, (Date.now() - startTime) / 1000)
+        onProgress({
+          type: "progress",
+          isMasterSync: true,
+          currentFile: item.fileName,
+          percent: 60 + Math.round(pct * 0.4),
+          speed: Number((info.bytes / (1024 * 1024) / elapsedSec).toFixed(1)),
+          stages: {
+            copy: { state: "done", percent: 100 },
+            cloud: { state: "done", percent: 100 },
+            nas: { state: "active", percent: pct },
+          },
+        })
+      })
+
+      await client.uploadFrom(item.filePath, `${remoteDir}/${item.fileName}`)
+      client.trackProgress()
+    } catch (ftpErr) {
+      console.warn("Error enviando master a NAS FTP:", ftpErr.message)
+    } finally {
+      try {
+        client.close()
+      } catch {}
+    }
+  }
+
+  // 6. Completado
+  onProgress({
+    type: "done",
+    isMasterSync: true,
+    fileName: item.fileName,
+    summary: {
+      client: clientName || item.projectFolder,
+      files: 1,
+    },
+  })
+
+  return {
+    ok: true,
+    fileName: item.fileName,
+    client: clientName || item.projectFolder,
+  }
+}
+
 module.exports = { 
   getAuthStatus, 
   login, 
@@ -751,5 +1029,6 @@ module.exports = {
   cancelIngest, 
   scanSource, 
   classify,
+  syncMasterFile,
   isIngesting: () => Boolean(currentJob),
 }
