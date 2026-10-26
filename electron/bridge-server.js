@@ -59,6 +59,32 @@ class LamhaBridgeServer {
         return
       }
 
+      // GET /check-nas — Comprobar si el NAS local (192.168.11.1) responde por Socket TCP
+      if (req.method === "GET" && pathname === "/check-nas") {
+        const net = require("net")
+        const targetHost = parsedUrl.query.host || "192.168.11.1"
+        const targetPort = parseInt(parsedUrl.query.port, 10) || 21
+        const socket = new net.Socket()
+        socket.setTimeout(1500)
+        socket.once("connect", () => {
+          socket.destroy()
+          res.writeHead(200)
+          res.end(JSON.stringify({ reachable: true, host: targetHost, port: targetPort }))
+        })
+        socket.once("timeout", () => {
+          socket.destroy()
+          res.writeHead(200)
+          res.end(JSON.stringify({ reachable: false, host: targetHost, port: targetPort, error: "Timeout" }))
+        })
+        socket.once("error", (err) => {
+          socket.destroy()
+          res.writeHead(200)
+          res.end(JSON.stringify({ reachable: false, host: targetHost, port: targetPort, error: err.message }))
+        })
+        socket.connect(targetPort, targetHost)
+        return
+      }
+
       // POST /show — Abrir o enfocar la app de escritorio
       if (req.method === "POST" && pathname === "/show") {
         if (this.onShowMain) this.onShowMain()

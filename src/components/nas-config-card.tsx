@@ -22,6 +22,7 @@ import {
 } from "lucide-react"
 import { useLanguage } from "@/context/language-context"
 import { cn } from "@/lib/utils"
+import { checkStudioNas } from "@/lib/desktop-bridge"
 
 const NAS_CARD_I18N = {
   fr: {
@@ -204,11 +205,11 @@ export function NasConfigCard() {
         setHasPassword(Boolean(data.settings.ftp_remote_password))
       }
 
-      // Si la nube marca offline pero estamos en la app de escritorio local, verificar directamente por socket TCP
-      if (!isSmb && !isFtp && typeof window !== "undefined" && window.desktopAdminAPI?.checkNasConnection) {
+      // Si la nube marca offline pero estamos en la red local del estudio, verificar directamente por socket TCP
+      if (!isSmb && !isFtp) {
         const testHost = data.settings?.ftp_remote_host || "192.168.11.1"
         const testPort = Number(data.settings?.ftp_remote_port) || 21
-        const localCheck = await window.desktopAdminAPI.checkNasConnection(testHost, testPort)
+        const localCheck = await checkStudioNas(testHost, testPort)
         if (localCheck.reachable) {
           isFtp = true
           mode = "ftp"
@@ -237,16 +238,14 @@ export function NasConfigCard() {
     setFeedback(null)
     const host = smbProbeHost || "192.168.11.1"
     try {
-      // 1. Probar localmente desde el PC si está dentro de Electron
-      if (typeof window !== "undefined" && window.desktopAdminAPI?.checkNasConnection) {
-        const localCheck = await window.desktopAdminAPI.checkNasConnection(host, 445)
-        if (localCheck.reachable) {
-          setIsSmbOnline(true)
-          setLatencyMs(15)
-          setFeedback({ type: "success", msg: texts.testSuccess(15) + ` [SMB Local: ${host}:445]` })
-          setTestingSmb(false)
-          return
-        }
+      // 1. Probar localmente desde el PC
+      const localCheck = await checkStudioNas(host, 445)
+      if (localCheck.reachable) {
+        setIsSmbOnline(true)
+        setLatencyMs(15)
+        setFeedback({ type: "success", msg: texts.testSuccess(15) + ` [SMB Local: ${host}:445]` })
+        setTestingSmb(false)
+        return
       }
 
       // 2. Consulta API backend
@@ -280,18 +279,16 @@ export function NasConfigCard() {
     const targetPort = Number(ftpRemotePort) || 21
 
     try {
-      // 1. Si estamos dentro de la app de escritorio en el PC local, verificar socket TCP directo
-      if (typeof window !== "undefined" && window.desktopAdminAPI?.checkNasConnection) {
-        const localCheck = await window.desktopAdminAPI.checkNasConnection(targetHost, targetPort)
-        if (localCheck.reachable) {
-          setIsFtpOnline(true)
-          setFeedback({ type: "success", msg: texts.testSuccess(15) + ` [FTP Local Verificado: ${targetHost}:${targetPort}]` })
-          setTestingFtp(false)
-          return
-        }
+      // 1. Probar localmente desde el PC (app de escritorio o Ingest Companion)
+      const localCheck = await checkStudioNas(targetHost, targetPort)
+      if (localCheck.reachable) {
+        setIsFtpOnline(true)
+        setFeedback({ type: "success", msg: texts.testSuccess(15) + ` [FTP Local Verificado: ${targetHost}:${targetPort}]` })
+        setTestingFtp(false)
+        return
       }
 
-      // 2. Probar mediante la API de backend
+      // 2. Probar mediante la API de backend (si es Tailscale con IP accesible desde la nube)
       const res = await fetch("/api/settings/nas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -308,27 +305,10 @@ export function NasConfigCard() {
         setIsFtpOnline(true)
         setFeedback({ type: "success", msg: texts.testSuccess(data.latencyMs) + ` [FTP]` })
       } else {
-        // Si el servidor cloud falló por estar en IP privada (192.168.x.x), reintentar sonda local
-        if (typeof window !== "undefined" && window.desktopAdminAPI?.checkNasConnection) {
-          const retryCheck = await window.desktopAdminAPI.checkNasConnection(targetHost, targetPort)
-          if (retryCheck.reachable) {
-            setIsFtpOnline(true)
-            setFeedback({ type: "success", msg: texts.testSuccess(18) + ` [FTP Local Detectado: ${targetHost}]` })
-            return
-          }
-        }
         setIsFtpOnline(false)
         setFeedback({ type: "error", msg: texts.testError(data.error || "Timeout") })
       }
     } catch (err: any) {
-      if (typeof window !== "undefined" && window.desktopAdminAPI?.checkNasConnection) {
-        const localCheck = await window.desktopAdminAPI.checkNasConnection(targetHost, targetPort)
-        if (localCheck.reachable) {
-          setIsFtpOnline(true)
-          setFeedback({ type: "success", msg: texts.testSuccess(10) + ` [Conexión Local Verificada]` })
-          return
-        }
-      }
       setIsFtpOnline(false)
       setFeedback({ type: "error", msg: texts.testError(err.message) })
     } finally {

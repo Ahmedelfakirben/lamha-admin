@@ -206,13 +206,27 @@ export async function createLocalProjectStructure(folderName: string): Promise<{
  * Comprueba la conexión local con el servidor NAS (192.168.11.1)
  */
 export async function checkStudioNas(host: string = "192.168.11.1", port: number = 21): Promise<{ reachable: boolean; host: string; port: number; error?: string }> {
+  // 1. Si estamos dentro de la app de escritorio Panel Administrador
   if (typeof window !== "undefined" && window.desktopAdminAPI?.checkNasConnection) {
     try {
-      return await window.desktopAdminAPI.checkNasConnection(host, port)
-    } catch (e: any) {
-      return { reachable: false, host, port, error: e.message }
-    }
+      const res = await window.desktopAdminAPI.checkNasConnection(host, port)
+      if (res.reachable) return res
+    } catch {}
   }
+
+  // 2. Si estamos en un navegador web y el Ingest Companion está corriendo en el PC
+  try {
+    const res = await fetch(`http://127.0.0.1:41890/check-nas?host=${encodeURIComponent(host)}&port=${port}`, {
+      signal: AbortSignal.timeout(1500),
+    })
+    if (res.ok) {
+      const data = await res.json()
+      if (data.reachable) {
+        return { reachable: true, host, port }
+      }
+    }
+  } catch {}
+
   return { reachable: false, host, port, error: "Desktop bridge no disponible" }
 }
 
