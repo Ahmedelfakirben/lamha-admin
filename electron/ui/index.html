@@ -506,13 +506,13 @@
         </div>
       </div>
 
-      <!-- Paso 2: Proyecto Real de Supabase + Buscador + Creación Rápida -->
+      <!-- Paso 2: Proyecto Real de Supabase + Buscador Avanzado + Filtros Categoría/Subcategoría + Creación Completa -->
       <div class="card">
         <div class="card-title">
           <span id="txt-step2-title">2. Projet / Session Réelle</span>
           <div style="display: flex; align-items: center; gap: 8px;">
-            <button id="btn-new-session" class="badge-step" style="cursor: pointer; padding: 4px 9px; font-size: 10.5px; background: var(--badge-bg); color: var(--gold); border: 1px solid var(--gold);">
-              + <span id="txt-btn-new-session">Nouveau Projet</span>
+            <button id="btn-new-session" class="badge-step" style="cursor: pointer; padding: 4px 10px; font-size: 10.5px; background: var(--badge-bg); color: var(--gold); border: 1px solid var(--gold);">
+              + <span id="txt-btn-new-session">Nouvelle Séance</span>
             </button>
             <button id="btn-refresh-sessions" title="Actualiser" style="background: none; border: none; color: var(--gold); cursor: pointer; display: flex; align-items: center; padding: 2px;">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
@@ -521,9 +521,36 @@
           </div>
         </div>
         <div class="card-content">
-          <input type="text" id="session-search-input" class="text-input" placeholder="🔍 Filtrer par client, date ou catégorie..." style="padding: 8px 12px; font-size: 12px;">
+          <!-- Buscador + Limpiar filtros -->
+          <div style="display: flex; gap: 6px; align-items: center;">
+            <input type="text" id="session-search-input" class="text-input" placeholder="🔍 Buscar cliente, categoría, subcategoría, fecha o PIN..." style="padding: 8px 12px; font-size: 12px; flex: 1;">
+            <button id="btn-clear-session-filters" class="btn-icon" style="display: none; width: 32px; height: 32px; font-size: 11px; color: var(--gold); border-color: var(--gold);" title="Limpiar filtros">✕</button>
+          </div>
+
+          <!-- Filtros por Categoría, Subcategoría y Tipo (Foto/Vídeo) -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px;">
+            <select id="filter-sess-cat" class="select-input" style="padding: 6px 10px; font-size: 11.5px;">
+              <option value="all">Todas las categorías</option>
+            </select>
+            <select id="filter-sess-subcat" class="select-input" style="padding: 6px 10px; font-size: 11.5px;">
+              <option value="all">Todas las subcategorías</option>
+            </select>
+            <select id="filter-sess-type" class="select-input" style="padding: 6px 10px; font-size: 11.5px; width: auto;">
+              <option value="all">📸+🎬</option>
+              <option value="photo">📸 Foto</option>
+              <option value="video">🎬 Vídeo</option>
+            </select>
+          </div>
+
+          <!-- Lista interactiva de resultados rápidos al buscar o filtrar -->
+          <div id="session-quick-results" style="display: none; max-height: 155px; overflow-y: auto; background: var(--input-bg); border: 1px solid var(--gold); border-radius: 10px; padding: 6px; flex-direction: column; gap: 4px;">
+          </div>
+
           <div class="form-group">
-            <label id="txt-select-session-label">Associer à la séance :</label>
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <label id="txt-select-session-label">Associer à la séance :</label>
+              <span id="txt-sessions-count" style="font-size: 10.5px; color: var(--gold); font-weight: 600;"></span>
+            </div>
             <select id="session-select" class="select-input">
               <option value="">Chargement des séances réelles...</option>
             </select>
@@ -721,34 +748,157 @@
     </div>
   </main>
 
-  <!-- Modal de Creación Rápida de Proyecto (+ Nuevo Proyecto) -->
+  <!-- Modal Completo de Creación de Sesión / Proyecto (Idéntico al Panel Web) -->
   <div id="modal-new-session" class="modal-backdrop">
-    <div class="modal-card" style="max-width: 440px;">
-      <div style="display: flex; justify-content: space-between; align-items: center;">
-        <h3 id="txt-new-sess-title" style="color: var(--gold); font-size: 15px;">+ Nouveau Projet / Séance</h3>
+    <div class="modal-card" style="max-width: 620px; max-height: 92vh; overflow-y: auto; gap: 14px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--card-border); padding-bottom: 10px;">
+        <div>
+          <h3 id="txt-new-sess-title" style="color: var(--gold); font-size: 16px;">+ Nouvelle Séance / Projet</h3>
+          <p id="txt-new-sess-subtitle" style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Enregistrement complet dans Supabase (Client, Catégorie, Sous-catégorie, PIN)</p>
+        </div>
         <button class="btn-icon" id="btn-close-new-session" style="border:none;">✕</button>
       </div>
-      <div class="form-group">
-        <label id="txt-new-sess-client">Nom du Client :</label>
-        <input type="text" id="inp-new-client" class="text-input" placeholder="Ex: Amine & Sara">
+
+      <!-- SECCIÓN 1: CLIENTE Y CONTACTO -->
+      <div style="background: var(--input-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+          <strong id="txt-sec1-client" style="font-size: 11.5px; text-transform: uppercase; color: var(--gold); letter-spacing: 0.4px;">1. Client & Coordonnées</strong>
+          <div style="display: flex; gap: 6px;">
+            <button type="button" id="btn-mode-existing-client" class="select-input" style="width: auto; padding: 5px 11px; font-size: 11px; cursor: pointer;">
+              👥 <span id="txt-tab-existing-client">Client Existant</span>
+            </button>
+            <button type="button" id="btn-mode-new-client" class="select-input" style="width: auto; padding: 5px 11px; font-size: 11px; cursor: pointer; border-color: var(--gold); color: var(--gold); font-weight: 700;">
+              ➕ <span id="txt-tab-new-client">Nouveau Client</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Modo: Seleccionar Cliente Existente -->
+        <div id="existing-client-search-box" style="display: none; flex-direction: column; gap: 8px; position: relative;">
+          <input type="text" id="inp-search-existing-client" class="text-input" placeholder="🔍 Rechercher un client par nom, téléphone ou email..." style="padding: 8px 12px; font-size: 12px;">
+          <div id="existing-clients-dropdown" style="max-height: 150px; overflow-y: auto; border: 1px solid var(--card-border); border-radius: 8px; background: var(--card-bg); display: none; flex-direction: column; gap: 2px; padding: 4px;">
+          </div>
+        </div>
+        <input type="hidden" id="inp-new-client-id" value="">
+
+        <!-- Campos del Cliente (se rellenan solos al elegir un cliente existente o se escriben en Nuevo Cliente) -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <div class="form-group">
+            <label id="txt-new-sess-client">Nom Complet du Client *</label>
+            <input type="text" id="inp-new-client" class="text-input" placeholder="Ex: Sarah Benali">
+          </div>
+          <div class="form-group">
+            <label id="txt-new-sess-phone">Téléphone (WhatsApp)</label>
+            <input type="text" id="inp-new-phone" class="text-input" placeholder="+212 600-000000">
+          </div>
+        </div>
+        <div class="form-group">
+          <label id="txt-new-sess-email">Email du Client (optionnel)</label>
+          <input type="email" id="inp-new-email" class="text-input" placeholder="client@exemple.com">
+        </div>
       </div>
-      <div class="form-group">
-        <label id="txt-new-sess-date">Date de la séance :</label>
-        <input type="date" id="inp-new-date" class="text-input">
+
+      <!-- SECCIÓN 2: SESIÓN, CATEGORÍA Y SUBCATEGORÍA -->
+      <div style="background: var(--input-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px;">
+        <strong id="txt-sec2-session" style="font-size: 11.5px; text-transform: uppercase; color: var(--gold); letter-spacing: 0.4px;">2. Séance, Catégorie & Sous-catégorie</strong>
+
+        <!-- Entorno (Studio / Shooting vs Fiesta / Exterior) y Tipo (Foto vs Vídeo) -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <div class="form-group">
+            <label id="txt-new-sess-env">Cadre / Lieu *</label>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+              <button type="button" id="btn-shoot-studio" class="select-input" style="padding: 8px; font-size: 11.5px; font-weight: 700; cursor: pointer; border-color: var(--gold); color: var(--gold); text-align: center;">
+                🏢 <span id="txt-opt-studio">Studio</span>
+              </button>
+              <button type="button" id="btn-shoot-party" class="select-input" style="padding: 8px; font-size: 11.5px; cursor: pointer; text-align: center;">
+                🎉 <span id="txt-opt-party">Fête / Ext.</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label id="txt-new-sess-type">Type de Prestation *</label>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+              <button type="button" id="btn-type-photo" class="select-input" style="padding: 8px; font-size: 11.5px; font-weight: 700; cursor: pointer; border-color: var(--gold); color: var(--gold); text-align: center;">
+                📸 <span id="txt-opt-photo">Photo</span>
+              </button>
+              <button type="button" id="btn-type-video" class="select-input" style="padding: 8px; font-size: 11.5px; cursor: pointer; text-align: center;">
+                🎬 <span id="txt-opt-video">Vidéo</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Fecha, Categoría Principal y Subcategoría -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <div class="form-group">
+            <label id="txt-new-sess-date">Date de la séance *</label>
+            <input type="date" id="inp-new-date" class="text-input">
+          </div>
+          <div class="form-group">
+            <label id="txt-new-sess-cat">Catégorie Principale *</label>
+            <select id="inp-new-category" class="select-input">
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group" id="wrap-new-subcategory">
+          <label id="txt-new-sess-subcat">Sous-catégorie / Thème</label>
+          <select id="inp-new-subcategory" class="select-input">
+            <option value="">-- Optionnel --</option>
+          </select>
+        </div>
       </div>
-      <div class="form-group">
-        <label id="txt-new-sess-cat">Catégorie / Type :</label>
-        <select id="inp-new-category" class="select-input">
-          <option value="Mariage">Mariage / Boda</option>
-          <option value="Portrait">Portrait / Retrato</option>
-          <option value="Mode">Mode / Editorial</option>
-          <option value="Corporate">Corporate / Evento</option>
-          <option value="Famille">Famille / Familia</option>
-        </select>
+
+      <!-- SECCIÓN 3: ESTADO, CÓDIGO PIN PORTAL, ETIQUETAS Y NOTAS -->
+      <div style="background: var(--input-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px;">
+        <strong id="txt-sec3-prod" style="font-size: 11.5px; text-transform: uppercase; color: var(--gold); letter-spacing: 0.4px;">3. Statut, Accès Portail & Notes</strong>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <div class="form-group">
+            <label id="txt-new-sess-status">Statut de Production</label>
+            <select id="inp-new-status" class="select-input">
+              <option value="pending">🟡 Planifié / En attente</option>
+              <option value="shooting">🟣 En séance / Tournage</option>
+              <option value="edited">🔵 Prêt pour sélection</option>
+              <option value="delivered">🟢 Livré</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <label id="txt-new-sess-pin">Code PIN Portail (4 chiffres)</label>
+              <button type="button" id="btn-gen-pin" style="background: none; border: none; color: var(--gold); font-size: 11px; font-weight: 700; cursor: pointer;">🎲 Générer</button>
+            </div>
+            <input type="text" id="inp-new-pin" class="text-input" maxlength="6" placeholder="Ex: 4829" style="font-family: monospace; letter-spacing: 2px;">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label id="txt-new-sess-tags">Étiquettes (séparées par virgule)</label>
+          <input type="text" id="inp-new-tags" class="text-input" placeholder="mariage, album, vip..." style="padding: 8px 12px; font-size: 12px;">
+          <div style="display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px;">
+            <button type="button" class="badge-step btn-quick-tag" data-tag="mariage" style="cursor: pointer;">#mariage</button>
+            <button type="button" class="badge-step btn-quick-tag" data-tag="urgent" style="cursor: pointer;">#urgent</button>
+            <button type="button" class="badge-step btn-quick-tag" data-tag="album" style="cursor: pointer;">#album</button>
+            <button type="button" class="badge-step btn-quick-tag" data-tag="drive" style="cursor: pointer;">#drive</button>
+            <button type="button" class="badge-step btn-quick-tag" data-tag="vip" style="cursor: pointer;">#vip</button>
+            <button type="button" class="badge-step btn-quick-tag" data-tag="reel" style="cursor: pointer;">#reel</button>
+            <button type="button" class="badge-step btn-quick-tag" data-tag="drone" style="cursor: pointer;">#drone</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label id="txt-new-sess-comments">Notes / Commentaires</label>
+          <input type="text" id="inp-new-comments" class="text-input" placeholder="Détails particuliers, pack choisi..." style="padding: 8px 12px; font-size: 12px;">
+        </div>
       </div>
-      <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px;">
-        <button id="btn-create-session-submit" class="btn-primary" style="padding: 10px 18px; font-size: 13px;">
-          ✓ <span id="txt-btn-create-session">Créer et Sélectionner</span>
+
+      <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 2px;">
+        <button type="button" id="btn-cancel-new-session" class="select-input" style="width: auto; padding: 10px 16px; cursor: pointer;">
+          Annuler
+        </button>
+        <button type="button" id="btn-create-session-submit" class="btn-primary" style="padding: 10px 20px; font-size: 13px;">
+          ✓ <span id="txt-btn-create-session">Créer la Séance & Sélectionner</span>
         </button>
       </div>
     </div>
@@ -1216,20 +1366,132 @@
     let currentTheme = "dark";
     let selectedDrive = "D:\\";
     let sessionsCache = [];
+    let categoriesCache = [];
+    let clientsCache = [];
     let currentNasState = { enabled: true, pausedUntil: null, isPaused: false };
     let recycleProjectsCache = [];
     let recycleFilterMode = "delivered"; // "delivered" | "all"
     let pendingRecycleTargets = [];
     let lastCompletedSummary = null;
 
+    // Estado del formulario de creación completa de sesión
+    let newSessClientMode = "new"; // "existing" | "new"
+    let newSessSelectedClientId = null;
+    let newSessShootingType = "shooting"; // "shooting" | "party"
+    let newSessMediaType = "photo"; // "photo" | "video"
+
+    const DEFAULT_CATEGORIES = [
+      { slug: "wedding", name: "Boda", name_fr: "Mariage / Wedding", name_en: "Wedding", name_ar: "زفاف / أعراس", keywords: "wedding mariage boda عرس زفاف" },
+      { slug: "portrait", name: "Retrato & Estudio", name_fr: "Portrait & Studio", name_en: "Portrait & Studio", name_ar: "بورتريه واستوديو", keywords: "portrait retrato studio estudio بورتريه" },
+      { slug: "newborn", name: "Recién Nacido", name_fr: "Nouveau-né / Newborn", name_en: "Newborn", name_ar: "حديثي الولادة", keywords: "newborn nouveau-ne recien nacido bebe" },
+      { slug: "maternity", name: "Maternidad / Embarazo", name_fr: "Maternité / Grossesse", name_en: "Maternity", name_ar: "أمومة وحمل", keywords: "maternity maternite grossesse maternidad embarazo" },
+      { slug: "event", name: "Evento & Gala", name_fr: "Événement & Soirée", name_en: "Event & Party", name_ar: "حفلات ومناسبات", keywords: "event evenement soiree evento fiesta" },
+      { slug: "graduation", name: "Graduación / Tesis", name_fr: "Remise de Diplôme / Soutenance", name_en: "Graduation", name_ar: "تخرج", keywords: "graduation diplome soutenance graduacion" },
+      { slug: "birthday", name: "Cumpleaños / Chadda", name_fr: "Anniversaire / Chadda", name_en: "Birthday / Chadda", name_ar: "عيد ميلاد / شدة", keywords: "birthday anniversaire cumpleanos chadda" },
+      { slug: "product", name: "Producto / Comercial", name_fr: "Produit / Commercial", name_en: "Product", name_ar: "تصوير منتجات", keywords: "product produit producto" },
+      { slug: "other", name: "Otro Proyecto", name_fr: "Autre Projet", name_en: "Other Project", name_ar: "مشروع آخر", keywords: "other autre otro" },
+    ];
+
+    const DEFAULT_PORTRAIT_SUBCATEGORIES = [
+      { slug: "harry_potter", name: "Harry Potter", name_fr: "Harry Potter", name_en: "Harry Potter", name_ar: "هاري بوتر" },
+      { slug: "graduation", name: "Graduation", name_fr: "Graduation", name_en: "Graduation", name_ar: "تخرج" },
+      { slug: "safari", name: "Safari", name_fr: "Safari", name_en: "Safari", name_ar: "سفاري" },
+      { slug: "moroccan_corner", name: "Moroccan Corner", name_fr: "Moroccan Corner", name_en: "Moroccan Corner", name_ar: "الركن المغربي" },
+      { slug: "gender_reveal", name: "Gender Reveal", name_fr: "Gender Reveal", name_en: "Gender Reveal", name_ar: "كشف جنس المولود" },
+      { slug: "cinderella", name: "Cinderella", name_fr: "Cinderella", name_en: "Cinderella", name_ar: "سندريلا" },
+      { slug: "astronaut", name: "Astronaut", name_fr: "Astronaut", name_en: "Astronaut", name_ar: "رائد فضاء" },
+      { slug: "arabian_corner", name: "Arabian Corner", name_fr: "Arabian Corner", name_en: "Arabian Corner", name_ar: "الركن العربي" },
+      { slug: "candy_sweet", name: "Candy Sweet", name_fr: "Candy Sweet", name_en: "Candy Sweet", name_ar: "كاندي سويت" },
+    ];
+
+    function getEffectiveCategories() {
+      if (Array.isArray(categoriesCache) && categoriesCache.length > 0) {
+        return categoriesCache;
+      }
+      return DEFAULT_CATEGORIES.map((c) => ({
+        ...c,
+        subcategories: c.slug === "portrait" ? DEFAULT_PORTRAIT_SUBCATEGORIES : [],
+      }));
+    }
+
+    function getCategoryLabel(slug) {
+      if (!slug) return "";
+      const cats = getEffectiveCategories();
+      const found =
+        cats.find((c) => c.slug === slug || (c.name && c.name.toLowerCase() === String(slug).toLowerCase())) ||
+        DEFAULT_CATEGORIES.find((c) => c.slug === slug);
+      if (found) {
+        if (currentLang === "fr" && found.name_fr) return found.name_fr;
+        if (currentLang === "en" && found.name_en) return found.name_en;
+        if (currentLang === "ar" && found.name_ar) return found.name_ar;
+        return found.name || found.name_fr || slug;
+      }
+      return slug;
+    }
+
+    function getSubcategoriesForCategory(catSlug) {
+      const cats = getEffectiveCategories();
+      if (!catSlug || catSlug === "all") {
+        const allSubs = [];
+        cats.forEach((c) => {
+          const list = Array.isArray(c.subcategories) && c.subcategories.length > 0
+            ? c.subcategories
+            : c.slug === "portrait"
+            ? DEFAULT_PORTRAIT_SUBCATEGORIES
+            : [];
+          list.forEach((s) => {
+            if (s.is_active !== false && !allSubs.some((x) => x.slug === s.slug)) {
+              allSubs.push(s);
+            }
+          });
+        });
+        return allSubs;
+      }
+      const matched = cats.find((c) => c.slug === catSlug);
+      if (matched && Array.isArray(matched.subcategories) && matched.subcategories.length > 0) {
+        return matched.subcategories.filter((s) => s.is_active !== false);
+      }
+      if (catSlug === "portrait") return DEFAULT_PORTRAIT_SUBCATEGORIES;
+      return [];
+    }
+
+    function getSubcategoryLabel(subSlug) {
+      if (!subSlug) return "";
+      const allSubs = getSubcategoriesForCategory("all");
+      const found =
+        allSubs.find((s) => s.slug === subSlug || (s.name && s.name.toLowerCase() === String(subSlug).toLowerCase())) ||
+        DEFAULT_PORTRAIT_SUBCATEGORIES.find((s) => s.slug === subSlug);
+      if (found) {
+        if (currentLang === "fr" && found.name_fr) return found.name_fr;
+        if (currentLang === "en" && found.name_en) return found.name_en;
+        if (currentLang === "ar" && found.name_ar) return found.name_ar;
+        return found.name || subSlug;
+      }
+      return String(subSlug).replace(/_/g, " ");
+    }
+
+    function getSearchableSessionText(s) {
+      const catSlug = s.category || "";
+      const subSlug = s.subcategory || "";
+      const catObj =
+        getEffectiveCategories().find((c) => c.slug === catSlug) ||
+        DEFAULT_CATEGORIES.find((c) => c.slug === catSlug);
+      const catNames = catObj
+        ? `${catObj.slug || ""} ${catObj.name || ""} ${catObj.name_fr || ""} ${catObj.name_en || ""} ${catObj.name_ar || ""} ${catObj.keywords || ""}`
+        : catSlug;
+      const subLabel = getSubcategoryLabel(subSlug);
+      const tagsStr = Array.isArray(s.tags) ? s.tags.join(" ") : String(s.tags || "");
+      return `${s.client_name || ""} ${s.client_phone || ""} ${s.client_email || ""} ${s.session_date || ""} ${s.portal_pin || ""} ${s.session_type || ""} ${s.shooting_type || ""} ${catNames} ${subSlug} ${subLabel} ${tagsStr} ${s.status || ""}`.toLowerCase();
+    }
+
     function formatSessionStatusLabel(status) {
       const t = I18N[currentLang] || I18N.fr;
       const s = String(status || "").toLowerCase();
       if (s === "delivered" || s === "completed" || s === "entregado" || s === "livré" || s === "livre") return t.statusDelivered;
-      if (s === "editing") return t.statusEditing;
+      if (s === "editing" || s === "edited") return t.statusEditing;
       if (s === "review" || s === "selection") return t.statusReview;
-      if (s === "ingested") return t.statusIngested;
-      if (s === "planned") return t.statusPlanned;
+      if (s === "ingested" || s === "shooting") return t.statusIngested;
+      if (s === "planned" || s === "pending") return t.statusPlanned;
       return t.statusUnlinked;
     }
 
@@ -1677,6 +1939,9 @@
       document.getElementById("btn-cancel-recycle-modal").textContent = t.btnCancel;
       document.getElementById("txt-cfg-autostart").textContent = t.cfgAutostart;
       document.getElementById("txt-cfg-autostart-desc").textContent = t.cfgAutostartDesc;
+      populateFilterDropdowns();
+      populateNewSessionCategoryDropdown();
+      populateSessionSelect();
       renderNasSyncState();
       renderRecycleProjects();
       refreshSystemHealth();
@@ -1696,84 +1961,568 @@
       if (window.electronAPI) window.electronAPI.notifyLanguageChange(e.target.value);
     };
 
-    // Carga y filtrado instantáneo de proyectos reales desde Supabase
+    // Carga y filtrado avanzado de proyectos reales desde Supabase
     const sessionSelect = document.getElementById("session-select");
     const sessionSearchInput = document.getElementById("session-search-input");
+    const filterSessCat = document.getElementById("filter-sess-cat");
+    const filterSessSubcat = document.getElementById("filter-sess-subcat");
+    const filterSessType = document.getElementById("filter-sess-type");
+    const btnClearSessionFilters = document.getElementById("btn-clear-session-filters");
+    const sessionQuickResults = document.getElementById("session-quick-results");
+    const txtSessionsCount = document.getElementById("txt-sessions-count");
 
-    function populateSessionSelect(filterText = "") {
+    function populateFilterDropdowns() {
+      if (!filterSessCat || !filterSessSubcat) return;
+      const curCat = filterSessCat.value;
+      const curSub = filterSessSubcat.value;
+      const cats = getEffectiveCategories();
+
+      const allCatLabels = {
+        fr: "📂 Toutes les catégories",
+        es: "📂 Todas las categorías",
+        en: "📂 All categories",
+        ar: "📂 جميع الفئات",
+      };
+      filterSessCat.innerHTML = `<option value="">${allCatLabels[currentLang] || allCatLabels.fr}</option>`;
+      cats.forEach((c) => {
+        const opt = document.createElement("option");
+        opt.value = c.slug;
+        opt.textContent = getCategoryLabel(c.slug);
+        filterSessCat.appendChild(opt);
+      });
+      if (curCat && cats.some((c) => c.slug === curCat)) {
+        filterSessCat.value = curCat;
+      }
+
+      updateFilterSubcategoriesDropdown(filterSessCat.value, curSub);
+    }
+
+    function updateFilterSubcategoriesDropdown(catSlug, preserveSub = "") {
+      if (!filterSessSubcat) return;
+      const allSubLabels = {
+        fr: "🏷️ Toutes les sous-catégories",
+        es: "🏷️ Todas las subcategorías",
+        en: "🏷️ All subcategories",
+        ar: "🏷️ جميع الفئات الفرعية",
+      };
+      filterSessSubcat.innerHTML = `<option value="">${allSubLabels[currentLang] || allSubLabels.fr}</option>`;
+
+      let subs = [];
+      if (catSlug) {
+        subs = getSubcategoriesForCategory(catSlug);
+      } else {
+        // Si no hay categoría seleccionada, mostrar todas las subcategorías conocidas
+        const seen = new Set();
+        getEffectiveCategories().forEach((c) => {
+          getSubcategoriesForCategory(c.slug).forEach((sub) => {
+            if (!seen.has(sub.slug)) {
+              seen.add(sub.slug);
+              subs.push(sub);
+            }
+          });
+        });
+      }
+
+      subs.forEach((sub) => {
+        const opt = document.createElement("option");
+        opt.value = sub.slug;
+        opt.textContent = getSubcategoryLabel(sub.slug);
+        filterSessSubcat.appendChild(opt);
+      });
+
+      if (preserveSub && subs.some((s) => s.slug === preserveSub)) {
+        filterSessSubcat.value = preserveSub;
+      }
+    }
+
+    function populateSessionSelect() {
       const currentVal = sessionSelect.value;
-      const q = String(filterText || "").trim().toLowerCase();
-      const filtered = q
-        ? sessionsCache.filter((s) =>
-            `${s.client_name || ""} ${s.category || ""} ${s.session_date || ""} ${s.status || ""}`.toLowerCase().includes(q)
-          )
-        : sessionsCache;
+      const rawQuery = String(sessionSearchInput ? sessionSearchInput.value : "").trim().toLowerCase();
+      const queryTokens = rawQuery ? rawQuery.split(/\s+/).filter(Boolean) : [];
+      const catFilter = filterSessCat ? filterSessCat.value : "";
+      const subcatFilter = filterSessSubcat ? filterSessSubcat.value : "";
+      const typeFilter = filterSessType ? filterSessType.value : "";
 
-      sessionSelect.innerHTML = "<option value=''>-- Sélectionner un projet / client --</option>";
+      const hasActiveFilter = Boolean(queryTokens.length > 0 || catFilter || subcatFilter || typeFilter);
+      if (btnClearSessionFilters) {
+        btnClearSessionFilters.style.display = hasActiveFilter ? "inline-flex" : "none";
+      }
+
+      const filtered = sessionsCache.filter((s) => {
+        if (catFilter && String(s.category || "").toLowerCase() !== catFilter.toLowerCase()) {
+          return false;
+        }
+        if (subcatFilter) {
+          const sSub = String(s.subcategory || "").toLowerCase();
+          const hasTagSub = Array.isArray(s.tags) && s.tags.some((t) => String(t).toLowerCase() === subcatFilter.toLowerCase());
+          if (sSub !== subcatFilter.toLowerCase() && !hasTagSub) {
+            return false;
+          }
+        }
+        if (typeFilter && String(s.session_type || "photo").toLowerCase() !== typeFilter.toLowerCase()) {
+          return false;
+        }
+        if (queryTokens.length > 0) {
+          const searchable = getSearchableSessionText(s);
+          return queryTokens.every((tok) => searchable.includes(tok));
+        }
+        return true;
+      });
+
+      if (txtSessionsCount) {
+        txtSessionsCount.textContent = `${filtered.length} / ${sessionsCache.length}`;
+      }
+
+      const placeholderByLang = {
+        fr: "-- Sélectionner un projet / client --",
+        es: "-- Seleccionar un proyecto / cliente --",
+        en: "-- Select a project / client --",
+        ar: "-- اختر مشروعاً / عميلاً --",
+      };
+      sessionSelect.innerHTML = `<option value="">${placeholderByLang[currentLang] || placeholderByLang.fr} (${filtered.length})</option>`;
+
       filtered.forEach((s) => {
         const opt = document.createElement("option");
         opt.value = s.id;
         const date = s.session_date || "";
         const stLabel = formatSessionStatusLabel(s.status);
-        opt.textContent = `${s.client_name || "Client"} - ${s.category || "Atelier"} (${date}) [${stLabel}]`;
+        const catLabel = getCategoryLabel(s.category);
+        const subLabel = s.subcategory ? ` › ${getSubcategoryLabel(s.subcategory)}` : "";
+        const typeIcon = s.session_type === "video" ? "🎥" : "📷";
+        opt.textContent = `${typeIcon} ${s.client_name || "Client"} — ${catLabel}${subLabel} (${date}) [${stLabel}]`;
         sessionSelect.appendChild(opt);
       });
+
       if (currentVal && filtered.some((x) => x.id === currentVal)) {
         sessionSelect.value = currentVal;
+      } else if (hasActiveFilter && filtered.length === 1) {
+        // Si el filtro deja una única sesión, seleccionarla automáticamente
+        sessionSelect.value = filtered[0].id;
       }
+
+      renderSessionQuickResults(filtered, hasActiveFilter);
+      updateSessionInfoBox();
     }
 
-    sessionSearchInput.oninput = (e) => {
-      populateSessionSelect(e.target.value);
-    };
+    function renderSessionQuickResults(filtered, hasActiveFilter) {
+      if (!sessionQuickResults) return;
+      if (!hasActiveFilter) {
+        sessionQuickResults.style.display = "none";
+        sessionQuickResults.innerHTML = "";
+        return;
+      }
+
+      sessionQuickResults.style.display = "block";
+      if (filtered.length === 0) {
+        const emptyMsg = {
+          fr: "Aucune séance ne correspond à votre recherche / filtre.",
+          es: "Ninguna sesión coincide con tu búsqueda o filtro.",
+          en: "No sessions match your search or filter.",
+          ar: "لا توجد جلسات تطابق بحثك أو الفلتر.",
+        };
+        sessionQuickResults.innerHTML = `<div style="padding:10px 12px; font-size:11px; color:var(--text-muted); text-align:center;">${emptyMsg[currentLang] || emptyMsg.fr}</div>`;
+        return;
+      }
+
+      sessionQuickResults.innerHTML = filtered
+        .slice(0, 25)
+        .map((s) => {
+          const isSelected = sessionSelect.value === s.id;
+          const catLabel = getCategoryLabel(s.category);
+          const subLabel = s.subcategory ? ` • ${getSubcategoryLabel(s.subcategory)}` : "";
+          const stLabel = formatSessionStatusLabel(s.status);
+          const typeIcon = s.session_type === "video" ? "🎥" : "📷";
+          const pinBadge = s.portal_pin ? `<span style="font-family:monospace; font-size:10px; padding:1px 5px; border-radius:4px; background:rgba(200,164,90,0.14); color:var(--gold);">PIN ${escapeHtml(s.portal_pin)}</span>` : "";
+          return `
+            <div class="quick-sess-item" data-id="${escapeHtml(s.id)}" style="padding:8px 12px; border-bottom:1px solid var(--border); cursor:pointer; display:flex; align-items:center; justify-content:space-between; gap:8px; background:${isSelected ? "rgba(200,164,90,0.14)" : "transparent"}; transition:background 0.15s;">
+              <div style="min-width:0; flex:1;">
+                <div style="font-size:12px; font-weight:700; color:${isSelected ? "var(--gold)" : "var(--text)"}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                  ${typeIcon} ${escapeHtml(s.client_name || "Client")}
+                </div>
+                <div style="font-size:10px; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                  ${escapeHtml(catLabel)}${escapeHtml(subLabel)} • ${escapeHtml(s.session_date || "-")} ${s.client_phone ? `• 📞 ${escapeHtml(s.client_phone)}` : ""}
+                </div>
+              </div>
+              <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
+                ${pinBadge}
+                <span style="font-size:10px; color:var(--text-muted);">${escapeHtml(stLabel)}</span>
+              </div>
+            </div>
+          `;
+        })
+        .join("");
+
+      sessionQuickResults.querySelectorAll(".quick-sess-item").forEach((el) => {
+        el.onclick = () => {
+          const id = el.getAttribute("data-id");
+          sessionSelect.value = id;
+          updateSessionInfoBox();
+          renderSessionQuickResults(filtered, hasActiveFilter);
+        };
+      });
+    }
+
+    if (sessionSearchInput) {
+      sessionSearchInput.oninput = () => populateSessionSelect();
+    }
+    if (filterSessCat) {
+      filterSessCat.onchange = () => {
+        updateFilterSubcategoriesDropdown(filterSessCat.value, "");
+        populateSessionSelect();
+      };
+    }
+    if (filterSessSubcat) {
+      filterSessSubcat.onchange = () => populateSessionSelect();
+    }
+    if (filterSessType) {
+      filterSessType.onchange = () => populateSessionSelect();
+    }
+    if (btnClearSessionFilters) {
+      btnClearSessionFilters.onclick = () => {
+        if (sessionSearchInput) sessionSearchInput.value = "";
+        if (filterSessCat) filterSessCat.value = "";
+        updateFilterSubcategoriesDropdown("", "");
+        if (filterSessSubcat) filterSessSubcat.value = "";
+        if (filterSessType) filterSessType.value = "";
+        populateSessionSelect();
+      };
+    }
 
     async function loadRealSessions() {
       sessionSelect.innerHTML = "<option value=''>Chargement des séances réelles...</option>";
       const res = await window.electronAPI.getSessions();
       if (res.ok && res.sessions) {
         sessionsCache = res.sessions;
-        populateSessionSelect(sessionSearchInput.value);
+        if (Array.isArray(res.categories) && res.categories.length > 0) {
+          categoriesCache = res.categories;
+        }
+        if (Array.isArray(res.clients)) {
+          clientsCache = res.clients;
+        }
+        populateFilterDropdowns();
+        populateNewSessionCategoryDropdown();
+        populateSessionSelect();
         loadRecycleProjects(false);
       } else {
         sessionSelect.innerHTML = `<option value=''>Erreur : ${res.error || "Impossible de charger"}</option>`;
       }
     }
 
-    sessionSelect.onchange = () => {
+    function updateSessionInfoBox() {
       const s = sessionsCache.find((x) => x.id === sessionSelect.value);
       const box = document.getElementById("session-info");
+      if (!box) return;
       if (s) {
         box.style.display = "block";
-        box.textContent = `Projet: ${s.client_name} • Catégorie: ${s.category || "-"} • Date: ${s.session_date || "-"} • État: ${formatSessionStatusLabel(s.status)}`;
+        const catLabel = getCategoryLabel(s.category);
+        const subLabel = s.subcategory ? ` › ${getSubcategoryLabel(s.subcategory)}` : "";
+        const typeLabel = s.session_type === "video" ? "🎥 Vidéo" : "📷 Photo";
+        const placeLabel = s.shooting_type === "party" || (Array.isArray(s.tags) && s.tags.includes("place:party")) ? "🎉 Extérieur / Fête" : "🏛️ Studio";
+        const pinInfo = s.portal_pin ? ` • PIN: ${s.portal_pin}` : "";
+        box.textContent = `${s.client_name} • ${typeLabel} (${placeLabel}) • ${catLabel}${subLabel} • Date: ${s.session_date || "-"} • État: ${formatSessionStatusLabel(s.status)}${pinInfo}`;
       } else {
         box.style.display = "none";
       }
+    }
+
+    sessionSelect.onchange = () => {
+      updateSessionInfoBox();
     };
 
-    // Modal de Creación Rápida de Proyecto (+ Nuevo Proyecto)
+    // Modal de Creación Completa de Proyecto (+ Nuevo Proyecto / Sesión)
     const modalNewSession = document.getElementById("modal-new-session");
+    const inpNewCategory = document.getElementById("inp-new-category");
+    const inpNewSubcategory = document.getElementById("inp-new-subcategory");
+    const wrapNewSubcategory = document.getElementById("wrap-new-subcategory");
+
+    function populateNewSessionCategoryDropdown() {
+      if (!inpNewCategory) return;
+      const currentVal = inpNewCategory.value;
+      const cats = getEffectiveCategories();
+      inpNewCategory.innerHTML = "";
+      cats.forEach((c) => {
+        const opt = document.createElement("option");
+        opt.value = c.slug;
+        opt.textContent = getCategoryLabel(c.slug);
+        inpNewCategory.appendChild(opt);
+      });
+      if (currentVal && cats.some((c) => c.slug === currentVal)) {
+        inpNewCategory.value = currentVal;
+      } else if (cats.some((c) => c.slug === "portrait")) {
+        inpNewCategory.value = "portrait";
+      }
+      updateNewSessionSubcategoryDropdown();
+    }
+
+    function updateNewSessionSubcategoryDropdown() {
+      if (!inpNewCategory || !inpNewSubcategory) return;
+      const catSlug = inpNewCategory.value;
+      const subs = getSubcategoriesForCategory(catSlug);
+      const noneLabels = {
+        fr: "-- Aucune / Général --",
+        es: "-- Ninguna / General --",
+        en: "-- None / General --",
+        ar: "-- بدون / عام --",
+      };
+      inpNewSubcategory.innerHTML = `<option value="">${noneLabels[currentLang] || noneLabels.fr}</option>`;
+      subs.forEach((sub) => {
+        const opt = document.createElement("option");
+        opt.value = sub.slug;
+        opt.textContent = getSubcategoryLabel(sub.slug);
+        inpNewSubcategory.appendChild(opt);
+      });
+      if (wrapNewSubcategory) {
+        wrapNewSubcategory.style.opacity = subs.length > 0 ? "1" : "0.6";
+      }
+    }
+
+    if (inpNewCategory) {
+      inpNewCategory.onchange = () => updateNewSessionSubcategoryDropdown();
+    }
+
+    function generateRandomPin() {
+      return String(Math.floor(1000 + Math.random() * 9000));
+    }
+
+    function setClientCreationMode(mode) {
+      newSessionClientMode = mode;
+      const btnExist = document.getElementById("btn-mode-existing-client");
+      const btnNew = document.getElementById("btn-mode-new-client");
+      const boxSearch = document.getElementById("existing-client-search-box");
+      if (btnExist && btnNew) {
+        if (mode === "existing") {
+          btnExist.style.background = "var(--gold)";
+          btnExist.style.color = "#000";
+          btnExist.style.borderColor = "var(--gold)";
+          btnNew.style.background = "var(--bg-card)";
+          btnNew.style.color = "var(--text-muted)";
+          btnNew.style.borderColor = "var(--border)";
+          if (boxSearch) boxSearch.style.display = "block";
+        } else {
+          btnNew.style.background = "var(--gold)";
+          btnNew.style.color = "#000";
+          btnNew.style.borderColor = "var(--gold)";
+          btnExist.style.background = "var(--bg-card)";
+          btnExist.style.color = "var(--text-muted)";
+          btnExist.style.borderColor = "var(--border)";
+          if (boxSearch) boxSearch.style.display = "none";
+          document.getElementById("inp-new-client-id").value = "";
+        }
+      }
+    }
+
+    function setShootingPlaceMode(place) {
+      newSessionShootingType = place;
+      const btnStudio = document.getElementById("btn-shoot-studio");
+      const btnParty = document.getElementById("btn-shoot-party");
+      if (btnStudio && btnParty) {
+        if (place === "shooting") {
+          btnStudio.style.borderColor = "var(--gold)";
+          btnStudio.style.background = "rgba(200,164,90,0.12)";
+          btnStudio.style.color = "var(--gold)";
+          btnStudio.style.fontWeight = "700";
+          btnParty.style.borderColor = "var(--border)";
+          btnParty.style.background = "var(--bg-card)";
+          btnParty.style.color = "var(--text-muted)";
+          btnParty.style.fontWeight = "600";
+        } else {
+          btnParty.style.borderColor = "var(--gold)";
+          btnParty.style.background = "rgba(200,164,90,0.12)";
+          btnParty.style.color = "var(--gold)";
+          btnParty.style.fontWeight = "700";
+          btnStudio.style.borderColor = "var(--border)";
+          btnStudio.style.background = "var(--bg-card)";
+          btnStudio.style.color = "var(--text-muted)";
+          btnStudio.style.fontWeight = "600";
+        }
+      }
+    }
+
+    function setMediaTypeMode(mediaType) {
+      newSessionMediaType = mediaType;
+      const btnPhoto = document.getElementById("btn-type-photo");
+      const btnVideo = document.getElementById("btn-type-video");
+      if (btnPhoto && btnVideo) {
+        if (mediaType === "photo") {
+          btnPhoto.style.borderColor = "var(--gold)";
+          btnPhoto.style.background = "rgba(200,164,90,0.12)";
+          btnPhoto.style.color = "var(--gold)";
+          btnPhoto.style.fontWeight = "700";
+          btnVideo.style.borderColor = "var(--border)";
+          btnVideo.style.background = "var(--bg-card)";
+          btnVideo.style.color = "var(--text-muted)";
+          btnVideo.style.fontWeight = "600";
+        } else {
+          btnVideo.style.borderColor = "var(--gold)";
+          btnVideo.style.background = "rgba(200,164,90,0.12)";
+          btnVideo.style.color = "var(--gold)";
+          btnVideo.style.fontWeight = "700";
+          btnPhoto.style.borderColor = "var(--border)";
+          btnPhoto.style.background = "var(--bg-card)";
+          btnPhoto.style.color = "var(--text-muted)";
+          btnPhoto.style.fontWeight = "600";
+        }
+      }
+    }
+
+    const btnModeExisting = document.getElementById("btn-mode-existing-client");
+    const btnModeNew = document.getElementById("btn-mode-new-client");
+    if (btnModeExisting) btnModeExisting.onclick = () => setClientCreationMode("existing");
+    if (btnModeNew) btnModeNew.onclick = () => setClientCreationMode("new");
+
+    const btnShootStudio = document.getElementById("btn-shoot-studio");
+    const btnShootParty = document.getElementById("btn-shoot-party");
+    if (btnShootStudio) btnShootStudio.onclick = () => setShootingPlaceMode("shooting");
+    if (btnShootParty) btnShootParty.onclick = () => setShootingPlaceMode("party");
+
+    const btnTypePhoto = document.getElementById("btn-type-photo");
+    const btnTypeVideo = document.getElementById("btn-type-video");
+    if (btnTypePhoto) btnTypePhoto.onclick = () => setMediaTypeMode("photo");
+    if (btnTypeVideo) btnTypeVideo.onclick = () => setMediaTypeMode("video");
+
+    const btnGenPin = document.getElementById("btn-gen-pin");
+    if (btnGenPin) {
+      btnGenPin.onclick = () => {
+        document.getElementById("inp-new-pin").value = generateRandomPin();
+      };
+    }
+
+    // Autocompletado de clientes existentes en el modal
+    const inpSearchExistingClient = document.getElementById("inp-search-existing-client");
+    const existingClientsDropdown = document.getElementById("existing-clients-dropdown");
+    if (inpSearchExistingClient && existingClientsDropdown) {
+      inpSearchExistingClient.oninput = () => {
+        const q = inpSearchExistingClient.value.trim().toLowerCase();
+        if (!q) {
+          existingClientsDropdown.style.display = "none";
+          return;
+        }
+        const matches = clientsCache
+          .filter(
+            (c) =>
+              String(c.name || "").toLowerCase().includes(q) ||
+              String(c.phone || "").toLowerCase().includes(q) ||
+              String(c.email || "").toLowerCase().includes(q)
+          )
+          .slice(0, 15);
+
+        if (matches.length === 0) {
+          existingClientsDropdown.style.display = "block";
+          existingClientsDropdown.innerHTML = `<div style="padding:8px 10px; font-size:11px; color:var(--text-muted);">Aucun client trouvé. Remplissez les champs ci-dessous pour le créer.</div>`;
+          return;
+        }
+
+        existingClientsDropdown.style.display = "block";
+        existingClientsDropdown.innerHTML = matches
+          .map(
+            (c) => `
+          <div class="client-ac-item" data-id="${escapeHtml(c.id)}" data-name="${escapeHtml(c.name || "")}" data-phone="${escapeHtml(c.phone || "")}" data-email="${escapeHtml(c.email || "")}" style="padding:7px 10px; border-bottom:1px solid var(--border); cursor:pointer; font-size:12px;">
+            <strong style="color:var(--text);">${escapeHtml(c.name || "")}</strong>
+            <span style="color:var(--text-muted); font-size:11px; margin-left:6px;">${escapeHtml(c.phone || "")} ${c.email ? `• ${escapeHtml(c.email)}` : ""}</span>
+          </div>
+        `
+          )
+          .join("");
+
+        existingClientsDropdown.querySelectorAll(".client-ac-item").forEach((item) => {
+          item.onclick = () => {
+            document.getElementById("inp-new-client-id").value = item.getAttribute("data-id") || "";
+            document.getElementById("inp-new-client").value = item.getAttribute("data-name") || "";
+            document.getElementById("inp-new-phone").value = item.getAttribute("data-phone") || "";
+            document.getElementById("inp-new-email").value = item.getAttribute("data-email") || "";
+            inpSearchExistingClient.value = item.getAttribute("data-name") || "";
+            existingClientsDropdown.style.display = "none";
+          };
+        });
+      };
+    }
+
+    // Quick tags chips
+    document.querySelectorAll(".btn-quick-tag").forEach((chip) => {
+      chip.onclick = () => {
+        const tag = chip.getAttribute("data-tag");
+        const inp = document.getElementById("inp-new-tags");
+        if (!inp || !tag) return;
+        const current = inp.value
+          .split(",")
+          .map((t) => t.trim())
+          .filter(Boolean);
+        if (!current.includes(tag)) {
+          current.push(tag);
+          inp.value = current.join(", ");
+        }
+      };
+    });
+
     document.getElementById("btn-new-session").onclick = () => {
+      populateNewSessionCategoryDropdown();
+      setClientCreationMode("new");
+      setShootingPlaceMode("shooting");
+      setMediaTypeMode("photo");
+      document.getElementById("inp-new-client-id").value = "";
       document.getElementById("inp-new-client").value = "";
+      document.getElementById("inp-new-phone").value = "";
+      document.getElementById("inp-new-email").value = "";
+      if (inpSearchExistingClient) inpSearchExistingClient.value = "";
+      if (existingClientsDropdown) existingClientsDropdown.style.display = "none";
       document.getElementById("inp-new-date").value = new Date().toISOString().split("T")[0];
+      document.getElementById("inp-new-status").value = "shooting";
+      document.getElementById("inp-new-pin").value = generateRandomPin();
+      document.getElementById("inp-new-tags").value = "";
+      document.getElementById("inp-new-comments").value = "";
       modalNewSession.classList.add("open");
       setTimeout(() => document.getElementById("inp-new-client").focus(), 50);
     };
+
     document.getElementById("btn-close-new-session").onclick = () => modalNewSession.classList.remove("open");
+    const btnCancelNewSession = document.getElementById("btn-cancel-new-session");
+    if (btnCancelNewSession) btnCancelNewSession.onclick = () => modalNewSession.classList.remove("open");
+
     document.getElementById("btn-create-session-submit").onclick = async () => {
+      const clientId = document.getElementById("inp-new-client-id").value.trim() || null;
       const clientName = document.getElementById("inp-new-client").value.trim();
+      const clientPhone = document.getElementById("inp-new-phone").value.trim();
+      const clientEmail = document.getElementById("inp-new-email").value.trim();
       const sessionDate = document.getElementById("inp-new-date").value;
       const category = document.getElementById("inp-new-category").value;
-      if (!clientName) return;
+      const subcategory = document.getElementById("inp-new-subcategory").value;
+      const status = document.getElementById("inp-new-status").value || "shooting";
+      const portalPin = document.getElementById("inp-new-pin").value.trim();
+      const tags = document.getElementById("inp-new-tags").value.trim();
+      const comments = document.getElementById("inp-new-comments").value.trim();
+
+      if (!clientName) {
+        document.getElementById("inp-new-client").focus();
+        return;
+      }
+
       const btn = document.getElementById("btn-create-session-submit");
       btn.disabled = true;
       try {
-        const res = await window.electronAPI.createSession({ clientName, sessionDate, category });
+        const res = await window.electronAPI.createSession({
+          clientId,
+          clientName,
+          clientPhone,
+          clientEmail,
+          sessionDate,
+          shootingType: newSessionShootingType,
+          sessionType: newSessionMediaType,
+          category,
+          subcategory,
+          status,
+          portalPin,
+          tags,
+          comments,
+        });
         if (res && res.ok && res.session) {
           sessionsCache.unshift(res.session);
-          sessionSearchInput.value = "";
-          populateSessionSelect("");
+          if (sessionSearchInput) sessionSearchInput.value = "";
+          if (filterSessCat) filterSessCat.value = "";
+          if (filterSessSubcat) filterSessSubcat.value = "";
+          if (filterSessType) filterSessType.value = "";
+          populateSessionSelect();
           sessionSelect.value = res.session.id;
-          sessionSelect.onchange();
+          updateSessionInfoBox();
           modalNewSession.classList.remove("open");
         } else {
           alert(res?.error || "Error creating session");

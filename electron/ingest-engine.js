@@ -186,40 +186,165 @@ async function logout() {
 
 async function listSessions() {
   try {
-    const { data, error } = await getClient()
-      .from("sessions")
-      .select("id, client_name, session_date, category, session_type, tags, status")
-      .order("session_date", { ascending: false })
-      .limit(300)
-    if (error) return { ok: false, error: error.message }
-    return { ok: true, sessions: data || [] }
+    const supabase = getClient()
+    const [sessRes, catRes, cliRes] = await Promise.all([
+      supabase
+        .from("sessions")
+        .select("*")
+        .order("session_date", { ascending: false })
+        .limit(400),
+      supabase
+        .from("categories")
+        .select("*, subcategories(*)")
+        .eq("is_active", true)
+        .order("display_order", { ascending: true }),
+      supabase
+        .from("clients")
+        .select("id, name, phone, email")
+        .limit(500),
+    ])
+
+    if (sessRes.error) return { ok: false, error: sessRes.error.message }
+    const sessions = sessRes.data || []
+    const categories = (!catRes.error && catRes.data) ? catRes.data : []
+
+    // Construir lista consolidada de clientes existentes (tabla clients + historial de sessions)
+    const clientMap = new Map()
+    if (!cliRes.error && Array.isArray(cliRes.data)) {
+      for (const c of cliRes.data) {
+        if (!c.name) continue
+        const k = c.name.trim().toLowerCase()
+        clientMap.set(k, {
+          id: c.id,
+          name: c.name.trim(),
+          phone: c.phone || null,
+          email: c.email || null,
+          sessionCount: 0,
+        })
+      }
+    }
+    for (const s of sessions) {
+      if (!s.client_name) continue
+      const k = s.client_name.trim().toLowerCase()
+      if (!clientMap.has(k)) {
+        clientMap.set(k, {
+          id: s.client_id || null,
+          name: s.client_name.trim(),
+          phone: s.client_phone || null,
+          email: s.client_email || null,
+          sessionCount: 1,
+        })
+      } else {
+        const item = clientMap.get(k)
+        item.sessionCount += 1
+        if (!item.phone && s.client_phone) item.phone = s.client_phone
+        if (!item.email && s.client_email) item.email = s.client_email
+        if (!item.id && s.client_id) item.id = s.client_id
+      }
+    }
+    const clients = Array.from(clientMap.values()).sort((a, b) => {
+      if (b.sessionCount !== a.sessionCount) return b.sessionCount - a.sessionCount
+      return a.name.localeCompare(b.name)
+    })
+
+    return { ok: true, sessions, categories, clients }
   } catch (e) {
     return { ok: false, error: e.code === "CONFIG_MISSING" ? "CONFIG_MISSING" : e.message }
   }
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 async function createQuickSession(payload = {}) {
   try {
-    const clientName = String(payload.clientName || "").trim()
-    if (!clientName) return { ok: false, error: "CLIENT_NAME_REQUIRED" }
-    const sessionDate = payload.sessionDate || new Date().toISOString().split("T")[0]
-    const category = String(payload.category || "Mariage").trim()
-    const projectName = String(payload.projectName || category || "Sesion").trim()
-
-    const row = {
-      client_name: clientName,
-      session_date: sessionDate,
-      category,
-      session_type: category,
-      tags: [projectName],
-      status: "planned",
+    const supabase = getClient()
+    const clientName = String(payload.client_name || payload.clientName || "").trim()
+    if (!clientName || clientName.length < 2) {
+      return { ok: false, error: "CLIENT_NAME_REQUIRED" }
     }
 
-    const { data, error } = await getClient()
+    const sessionDate = payload.session_date || payload.sessionDate || new Date().toISOString().split("T")[0]
+    const shootingType = payload.shooting_type === "party" ? "party" : "shooting"
+    const sessionType = payload.session_type === "video" ? "video" : "photo"
+    const category = String(payload.category || "portrait").trim()
+    const subcategory = payload.subcategory ? String(payload.subcategory).trim() : null
+    const validStatuses = new Set(["pending", "shooting", "editing", "edited", "delivered", "archived"])
+    const status = validStatuses.has(payload.status) ? payload.status : "pending"
+    const clientPhone = payload.client_phone ? String(payload.client_phone).trim() : null
+    const clientEmail = payload.client_email ? String(payload.client_email).trim() : null
+    const portalPin = payload.portal_pin ? String(payload.portal_pin).trim() : null
+    const comments = payload.comments ? String(payload.comments).trim() : null
+
+    let rawTags = []
+    if (Array.isArray(payload.tags)) {
+      rawTags = payload.tags.map((t) => String(t).trim().replace(/^#/, "")).filter(Boolean)
+    } else if (typeof payload.tags === "string" && payload.tags.trim()) {
+      rawTags = payload.tags
+        .split(",")
+        .map((t) => t.trim().replace(/^#/, ""))
+        .filter(Boolean)
+    }
+    const cleanTags = rawTags.filter((t) => !t.toLowerCase().startsWith("place:"))
+    cleanTags.push(`place:${shootingType}`)
+
+    let clientId = payload.client_id && UUID_REGEX.test(String(payload.client_id).trim()) ? String(payload.client_id).trim() : null
+
+    // Auto-vincular o registrar cliente en la tabla clients (igual que en el Panel Administrador)
+    if (!clientId) {
+      try {
+        const { data: existingClient } = await supabase
+          .from("clients")
+          .select("id")
+          .ilike("name", clientName)
+          .maybeSingle()
+
+        if (existingClient?.id && UUID_REGEX.test(existingClient.id)) {
+          clientId = existingClient.id
+        } else {
+          const { data: newClient } = await supabase
+            .from("clients")
+            .insert({
+              name: clientName,
+              phone: clientPhone,
+              email: clientEmail,
+            })
+            .select("id")
+            .maybeSingle()
+          if (newClient?.id && UUID_REGEX.test(newClient.id)) {
+            clientId = newClient.id
+          }
+        }
+      } catch {}
+    }
+
+    const sessionRow = {
+      client_id: clientId,
+      client_name: clientName,
+      client_phone: clientPhone,
+      client_email: clientEmail,
+      session_date: sessionDate,
+      shooting_type: shootingType,
+      session_type: sessionType,
+      category,
+      subcategory,
+      status,
+      tags: cleanTags,
+      portal_pin: portalPin,
+      comments,
+    }
+
+    let { data, error } = await supabase
       .from("sessions")
-      .insert([row])
-      .select("id, client_name, session_date, category, session_type, tags, status")
+      .insert([sessionRow])
+      .select("*")
       .single()
+
+    if (error && (error.message?.includes("shooting_type") || error.details?.includes("shooting_type") || error.code === "PGRST204")) {
+      const { shooting_type, ...fallbackRow } = sessionRow
+      const retry = await supabase.from("sessions").insert([fallbackRow]).select("*").single()
+      data = retry.data
+      error = retry.error
+    }
 
     if (error) return { ok: false, error: error.message }
     return { ok: true, session: data }
@@ -542,12 +667,15 @@ async function runIngest(params, emit) {
     const supabase = getClient()
     const { data: sess, error: sessErr } = await supabase
       .from("sessions")
-      .select("id, client_name, session_date, category, tags")
+      .select("id, client_name, session_date, category, subcategory, tags")
       .eq("id", params.sessionId)
       .single()
     if (sessErr || !sess) throw new Error(sessErr?.message || "SESSION_NOT_FOUND")
 
-    const projectName = (sess.tags && sess.tags[0]) || sess.category || "Sesion"
+    const customTag = Array.isArray(sess.tags)
+      ? sess.tags.find((tg) => tg && !String(tg).toLowerCase().startsWith("place:"))
+      : null
+    const projectName = customTag || sess.subcategory || sess.category || "Sesion"
     const folderName = generateProjectFolderName(sess.session_date, sess.client_name, projectName)
     const base = params.targetBasePath || cfg.ssdPath
     const rootDir = path.join(base, folderName)

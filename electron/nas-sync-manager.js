@@ -660,7 +660,8 @@ class NasSyncManager extends EventEmitter {
       for (const s of sessionsList) {
         const cleanDate = String(s.session_date || "").replace(/[^0-9-]/g, "")
         const cleanClient = normalizeFolderToken(s.client_name || "Cliente")
-        const cleanProj = normalizeFolderToken((s.tags && s.tags[0]) || s.category || "Sesion")
+        const nonPlaceTag = Array.isArray(s.tags) ? s.tags.find((tg) => tg && !String(tg).toLowerCase().startsWith("place:")) : null
+        const cleanProj = normalizeFolderToken(nonPlaceTag || s.subcategory || s.category || "Sesion")
         const expected = `${cleanDate}_${cleanClient}_${cleanProj}`
         if (lowerFolder === expected) return s
       }
