@@ -66,6 +66,7 @@ function getConfig() {
     theme: user.theme || "dark",
     nasAutoSyncEnabled: user.nasAutoSyncEnabled !== undefined ? Boolean(user.nasAutoSyncEnabled) : true,
     nasSyncPausedUntil: user.nasSyncPausedUntil || null,
+    openAtLogin: user.openAtLogin !== undefined ? Boolean(user.openAtLogin) : true,
   }
 }
 
@@ -85,6 +86,7 @@ function getPublicSettings() {
     hasSupabaseKey: !!c.supabaseAnonKey,
     nasAutoSyncEnabled: c.nasAutoSyncEnabled,
     nasSyncPausedUntil: c.nasSyncPausedUntil,
+    openAtLogin: c.openAtLogin,
   }
 }
 
@@ -102,6 +104,7 @@ function updateSettings(patch) {
     "theme",
     "nasAutoSyncEnabled",
     "nasSyncPausedUntil",
+    "openAtLogin",
   ]
   for (const k of allowed) {
     if (patch[k] !== undefined && patch[k] !== "") current[k] = patch[k]

@@ -318,14 +318,15 @@ const NAS_SYNC_DONE_NOTIFY = {
 // Arranque
 // ---------------------------------------------------------------------------
 app.whenReady().then(() => {
-  // Activar inicio automático con Windows en entorno empaquetado de producción
+  const initialCfg = getConfig()
+  // Respetar preferencia de inicio automático con Windows en entorno empaquetado de producción
   if (!process.defaultApp) {
     try {
-      app.setLoginItemSettings({ openAtLogin: true })
+      app.setLoginItemSettings({ openAtLogin: initialCfg.openAtLogin !== false })
     } catch {}
   }
 
-  currentLanguage = getConfig().language || "fr"
+  currentLanguage = initialCfg.language || "fr"
   createWindow()
 
   nasSyncManager = new NasSyncManager()
@@ -488,15 +489,149 @@ app.whenReady().then(() => {
     }
   })
 
-  // --- IPC: ajustes ---------------------------------------------------------
+  // --- IPC: ajustes y salud del sistema ------------------------------------
   ipcMain.handle("get-settings", () => getPublicSettings())
-  ipcMain.handle("save-settings", (_e, data) => updateSettings(data || {}))
+  ipcMain.handle("save-settings", (_e, data) => {
+    const res = updateSettings(data || {})
+    if (data && data.openAtLogin !== undefined && !process.defaultApp) {
+      try {
+        app.setLoginItemSettings({ openAtLogin: Boolean(data.openAtLogin) })
+      } catch {}
+    }
+    return res
+  })
+
+  ipcMain.handle("get-system-health", async () => {
+    const cfg = getConfig()
+    let ssdFreeGb = null
+    let ssdTotalGb = null
+    let ssdUsedPct = null
+    try {
+      const targetRoot = path.parse(cfg.ssdPath || "C:\\").root || "C:\\"
+      if (typeof fs.statfsSync === "function") {
+        const st = fs.statfsSync(targetRoot)
+        const freeBytes = st.bavail * st.bsize
+        const totalBytes = st.blocks * st.bsize
+        ssdFreeGb = Number((freeBytes / 1024 ** 3).toFixed(1))
+        ssdTotalGb = Number((totalBytes / 1024 ** 3).toFixed(1))
+        ssdUsedPct = totalBytes > 0 ? Math.round(((totalBytes - freeBytes) / totalBytes) * 100) : 0
+      }
+    } catch {}
+
+    let nasOnline = false
+    if (cfg.nasHost) {
+      nasOnline = await new Promise((resolve) => {
+        const net = require("net")
+        const sock = new net.Socket()
+        let settled = false
+        const done = (val) => {
+          if (settled) return
+          settled = true
+          try {
+            sock.destroy()
+          } catch {}
+          resolve(val)
+        }
+        sock.setTimeout(1800)
+        sock.once("connect", () => done(true))
+        sock.once("timeout", () => done(false))
+        sock.once("error", () => done(false))
+        try {
+          sock.connect(21, cfg.nasHost)
+        } catch {
+          done(false)
+        }
+      })
+    }
+
+    const retryItems = engine.getRetryQueue ? engine.getRetryQueue() : []
+    return {
+      ssdPath: cfg.ssdPath || "C:\\Lamha-Storage",
+      ssdFreeGb,
+      ssdTotalGb,
+      ssdUsedPct,
+      nasHost: cfg.nasHost || "192.168.11.1",
+      nasOnline,
+      retryCount: retryItems.length,
+    }
+  })
+
+  ipcMain.handle("eject-drive", async (_e, drivePath) => {
+    try {
+      const root = path.parse(String(drivePath || "D:\\")).root.replace(/\\+$/, "")
+      if (!root || root.toUpperCase() === "C:") {
+        return { ok: false, error: "SYSTEM_DRIVE" }
+      }
+      const { execFile } = require("child_process")
+      await new Promise((resolve) => {
+        execFile(
+          "powershell.exe",
+          [
+            "-NoProfile",
+            "-Command",
+            `$Eject = New-Object -ComObject Shell.Application; $Vol = $Eject.NameSpace(17).ParseName('${root}'); if ($Vol) { $Vol.InvokeVerb('Eject') }`,
+          ],
+          { timeout: 5000 },
+          () => resolve()
+        )
+      })
+      return { ok: true, drive: root }
+    } catch (e) {
+      return { ok: false, error: e.message }
+    }
+  })
 
   // --- IPC: autenticación y proyectos reales --------------------------------
   ipcMain.handle("auth-status", () => engine.getAuthStatus())
   ipcMain.handle("auth-login", (_e, email, password) => engine.login(email, password))
   ipcMain.handle("auth-logout", () => engine.logout())
   ipcMain.handle("get-sessions", () => engine.listSessions())
+  ipcMain.handle("create-session", (_e, payload) => engine.createQuickSession(payload || {}))
+  ipcMain.handle("get-ingest-history", () => engine.getIngestHistory())
+  ipcMain.handle("get-retry-queue", () => engine.getRetryQueue())
+  ipcMain.handle("run-retry-queue", async () => {
+    if (!nasSyncManager) return { ok: false }
+    const queue = engine.getRetryQueue().filter((it) => it && it.fullPath && fs.existsSync(it.fullPath))
+    if (queue.length === 0) {
+      engine.clearRetryQueue()
+      return { ok: true, synced: 0 }
+    }
+    showMini()
+    const res = await nasSyncManager.syncFilesList(queue, { force: true })
+    if (res && res.ok && (!res.summary || res.summary.failed === 0)) {
+      engine.clearRetryQueue()
+    }
+    return res
+  })
+
+  // --- IPC: reciclaje inteligente de carpetas locales (verificado por NAS) --
+  ipcMain.handle("recycle-scan-projects", async (_e, checkLive = false) => {
+    if (!nasSyncManager) return { ok: false, projects: [] }
+    let sessions = []
+    try {
+      const sessRes = await engine.listSessions()
+      if (sessRes && sessRes.ok && Array.isArray(sessRes.sessions)) {
+        sessions = sessRes.sessions
+      }
+    } catch {}
+    return nasSyncManager.scanLocalProjectsForRecycle(sessions, Boolean(checkLive))
+  })
+
+  ipcMain.handle("recycle-projects", async (_e, folders) => {
+    if (!nasSyncManager) return { ok: false, error: "NO_SYNC_MANAGER" }
+    const res = await nasSyncManager.verifyAndRecycleProjects(folders)
+    if (res && res.ok && res.recycledCount > 0) {
+      engine.addHistoryEntry({
+        type: "recycle",
+        client: res.recycledProjects.join(", "),
+        folderName: `${res.recycledCount} proyecto(s) reciclados`,
+        files: res.syncedBeforeRecycle || 0,
+        mb: res.freedMb || 0,
+        freedGb: res.freedGb || 0,
+      })
+    }
+    return res
+  })
 
   // --- Iniciar Servidor de Enlace Local (Web ↔ Desktop) ---------------------
   bridgeServer = new LamhaBridgeServer({

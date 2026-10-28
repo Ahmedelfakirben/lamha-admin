@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require("electron")
+const { contextBridge, ipcRenderer, webUtils } = require("electron")
 
 const on = (channel) => (callback) => {
   const handler = (_event, value) => callback(value)
@@ -26,6 +26,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
   selectFolder: () => ipcRenderer.invoke("select-folder"),
   scanSource: (p) => ipcRenderer.invoke("scan-source", p),
   getDrives: () => ipcRenderer.invoke("get-drives"),
+  ejectDrive: (drivePath) => ipcRenderer.invoke("eject-drive", drivePath),
+  getSystemHealth: () => ipcRenderer.invoke("get-system-health"),
+  getPathForFile: (file) => {
+    try {
+      if (webUtils && typeof webUtils.getPathForFile === "function") {
+        return webUtils.getPathForFile(file)
+      }
+    } catch {}
+    return file && file.path ? file.path : ""
+  },
 
   // Ajustes
   getSettings: () => ipcRenderer.invoke("get-settings"),
@@ -36,10 +46,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
   login: (email, password) => ipcRenderer.invoke("auth-login", email, password),
   logout: () => ipcRenderer.invoke("auth-logout"),
   getSessions: () => ipcRenderer.invoke("get-sessions"),
+  createSession: (payload) => ipcRenderer.invoke("create-session", payload),
 
-  // Ingesta
+  // Ingesta, Historial y Cola de Reintentos
   startIngest: (params) => ipcRenderer.invoke("start-ingest", params),
   cancelIngest: () => ipcRenderer.invoke("cancel-ingest"),
+  getIngestHistory: () => ipcRenderer.invoke("get-ingest-history"),
+  getRetryQueue: () => ipcRenderer.invoke("get-retry-queue"),
+  runRetryQueue: () => ipcRenderer.invoke("run-retry-queue"),
 
   // Sincronización Unidireccional Automática Local -> NAS
   getNasSyncState: () => ipcRenderer.invoke("nas-sync-get-state"),
@@ -49,6 +63,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
   scanNasPending: () => ipcRenderer.invoke("nas-sync-scan"),
   acceptNasPending: () => ipcRenderer.invoke("nas-sync-accept"),
   dismissNasPending: () => ipcRenderer.invoke("nas-sync-dismiss"),
+
+  // Reciclaje Inteligente de Carpetas Locales (Verificado por NAS)
+  scanRecycleProjects: (checkLive = false) => ipcRenderer.invoke("recycle-scan-projects", checkLive),
+  recycleProjects: (folders) => ipcRenderer.invoke("recycle-projects", folders),
 
   // Mini ventana
   miniExpand: () => ipcRenderer.send("mini-expand"),

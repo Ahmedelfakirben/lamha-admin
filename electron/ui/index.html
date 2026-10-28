@@ -455,6 +455,21 @@
     </div>
 
     <div class="header-actions">
+      <!-- Indicadores de Salud en Vivo: Espacio SSD + Ping NAS + Cola de Reintentos -->
+      <button id="btn-retry-queue" class="auth-badge" style="display: none; border-color: rgba(245, 158, 11, 0.5); color: #f59e0b; background: rgba(245, 158, 11, 0.12);" title="Reintentar archivos pendientes">
+        🔄 <span id="txt-retry-badge">0 pendientes</span>
+      </button>
+
+      <div id="badge-ssd-space" class="auth-badge" style="cursor: pointer;" title="Espacio libre en disco SSD local (Clic para ir a Reciclaje)">
+        <span>💾</span>
+        <span id="txt-ssd-free">SSD: -- GB</span>
+      </div>
+
+      <div id="badge-nas-ping" class="auth-badge" style="cursor: default;" title="Estado de red del servidor NAS">
+        <span class="status-dot" id="dot-nas-ping"></span>
+        <span id="txt-nas-ping">NAS</span>
+      </div>
+
       <!-- Selector de idioma -->
       <select id="lang-select" class="select-input" style="width: auto; padding: 6px 10px;">
         <option value="fr">FR</option>
@@ -471,14 +486,14 @@
 
   <main>
     <div class="grid-2">
-      <!-- Paso 1: Origen -->
-      <div class="card">
+      <!-- Paso 1: Origen (Con soporte Drag & Drop) -->
+      <div class="card" id="step1-card">
         <div class="card-title">
           <span id="txt-step1-title">1. Source Mémoire (SD / USB)</span>
           <button id="btn-refresh-drives" class="btn-icon" style="width: 26px; height: 26px; font-size: 11px;">↺</button>
         </div>
         <div class="card-content">
-          <div id="drive-box" class="drive-box active">
+          <div id="drive-box" class="drive-box active" style="position: relative;">
             <div class="drive-meta">
               <h3 id="drive-title">Carte Mémoire (D:\)</h3>
               <p id="drive-subtitle">Recherche des fichiers...</p>
@@ -486,16 +501,19 @@
             <span class="badge-step" id="drive-badge">Connecté</span>
           </div>
           <button id="btn-browse-folder" class="select-input" style="text-align: center; cursor: pointer; border-style: dashed;">
-            Choisir un autre dossier manuellement...
+            Choisir ou glisser-déposer un dossier ici...
           </button>
         </div>
       </div>
 
-      <!-- Paso 2: Proyecto Real de Supabase -->
+      <!-- Paso 2: Proyecto Real de Supabase + Buscador + Creación Rápida -->
       <div class="card">
         <div class="card-title">
           <span id="txt-step2-title">2. Projet / Session Réelle</span>
-          <div style="display: flex; align-items: center; gap: 10px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <button id="btn-new-session" class="badge-step" style="cursor: pointer; padding: 4px 9px; font-size: 10.5px; background: var(--badge-bg); color: var(--gold); border: 1px solid var(--gold);">
+              + <span id="txt-btn-new-session">Nouveau Projet</span>
+            </button>
             <button id="btn-refresh-sessions" title="Actualiser" style="background: none; border: none; color: var(--gold); cursor: pointer; display: flex; align-items: center; padding: 2px;">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
             </button>
@@ -503,6 +521,7 @@
           </div>
         </div>
         <div class="card-content">
+          <input type="text" id="session-search-input" class="text-input" placeholder="🔍 Filtrer par client, date ou catégorie..." style="padding: 8px 12px; font-size: 12px;">
           <div class="form-group">
             <label id="txt-select-session-label">Associer à la séance :</label>
             <select id="session-select" class="select-input">
@@ -556,6 +575,57 @@
       </div>
     </div>
 
+    <!-- Sección de Progreso Ultra-Llamativa + Botones Post-Ingesta 1-Clic -->
+    <div id="progress-section" class="progress-section">
+      <div class="progress-head">
+        <h3 id="txt-ingest-status">Ingestion en cours...</h3>
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <button id="btn-cancel-ingest" style="background: rgba(239, 68, 68, 0.14); border: 1px solid rgba(239, 68, 68, 0.45); color: #ef4444; padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; display: none;">
+            ✕ <span id="txt-btn-cancel">Annuler</span>
+          </button>
+          <span class="pct-large" id="txt-pct">0%</span>
+        </div>
+      </div>
+
+      <div class="progress-track">
+        <div class="progress-fill" id="bar-fill"></div>
+      </div>
+
+      <div class="progress-file" id="txt-cur-file">Initialisation du pipeline...</div>
+
+      <div class="progress-metrics">
+        <div class="metric-card">
+          <span>Fichiers</span>
+          <strong id="m-count">0 / 0</strong>
+        </div>
+        <div class="metric-card">
+          <span>Vitesse</span>
+          <strong id="m-speed">0.0 MB/s</strong>
+        </div>
+        <div class="metric-card">
+          <span>Temps restant</span>
+          <strong id="m-eta">Calcul...</strong>
+        </div>
+        <div class="metric-card">
+          <span>Étape</span>
+          <strong id="m-phase">Copie SSD</strong>
+        </div>
+      </div>
+
+      <!-- Acciones Post-Ingesta 1-Clic al llegar al 100% -->
+      <div id="post-ingest-actions" style="display: none; flex-wrap: wrap; gap: 10px; padding-top: 6px; border-top: 1px solid var(--card-border);">
+        <button id="btn-post-open-folder" class="select-input" style="width: auto; cursor: pointer; font-weight: 700; border-color: var(--gold); color: var(--gold); padding: 8px 14px;">
+          📂 <span id="txt-post-open-folder">Ouvrir Dossier Local SSD</span>
+        </button>
+        <button id="btn-post-open-gallery" class="select-input" style="width: auto; cursor: pointer; font-weight: 700; padding: 8px 14px;">
+          🌐 <span id="txt-post-open-gallery">Ouvrir Galerie Web</span>
+        </button>
+        <button id="btn-post-eject-sd" class="select-input" style="width: auto; cursor: pointer; font-weight: 700; border-color: #10b981; color: #10b981; padding: 8px 14px;">
+          ⏏️ <span id="txt-post-eject-sd">Éjecter Carte SD en sécurité</span>
+        </button>
+      </div>
+    </div>
+
     <!-- Paso 4: Sincronización Unidireccional Automática (Local SSD ➔ NAS) -->
     <div class="card" id="nas-sync-card">
       <div class="card-title">
@@ -596,44 +666,130 @@
       </div>
     </div>
 
-    <!-- Sección de Progreso Ultra-Llamativa -->
-    <div id="progress-section" class="progress-section">
-      <div class="progress-head">
-        <h3 id="txt-ingest-status">Ingestion en cours...</h3>
-        <div style="display: flex; align-items: center; gap: 12px;">
-          <button id="btn-cancel-ingest" style="background: rgba(239, 68, 68, 0.14); border: 1px solid rgba(239, 68, 68, 0.45); color: #ef4444; padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; display: none;">
-            ✕ <span id="txt-btn-cancel">Annuler</span>
-          </button>
-          <span class="pct-large" id="txt-pct">0%</span>
+    <!-- Paso 5: Reciclaje Inteligente de Carpetas Locales (Verificación NAS + Estado de Entrega) -->
+    <div class="card" id="recycle-card">
+      <div class="card-title">
+        <span id="txt-step5-title">5. Recyclage Intelligent des Dossiers Locaux (Vérifié par NAS)</span>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="auth-badge" id="recycle-summary-badge" style="cursor: default;">
+            ♻️ <span id="txt-recycle-recoverable">Projets livrés : 0.00 GB</span>
+          </span>
         </div>
       </div>
+      <div class="card-content">
+        <p id="txt-step5-desc" style="font-size: 12px; color: var(--text-muted); line-height: 1.5;">
+          Libérez de l'espace sur le SSD local pour les projets déjà livrés. Avant de recycler un dossier vers la Corbeille Windows, l'outil vérifie le NAS et synchronise automatiquement toute photo ou vidéo manquante. Un avertissement s'affiche si un projet n'est pas encore marqué comme livré.
+        </p>
 
-      <div class="progress-track">
-        <div class="progress-fill" id="bar-fill"></div>
+        <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; background: var(--input-bg); border: 1px solid var(--card-border); border-radius: 12px;">
+          <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+            <button id="btn-filter-delivered" class="select-input" style="width: auto; cursor: pointer; padding: 6px 12px; font-size: 12px; font-weight: 700; border-color: var(--gold); color: var(--gold);">
+              ✓ <span id="txt-filter-delivered">Livrés uniquement</span>
+            </button>
+            <button id="btn-filter-all-local" class="select-input" style="width: auto; cursor: pointer; padding: 6px 12px; font-size: 12px;">
+              📁 <span id="txt-filter-all-local">Tous les projets locaux</span>
+            </button>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <button id="btn-recycle-audit-nas" class="select-input" style="width: auto; cursor: pointer; padding: 6px 12px; font-size: 12px;">
+              🔍 <span id="txt-btn-recycle-audit">Vérifier état NAS en direct</span>
+            </button>
+            <button id="btn-recycle-all-delivered" class="select-input" style="width: auto; cursor: pointer; padding: 6px 14px; font-size: 12px; font-weight: 700; border-color: #10b981; color: #10b981;">
+              ♻️ <span id="txt-btn-recycle-delivered">Recycler tous les projets livrés</span>
+            </button>
+          </div>
+        </div>
+
+        <div id="recycle-projects-list" style="max-height: 290px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 2px;">
+          <!-- Se rellena dinámicamente con las carpetas locales de C:\Lamha-Storage -->
+        </div>
       </div>
+    </div>
 
-      <div class="progress-file" id="txt-cur-file">Initialisation du pipeline...</div>
-
-      <div class="progress-metrics">
-        <div class="metric-card">
-          <span>Fichiers</span>
-          <strong id="m-count">0 / 0</strong>
-        </div>
-        <div class="metric-card">
-          <span>Vitesse</span>
-          <strong id="m-speed">0.0 MB/s</strong>
-        </div>
-        <div class="metric-card">
-          <span>Temps restant</span>
-          <strong id="m-eta">Calcul...</strong>
-        </div>
-        <div class="metric-card">
-          <span>Étape</span>
-          <strong id="m-phase">Copie SSD</strong>
+    <!-- Paso 6: Historial Reciente de Actividad -->
+    <div class="card" id="history-card">
+      <div class="card-title">
+        <span id="txt-step6-title">6. Historique Récent d'Activité</span>
+        <button id="btn-refresh-history" class="btn-icon" style="width: 26px; height: 26px; font-size: 11px;">↺</button>
+      </div>
+      <div class="card-content">
+        <div id="history-list" style="max-height: 180px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; font-size: 12px;">
+          <!-- Se rellena dinámicamente con las últimas ingestas / sincronizaciones / reciclajes -->
         </div>
       </div>
     </div>
   </main>
+
+  <!-- Modal de Creación Rápida de Proyecto (+ Nuevo Proyecto) -->
+  <div id="modal-new-session" class="modal-backdrop">
+    <div class="modal-card" style="max-width: 440px;">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h3 id="txt-new-sess-title" style="color: var(--gold); font-size: 15px;">+ Nouveau Projet / Séance</h3>
+        <button class="btn-icon" id="btn-close-new-session" style="border:none;">✕</button>
+      </div>
+      <div class="form-group">
+        <label id="txt-new-sess-client">Nom du Client :</label>
+        <input type="text" id="inp-new-client" class="text-input" placeholder="Ex: Amine & Sara">
+      </div>
+      <div class="form-group">
+        <label id="txt-new-sess-date">Date de la séance :</label>
+        <input type="date" id="inp-new-date" class="text-input">
+      </div>
+      <div class="form-group">
+        <label id="txt-new-sess-cat">Catégorie / Type :</label>
+        <select id="inp-new-category" class="select-input">
+          <option value="Mariage">Mariage / Boda</option>
+          <option value="Portrait">Portrait / Retrato</option>
+          <option value="Mode">Mode / Editorial</option>
+          <option value="Corporate">Corporate / Evento</option>
+          <option value="Famille">Famille / Familia</option>
+        </select>
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px;">
+        <button id="btn-create-session-submit" class="btn-primary" style="padding: 10px 18px; font-size: 13px;">
+          ✓ <span id="txt-btn-create-session">Créer et Sélectionner</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Confirmación de Reciclaje Local (Con Aviso si NO está Entregado + Verificación NAS) -->
+  <div id="modal-recycle-confirm" class="modal-backdrop">
+    <div class="modal-card" style="max-width: 520px;">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 20px;">♻️</span>
+          <h3 id="txt-recycle-modal-title" style="color: var(--gold); font-size: 15px;">Confirmer le recyclage du dossier local</h3>
+        </div>
+        <button class="btn-icon" id="btn-close-recycle-modal" style="border:none;">✕</button>
+      </div>
+
+      <!-- Alerta Crítica si algún proyecto seleccionado AÚN NO FUE ENTREGADO -->
+      <div id="recycle-undelivered-warning" style="display: none; background: rgba(239, 68, 68, 0.14); border: 1px solid rgba(239, 68, 68, 0.5); color: #fca5a5; padding: 12px 14px; border-radius: 10px; font-size: 12.5px; line-height: 1.5;">
+        <strong id="txt-recycle-warn-title" style="color: #ef4444; display: block; margin-bottom: 4px;">⚠️ ATTENTION : PROJET NON LIVRÉ !</strong>
+        <span id="txt-recycle-warn-desc">Ce projet n'est pas encore marqué comme « Livré » au client. Êtes-vous sûr de vouloir recycler son dossier local sur le SSD ?</span>
+      </div>
+
+      <!-- Explicación del Blindaje NAS -->
+      <div style="background: var(--input-bg); border: 1px solid var(--card-border); padding: 12px 14px; border-radius: 10px; font-size: 12px; color: var(--text-muted); line-height: 1.5;">
+        🛡️ <span id="txt-recycle-nas-shield">Avant de déplacer le dossier local vers la Corbeille Windows, une vérification en direct sera effectuée sur le NAS. Si une photo, vidéo ou document n'est pas encore sur le NAS, il sera synchronisé automatiquement vers le NAS avant la suppression locale.</span>
+      </div>
+
+      <div id="recycle-confirm-list" style="max-height: 140px; overflow-y: auto; background: var(--input-bg); border: 1px solid var(--card-border); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; font-size: 12px;">
+        <!-- Proyectos a reciclar -->
+      </div>
+
+      <div style="display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 4px;">
+        <button id="btn-cancel-recycle-modal" class="select-input" style="width: auto; padding: 9px 16px; cursor: pointer;">
+          Annuler
+        </button>
+        <button id="btn-confirm-recycle-exec" class="btn-primary" style="padding: 10px 18px; font-size: 13px;">
+          ♻️ <span id="txt-btn-confirm-recycle">Vérifier NAS & Recycler maintenant</span>
+        </button>
+      </div>
+    </div>
+  </div>
 
 
 
@@ -668,6 +824,13 @@
         <label>Dossier Racine / Partage NAS :</label>
         <input type="text" id="cfg-nas-dir" class="text-input" placeholder="/Lamha-Storage">
       </div>
+      <label class="pipeline-step" style="padding: 10px 12px;">
+        <input type="checkbox" id="cfg-open-at-login" checked>
+        <div class="pipeline-step-text">
+          <strong id="txt-cfg-autostart">Démarrer automatiquement avec Windows</strong>
+          <span id="txt-cfg-autostart-desc">Actif en arrière-plan dès l'allumage du PC</span>
+        </div>
+      </label>
       <div style="display: flex; justify-content: flex-end; gap: 8px;">
         <button id="btn-save-settings" class="btn-primary" style="padding: 10px 18px; font-size: 13px;">Enregistrer</button>
       </div>
@@ -735,7 +898,17 @@
         step3Title: "3. Pipeline d'Ingestion Complet",
         step4Title: "4. Synchronisation Automatique Unidirectionnelle (Local SSD ➔ NAS)",
         step4Desc: "Synchronise automatiquement tous les dossiers, documents, photos et vidéos de C:\\Lamha-Storage vers le NAS (01_RAW, 02_Seleccion_Cliente, 03_Edicion_Master, 04_Entregas_Finales) de manière strictement unidirectionnelle.",
+        step5Title: "5. Recyclage Intelligent des Dossiers Locaux (Vérifié par NAS)",
+        step5Desc: "Libérez de l'espace sur le SSD local pour les projets déjà livrés. Avant de recycler un dossier vers la Corbeille Windows, l'outil vérifie le NAS et synchronise automatiquement toute photo ou vidéo manquante. Un avertissement s'affiche si un projet n'est pas encore marqué comme livré.",
+        step6Title: "6. Historique Récent d'Activité",
         selectSessionLabel: "Associer à la séance :",
+        searchPlaceholder: "🔍 Filtrer par client, date ou catégorie...",
+        btnNewSession: "Nouveau Projet",
+        newSessTitle: "+ Nouveau Projet / Séance",
+        newSessClient: "Nom du Client :",
+        newSessDate: "Date de la séance :",
+        newSessCat: "Catégorie / Type :",
+        btnCreateSession: "Créer et Sélectionner",
         pipeLocal: "1. Copie Ultra-Rapide vers SSD Local",
         pipeLocalDesc: "Stockage de travail haute vitesse pour le montage immédiat",
         pipeCloud: "2. Synchronisation Cloud Supabase",
@@ -745,7 +918,7 @@
         btnStart: "DÉMARRER L'INGESTION COMPLÈTE",
         btnCancel: "Annuler",
         cancelledStatus: "Opération annulée.",
-        browseOther: "Choisir un autre dossier manuellement...",
+        browseOther: "Choisir ou glisser-déposer un dossier ici...",
         loginOk: "Connecté :",
         loginNeed: "Connexion Supabase requise",
         nasStatusActive: "Activée (En direct)",
@@ -764,6 +937,38 @@
         modalPauseLabel: "Ou mettre en pause :",
         btnDismissPending: "Plus tard",
         allSyncedMsg: "Tous les dossiers et fichiers locaux sont déjà synchronisés sur le NAS ✓",
+        postOpenFolder: "Ouvrir Dossier Local SSD",
+        postOpenGallery: "Ouvrir Galerie Web",
+        postEjectSd: "Éjecter Carte SD en sécurité",
+        filterDelivered: "Livrés uniquement",
+        filterAllLocal: "Tous les projets locaux",
+        btnRecycleAudit: "Vérifier état NAS en direct",
+        btnRecycleDelivered: "Recycler tous les projets livrés",
+        recoverableLabel: "Projets livrés :",
+        statusDelivered: "Livré ✓",
+        statusNotDelivered: "Non livré ⚠️",
+        statusPlanned: "Planifié",
+        statusIngested: "Ingéré",
+        statusEditing: "En Édition",
+        statusReview: "En Sélection",
+        statusUnlinked: "Non lié",
+        nasSyncedOk: "100% sur NAS ✓",
+        nasMissingCount: (n) => `${n} fich. à sync avant recyclage`,
+        btnRecycleOne: "Recycler",
+        noRecycleItems: "Aucun dossier local à afficher pour ce filtre.",
+        recycleModalTitle: "Confirmer le recyclage du dossier local",
+        recycleWarnTitle: "⚠️ ATTENTION : PROJET NON LIVRÉ AU CLIENT !",
+        recycleWarnDesc: (names) => `Le projet « ${names} » figure comme NON LIVRÉ au client. Êtes-vous absolument sûr de vouloir recycler son dossier local sur le SSD ?`,
+        recycleNasShield: "Avant de déplacer le dossier local vers la Corbeille Windows, une vérification en direct sera effectuée sur le NAS. Si une photo, vidéo ou document n'est pas encore sur le NAS, il sera synchronisé automatiquement vers le NAS avant la suppression locale.",
+        btnConfirmRecycle: "Vérifier NAS & Recycler maintenant",
+        recycleSuccessMsg: (n, gb, synced) => `${n} dossier(s) envoyé(s) à la Corbeille (${gb} Go libérés)${synced ? ` après synchronisation de ${synced} fichier(s) vers le NAS.` : "."}`,
+        recycleErrNas: "❌ Opération annulée : Impossible de vérifier ou joindre le NAS (192.168.11.1). Aucun fichier local n'a été supprimé.",
+        recycleErrIncomplete: "❌ Opération annulée : Certains fichiers n'ont pas pu être copiés sur le NAS. Aucun fichier local n'a été supprimé.",
+        historyEmpty: "Aucune activité récente enregistrée.",
+        cfgAutostart: "Démarrer automatiquement avec Windows",
+        cfgAutostartDesc: "Actif en arrière-plan dès l'allumage du PC",
+        ssdFreeLabel: "SSD libre :",
+        retryBadgeLabel: (n) => `${n} en attente`,
       },
       es: {
         appTitle: "LAM7A STUDIOS ATELIER",
@@ -773,7 +978,17 @@
         step3Title: "3. Pipeline de Ingesta Completo",
         step4Title: "4. Sincronización Automática Unidireccional (Local SSD ➔ NAS)",
         step4Desc: "Sincroniza automáticamente todas las carpetas, documentos, fotos y vídeos de C:\\Lamha-Storage hacia el NAS (01_RAW, 02_Seleccion_Cliente, 03_Edicion_Master, 04_Entregas_Finales) de forma estrictamente unidireccional.",
+        step5Title: "5. Reciclaje Inteligente de Carpetas Locales (Verificado por NAS)",
+        step5Desc: "Libera espacio en el SSD local reciclando las carpetas de los proyectos entregados. Antes de reciclar, se comprueba la sincronización con el NAS: si una foto o vídeo aún no está en el NAS, se sincroniza al NAS antes de borrar. Muestra aviso si un proyecto aún no fue entregado.",
+        step6Title: "6. Historial Reciente de Actividad",
         selectSessionLabel: "Vincular a la sesión:",
+        searchPlaceholder: "🔍 Filtrar por cliente, fecha o categoría...",
+        btnNewSession: "Nuevo Proyecto",
+        newSessTitle: "+ Nuevo Proyecto / Sesión",
+        newSessClient: "Nombre del Cliente:",
+        newSessDate: "Fecha de la sesión:",
+        newSessCat: "Categoría / Tipo:",
+        btnCreateSession: "Crear y Seleccionar",
         pipeLocal: "1. Copia Ultra-Rápida a SSD Local",
         pipeLocalDesc: "Disco de trabajo de alta velocidad para montaje inmediato",
         pipeCloud: "2. Sincronización en la Nube Supabase",
@@ -783,7 +998,7 @@
         btnStart: "INICIAR INGESTA COMPLETA",
         btnCancel: "Cancelar",
         cancelledStatus: "Operación cancelada.",
-        browseOther: "Seleccionar otra carpeta manualmente...",
+        browseOther: "Seleccionar o arrastrar una carpeta aquí...",
         loginOk: "Conectado:",
         loginNeed: "Iniciar sesión en Supabase",
         nasStatusActive: "Activada (En vivo)",
@@ -795,13 +1010,45 @@
         btnScanPending: "Buscar archivos sin sincronizar",
         pauseLabel: "Pausar por:",
         pendingModalTitle: "Archivos sin sincronizar detectados",
-        pendingModalDesc: "Hemos detectado carpetas y archivos locales en C:\\Lamha-Storage que aún no están respaldados en el NAS. ¿Deseas iniciar la sincronización unidireccional (Local ➔ NAS) ahora?",
+        pendingModalDesc: "Hemos detectado carpetas y archivos locales en C:\\Lamha-Storage que aún no están respaldados en el NAS. ¿Deseas iniciar la sincronización unidirectionnal (Local ➔ NAS) ahora?",
         pendingFilesLabel: "Archivos pendientes",
         pendingSizeLabel: "Tamaño total",
         btnAcceptPending: "Aceptar y Sincronizar ahora (Local ➔ NAS)",
         modalPauseLabel: "O pausar por:",
         btnDismissPending: "Más tarde",
         allSyncedMsg: "Todas las carpetas y archivos locales ya están sincronizados con el NAS ✓",
+        postOpenFolder: "Abrir Carpeta Local SSD",
+        postOpenGallery: "Abrir Galería Web",
+        postEjectSd: "Expulsar Tarjeta SD seguro",
+        filterDelivered: "Solo Entregados",
+        filterAllLocal: "Todos los proyectos locales",
+        btnRecycleAudit: "Comprobar NAS en vivo",
+        btnRecycleDelivered: "Reciclar todos los entregados",
+        recoverableLabel: "En entregados:",
+        statusDelivered: "Entregado ✓",
+        statusNotDelivered: "No entregado ⚠️",
+        statusPlanned: "Planificado",
+        statusIngested: "Ingestado",
+        statusEditing: "En Edición",
+        statusReview: "En Selección",
+        statusUnlinked: "Sin vincular",
+        nasSyncedOk: "100% en NAS ✓",
+        nasMissingCount: (n) => `Faltan ${n} en NAS (se subirán antes)`,
+        btnRecycleOne: "Reciclar",
+        noRecycleItems: "No hay carpetas locales para mostrar con este filtro.",
+        recycleModalTitle: "Confirmar reciclaje de carpeta local",
+        recycleWarnTitle: "⚠️ ¡ATENCIÓN: PROYECTO AÚN NO ENTREGADO!",
+        recycleWarnDesc: (names) => `El proyecto « ${names} » aún NO figura como Entregado al cliente. ¿Estás seguro de que quieres reciclar su carpeta local en el SSD?`,
+        recycleNasShield: "Antes de enviar la carpeta local a la Papelera de Windows, se comprobará la sincronización vía NAS en vivo. Si alguna foto, vídeo o documento aún no está en el NAS, se sincronizará automáticamente al NAS antes de borrar.",
+        btnConfirmRecycle: "Comprobar NAS y Reciclar ahora",
+        recycleSuccessMsg: (n, gb, synced) => `♻️ ${n} carpeta(s) enviada(s) a la Papelera (${gb} GB liberados en SSD)${synced ? ` tras sincronizar ${synced} archivo(s) pendientes al NAS.` : "."}`,
+        recycleErrNas: "❌ Reciclaje cancelado: No se pudo conectar con el NAS (192.168.11.1) para verificar las fotos. No se ha borrado ningún archivo local.",
+        recycleErrIncomplete: "❌ Reciclaje cancelado: Algunos archivos no pudieron sincronizarse al NAS. No se ha borrado ningún archivo local.",
+        historyEmpty: "Sin actividad reciente registrada.",
+        cfgAutostart: "Iniciar automáticamente con Windows",
+        cfgAutostartDesc: "Permanece activo en segundo plano al encender el PC",
+        ssdFreeLabel: "SSD libre:",
+        retryBadgeLabel: (n) => `${n} pendientes`,
       },
       en: {
         appTitle: "LAM7A STUDIOS ATELIER",
@@ -811,7 +1058,17 @@
         step3Title: "3. Full Ingestion Pipeline",
         step4Title: "4. Unidirectional Automatic Sync (Local SSD ➔ NAS)",
         step4Desc: "Automatically synchronizes all folders, documents, photos, and videos from C:\\Lamha-Storage to the NAS (01_RAW, 02_Seleccion_Cliente, 03_Edicion_Master, 04_Entregas_Finales) strictly one-way.",
+        step5Title: "5. Smart Local Folder Recycling (NAS-Verified)",
+        step5Desc: "Free up local SSD space for delivered projects. Before moving a folder to the Windows Recycle Bin, the tool verifies the NAS and automatically uploads any missing photo or video first. Displays a warning if a project is not yet marked as delivered.",
+        step6Title: "6. Recent Activity History",
         selectSessionLabel: "Link to session:",
+        searchPlaceholder: "🔍 Filter by client, date, or category...",
+        btnNewSession: "New Project",
+        newSessTitle: "+ New Project / Session",
+        newSessClient: "Client Name:",
+        newSessDate: "Session Date:",
+        newSessCat: "Category / Type:",
+        btnCreateSession: "Create & Select",
         pipeLocal: "1. Ultra-Fast Copy to Local SSD",
         pipeLocalDesc: "High-speed working drive for immediate editing",
         pipeCloud: "2. Supabase Cloud Sync",
@@ -821,7 +1078,7 @@
         btnStart: "START FULL INGESTION",
         btnCancel: "Cancel",
         cancelledStatus: "Operation cancelled.",
-        browseOther: "Choose another folder manually...",
+        browseOther: "Choose or drag & drop a folder here...",
         loginOk: "Connected:",
         loginNeed: "Supabase Login Required",
         nasStatusActive: "Enabled (Live)",
@@ -840,6 +1097,38 @@
         modalPauseLabel: "Or pause for:",
         btnDismissPending: "Later",
         allSyncedMsg: "All local folders and files are already synchronized with the NAS ✓",
+        postOpenFolder: "Open Local SSD Folder",
+        postOpenGallery: "Open Web Gallery",
+        postEjectSd: "Safely Eject SD Card",
+        filterDelivered: "Delivered Only",
+        filterAllLocal: "All Local Projects",
+        btnRecycleAudit: "Live NAS Check",
+        btnRecycleDelivered: "Recycle All Delivered",
+        recoverableLabel: "Delivered:",
+        statusDelivered: "Delivered ✓",
+        statusNotDelivered: "Not Delivered ⚠️",
+        statusPlanned: "Planned",
+        statusIngested: "Ingested",
+        statusEditing: "In Editing",
+        statusReview: "In Review",
+        statusUnlinked: "Unlinked",
+        nasSyncedOk: "100% on NAS ✓",
+        nasMissingCount: (n) => `${n} missing on NAS (will auto-sync)`,
+        btnRecycleOne: "Recycle",
+        noRecycleItems: "No local project folders match this filter.",
+        recycleModalTitle: "Confirm Local Folder Recycling",
+        recycleWarnTitle: "⚠️ WARNING: PROJECT NOT YET DELIVERED!",
+        recycleWarnDesc: (names) => `Project "${names}" is NOT yet marked as Delivered to the client. Are you sure you want to recycle its local SSD folder?`,
+        recycleNasShield: "Before sending the local folder to the Windows Recycle Bin, a live NAS verification will run. Any photo, video, or document not yet on the NAS will be automatically uploaded to the NAS before local deletion.",
+        btnConfirmRecycle: "Verify NAS & Recycle Now",
+        recycleSuccessMsg: (n, gb, synced) => `♻️ ${n} folder(s) moved to Recycle Bin (${gb} GB freed)${synced ? ` after syncing ${synced} pending file(s) to NAS.` : "."}`,
+        recycleErrNas: "❌ Recycling aborted: Could not reach NAS (192.168.11.1) to verify files. No local files were deleted.",
+        recycleErrIncomplete: "❌ Recycling aborted: Some files could not be synced to the NAS. No local files were deleted.",
+        historyEmpty: "No recent activity recorded.",
+        cfgAutostart: "Start automatically with Windows",
+        cfgAutostartDesc: "Runs in background when PC starts",
+        ssdFreeLabel: "SSD free:",
+        retryBadgeLabel: (n) => `${n} pending`,
       },
       ar: {
         appTitle: "استوديو لمحة - أتيلييه",
@@ -849,7 +1138,17 @@
         step3Title: "٣. مسار التفريغ التلقائي الكامل",
         step4Title: "٤. المزامنة التلقائية أحادية الاتجاه (القرص المحلي ➔ NAS)",
         step4Desc: "مزامنة جميع المجلدات والمستندات والصور والفيديوهات تلقائياً من C:\\Lamha-Storage إلى خادم NAS باتجاه واحد فقط.",
+        step5Title: "٥. إعادة التدوير الذكية للمجلدات المحلية (مع التحقق من NAS)",
+        step5Desc: "تحرير مساحة قرص SSD للمشاريع المسلّمة. قبل حذف أي مجلد، يتحقق النظام من خادم NAS ويقوم بمزامنة أي صورة غير موجودة تلقائياً قبل النقل لسلة المحذوفات، مع تنبيه إذا لم يتم تسليم المشروع بعد.",
+        step6Title: "٦. سجل النشاط الأخير",
         selectSessionLabel: "ربط الصور بالجلسة:",
+        searchPlaceholder: "🔍 بحث باسم العميل أو التاريخ...",
+        btnNewSession: "مشروع جديد",
+        newSessTitle: "+ إنشاء مشروع / جلسة جديدة",
+        newSessClient: "اسم العميل:",
+        newSessDate: "تاريخ الجلسة:",
+        newSessCat: "الفئة:",
+        btnCreateSession: "إنشاء وتحديد",
         pipeLocal: "١. نسخ فائق السرعة إلى قرص SSD المحلي",
         pipeLocalDesc: "قرص عمل عالي السرعة للبدء الفوري في المونتاج",
         pipeCloud: "٢. مزامنة سحابية مع Supabase",
@@ -859,7 +1158,7 @@
         btnStart: "بدء عملية التفريغ الكاملة",
         btnCancel: "إلغاء",
         cancelledStatus: "تم إلغاء العملية.",
-        browseOther: "اختيار مجلد آخر يدويًا...",
+        browseOther: "اختيار أو سحب مجلد إلى هنا...",
         loginOk: "متصل:",
         loginNeed: "تسجيل الدخول إلى Supabase",
         nasStatusActive: "مفعّلة (مباشر)",
@@ -878,6 +1177,38 @@
         modalPauseLabel: "أو إيقاف مؤقت:",
         btnDismissPending: "لاحقاً",
         allSyncedMsg: "جميع المجلدات والملفات المحلية متزامنة بالفعل مع خادم NAS ✓",
+        postOpenFolder: "فتح المجلد المحلي SSD",
+        postOpenGallery: "فتح المعرض في الويب",
+        postEjectSd: "إخراج بطاقة SD بأمان",
+        filterDelivered: "المسلّمة فقط",
+        filterAllLocal: "جميع المشاريع المحلية",
+        btnRecycleAudit: "فحص NAS مباشر",
+        btnRecycleDelivered: "تدوير جميع المسلّمة",
+        recoverableLabel: "المشاريع المسلّمة:",
+        statusDelivered: "تم التسليم ✓",
+        statusNotDelivered: "لم يُسلّم ⚠️",
+        statusPlanned: "مخطط",
+        statusIngested: "تم التفريغ",
+        statusEditing: "قيد المونتاج",
+        statusReview: "قيد الاختيار",
+        statusUnlinked: "غير مرتبط",
+        nasSyncedOk: "100% في NAS ✓",
+        nasMissingCount: (n) => `${n} غير متزامن (سيتم رفعه أولاً)`,
+        btnRecycleOne: "تدوير",
+        noRecycleItems: "لا توجد مجلدات محلية مطابقة لهذا الفلتر.",
+        recycleModalTitle: "تأكيد تدوير المجلد المحلي",
+        recycleWarnTitle: "⚠️ تنبيه: المشروع لم يُسلّم بعد!",
+        recycleWarnDesc: (names) => `المشروع « ${names} » غير مسجل كـ « تم التسليم » للعميل بعد. هل أنت متأكد من تدوير مجلده المحلي؟`,
+        recycleNasShield: "قبل نقل المجلد المحلي إلى سلة المحذوفات، سيتم فحص خادم NAS ومزامنة أي صورة أو فيديو مفقود تلقائياً.",
+        btnConfirmRecycle: "فحص NAS والتدوير الآن",
+        recycleSuccessMsg: (n, gb, synced) => `♻️ تم نقل ${n} مجلد إلى سلة المحذوفات (توفير ${gb} غيغابايت)${synced ? ` بعد مزامنة ${synced} ملف مع NAS.` : "."}`,
+        recycleErrNas: "❌ تم إلغاء العملية: تعذر الاتصال بخادم NAS للتحقق من الصور. لم يتم حذف أي ملف محلي.",
+        recycleErrIncomplete: "❌ تم إلغاء العملية: تعذر مزامنة بعض الملفات مع NAS. لم يتم حذف أي ملف محلي.",
+        historyEmpty: "لا يوجد نشاط مسجل حديثاً.",
+        cfgAutostart: "التشغيل تلقائياً مع Windows",
+        cfgAutostartDesc: "يعمل في الخلفية عند تشغيل الكمبيوتر",
+        ssdFreeLabel: "مساحة SSD الحرة:",
+        retryBadgeLabel: (n) => `${n} بالانتظار`,
       }
     };
 
@@ -886,6 +1217,21 @@
     let selectedDrive = "D:\\";
     let sessionsCache = [];
     let currentNasState = { enabled: true, pausedUntil: null, isPaused: false };
+    let recycleProjectsCache = [];
+    let recycleFilterMode = "delivered"; // "delivered" | "all"
+    let pendingRecycleTargets = [];
+    let lastCompletedSummary = null;
+
+    function formatSessionStatusLabel(status) {
+      const t = I18N[currentLang] || I18N.fr;
+      const s = String(status || "").toLowerCase();
+      if (s === "delivered" || s === "completed" || s === "entregado" || s === "livré" || s === "livre") return t.statusDelivered;
+      if (s === "editing") return t.statusEditing;
+      if (s === "review" || s === "selection") return t.statusReview;
+      if (s === "ingested") return t.statusIngested;
+      if (s === "planned") return t.statusPlanned;
+      return t.statusUnlinked;
+    }
 
     function renderNasSyncState(st) {
       if (st) currentNasState = st;
@@ -944,13 +1290,337 @@
           row.style.alignItems = "center";
           row.style.padding = "4px 6px";
           row.style.borderBottom = "1px solid var(--card-border)";
-          const mb = (p.bytes / (1024 * 1024)).toFixed(1);
+          const mb = p.mb !== undefined ? p.mb : (p.bytes / (1024 * 1024)).toFixed(1);
           row.innerHTML = `<span style="color: var(--text-main); font-weight: 600;">📁 ${p.name}</span><span style="color: var(--gold); font-family: monospace;">${p.count} (${mb} MB)</span>`;
           listEl.appendChild(row);
         });
       }
       modal.classList.add("open");
     }
+
+    // --- Salud del Sistema (Espacio SSD + Ping NAS + Cola Reintentos) ---------
+    async function refreshSystemHealth() {
+      if (!window.electronAPI || !window.electronAPI.getSystemHealth) return;
+      try {
+        const h = await window.electronAPI.getSystemHealth();
+        const t = I18N[currentLang] || I18N.fr;
+        const ssdTxt = document.getElementById("txt-ssd-free");
+        const ssdBadge = document.getElementById("badge-ssd-space");
+        if (h.ssdFreeGb !== null && h.ssdFreeGb !== undefined) {
+          ssdTxt.textContent = `${t.ssdFreeLabel} ${h.ssdFreeGb} GB`;
+          if (h.ssdFreeGb < 45) {
+            ssdBadge.style.borderColor = "#ef4444";
+            ssdBadge.style.color = "#ef4444";
+          } else if (h.ssdFreeGb < 90) {
+            ssdBadge.style.borderColor = "#f59e0b";
+            ssdBadge.style.color = "#f59e0b";
+          } else {
+            ssdBadge.style.borderColor = "var(--badge-border)";
+            ssdBadge.style.color = "var(--gold)";
+          }
+        }
+        const dotNas = document.getElementById("dot-nas-ping");
+        const txtNas = document.getElementById("txt-nas-ping");
+        if (h.nasOnline) {
+          dotNas.className = "status-dot connected";
+          txtNas.textContent = `NAS (${h.nasHost})`;
+        } else {
+          dotNas.className = "status-dot";
+          txtNas.textContent = `NAS Offline`;
+        }
+
+        const btnRetry = document.getElementById("btn-retry-queue");
+        const txtRetry = document.getElementById("txt-retry-badge");
+        if (h.retryCount && h.retryCount > 0) {
+          btnRetry.style.display = "inline-flex";
+          txtRetry.textContent = t.retryBadgeLabel(h.retryCount);
+        } else {
+          btnRetry.style.display = "none";
+        }
+      } catch {}
+    }
+
+    document.getElementById("badge-ssd-space").onclick = () => {
+      const el = document.getElementById("recycle-card");
+      if (el) el.scrollIntoView({ behavior: "smooth" });
+    };
+
+    document.getElementById("btn-retry-queue").onclick = async () => {
+      if (!window.electronAPI || !window.electronAPI.runRetryQueue) return;
+      progressSection.classList.add("visible");
+      await window.electronAPI.runRetryQueue();
+      refreshSystemHealth();
+    };
+
+    // --- Paso 5: Reciclaje Inteligente de Carpetas Locales (NAS-Verified) -----
+    let deliveredRecoverableGb = 0;
+
+    function updateRecycleFilterButtons() {
+      const bDel = document.getElementById("btn-filter-delivered");
+      const bAll = document.getElementById("btn-filter-all-local");
+      if (recycleFilterMode === "delivered") {
+        bDel.style.borderColor = "var(--gold)";
+        bDel.style.color = "var(--gold)";
+        bDel.style.fontWeight = "700";
+        bAll.style.borderColor = "var(--card-border)";
+        bAll.style.color = "var(--text-main)";
+        bAll.style.fontWeight = "400";
+      } else {
+        bAll.style.borderColor = "var(--gold)";
+        bAll.style.color = "var(--gold)";
+        bAll.style.fontWeight = "700";
+        bDel.style.borderColor = "var(--card-border)";
+        bDel.style.color = "var(--text-main)";
+        bDel.style.fontWeight = "400";
+      }
+    }
+
+    function renderRecycleProjects() {
+      const t = I18N[currentLang] || I18N.fr;
+      updateRecycleFilterButtons();
+      document.getElementById("txt-recycle-recoverable").textContent = `${t.recoverableLabel} ${deliveredRecoverableGb} GB`;
+
+      const listEl = document.getElementById("recycle-projects-list");
+      listEl.innerHTML = "";
+
+      const visible =
+        recycleFilterMode === "delivered"
+          ? recycleProjectsCache.filter((p) => p.isDelivered)
+          : recycleProjectsCache;
+
+      if (!visible || visible.length === 0) {
+        const empty = document.createElement("div");
+        empty.style.padding = "18px";
+        empty.style.textAlign = "center";
+        empty.style.color = "var(--text-muted)";
+        empty.style.fontSize = "12px";
+        empty.style.background = "var(--input-bg)";
+        empty.style.borderRadius = "10px";
+        empty.style.border = "1px dashed var(--card-border)";
+        empty.textContent = t.noRecycleItems;
+        listEl.appendChild(empty);
+        return;
+      }
+
+      visible.forEach((p) => {
+        const row = document.createElement("div");
+        row.style.display = "flex";
+        row.style.flexWrap = "wrap";
+        row.style.alignItems = "center";
+        row.style.justifyContent = "space-between";
+        row.style.gap = "10px";
+        row.style.padding = "10px 14px";
+        row.style.background = "var(--input-bg)";
+        row.style.border = p.isDelivered ? "1px solid rgba(16, 185, 129, 0.3)" : "1px solid var(--card-border)";
+        row.style.borderRadius = "10px";
+
+        const sizeStr = p.gb >= 1 ? `${p.gb} GB` : `${p.mb} MB`;
+        const statusBadgeHtml = p.isDelivered
+          ? `<span style="font-size: 10.5px; padding: 2px 8px; border-radius: 99px; background: rgba(16,185,129,0.14); color: #10b981; border: 1px solid rgba(16,185,129,0.35); font-weight: 700;">${t.statusDelivered}</span>`
+          : `<span style="font-size: 10.5px; padding: 2px 8px; border-radius: 99px; background: rgba(245,158,11,0.14); color: #f59e0b; border: 1px solid rgba(245,158,11,0.4); font-weight: 700;">${t.statusNotDelivered} (${formatSessionStatusLabel(p.status)})</span>`;
+
+        const nasBadgeHtml = p.isFullySynced
+          ? `<span style="font-size: 10.5px; padding: 2px 8px; border-radius: 99px; background: rgba(16,185,129,0.1); color: #10b981; border: 1px solid rgba(16,185,129,0.25);">${t.nasSyncedOk}</span>`
+          : `<span style="font-size: 10.5px; padding: 2px 8px; border-radius: 99px; background: rgba(59,130,246,0.12); color: #60a5fa; border: 1px solid rgba(59,130,246,0.35);">☁️ ${t.nasMissingCount(p.unsyncedFiles)}</span>`;
+
+        const left = document.createElement("div");
+        left.style.display = "flex";
+        left.style.flexDirection = "column";
+        left.style.gap = "4px";
+        left.innerHTML = `
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <strong style="font-size: 13px; color: var(--text-main);">📁 ${p.clientName || p.folderName}</strong>
+            ${statusBadgeHtml}
+            ${nasBadgeHtml}
+          </div>
+          <div style="font-size: 11px; color: var(--text-muted); font-family: monospace;">
+            ${p.folderName} • ${p.totalFiles} archivos • <strong style="color: var(--gold);">${sizeStr}</strong>
+          </div>
+        `;
+
+        const right = document.createElement("div");
+        right.style.display = "flex";
+        right.style.alignItems = "center";
+        right.style.gap = "6px";
+
+        const btnOpen = document.createElement("button");
+        btnOpen.className = "btn-icon";
+        btnOpen.style.width = "30px";
+        btnOpen.style.height = "30px";
+        btnOpen.title = p.fullPath;
+        btnOpen.textContent = "📂";
+        btnOpen.onclick = () => window.electronAPI && window.electronAPI.openPath(p.fullPath);
+
+        const btnRec = document.createElement("button");
+        btnRec.className = "select-input";
+        btnRec.style.width = "auto";
+        btnRec.style.cursor = "pointer";
+        btnRec.style.padding = "5px 12px";
+        btnRec.style.fontSize = "11.5px";
+        btnRec.style.fontWeight = "700";
+        btnRec.style.borderColor = p.isDelivered ? "#10b981" : "#f59e0b";
+        btnRec.style.color = p.isDelivered ? "#10b981" : "#f59e0b";
+        btnRec.innerHTML = `♻️ ${t.btnRecycleOne}`;
+        btnRec.onclick = () => openRecycleConfirmModal([p]);
+
+        right.appendChild(btnOpen);
+        right.appendChild(btnRec);
+        row.appendChild(left);
+        row.appendChild(right);
+        listEl.appendChild(row);
+      });
+    }
+
+    async function loadRecycleProjects(checkLive = false) {
+      if (!window.electronAPI || !window.electronAPI.scanRecycleProjects) return;
+      const btnAudit = document.getElementById("btn-recycle-audit-nas");
+      if (btnAudit) btnAudit.disabled = true;
+      try {
+        const res = await window.electronAPI.scanRecycleProjects(checkLive);
+        if (res && res.ok) {
+          recycleProjectsCache = res.projects || [];
+          deliveredRecoverableGb = res.deliveredGb || 0;
+          // Si no hay proyectos entregados pero sí hay carpetas locales, mostrar todos para que el usuario vea sus proyectos y sus estados
+          if (recycleFilterMode === "delivered" && !recycleProjectsCache.some((x) => x.isDelivered) && recycleProjectsCache.length > 0) {
+            recycleFilterMode = "all";
+          }
+          renderRecycleProjects();
+        }
+      } finally {
+        if (btnAudit) btnAudit.disabled = false;
+      }
+    }
+
+    function openRecycleConfirmModal(projectsToRecycle) {
+      if (!projectsToRecycle || projectsToRecycle.length === 0) return;
+      pendingRecycleTargets = projectsToRecycle;
+      const t = I18N[currentLang] || I18N.fr;
+      const modal = document.getElementById("modal-recycle-confirm");
+      const warnBox = document.getElementById("recycle-undelivered-warning");
+      const warnDesc = document.getElementById("txt-recycle-warn-desc");
+
+      const undelivered = projectsToRecycle.filter((p) => !p.isDelivered);
+      if (undelivered.length > 0) {
+        warnBox.style.display = "block";
+        const names = undelivered.map((u) => `${u.clientName || u.folderName} [${formatSessionStatusLabel(u.status)}]`).join(", ");
+        warnDesc.textContent = t.recycleWarnDesc(names);
+      } else {
+        warnBox.style.display = "none";
+      }
+
+      const listEl = document.getElementById("recycle-confirm-list");
+      listEl.innerHTML = "";
+      projectsToRecycle.forEach((p) => {
+        const item = document.createElement("div");
+        item.style.display = "flex";
+        item.style.justifyContent = "space-between";
+        item.style.alignItems = "center";
+        item.style.padding = "4px 6px";
+        item.style.borderBottom = "1px solid var(--card-border)";
+        const sizeStr = p.gb >= 1 ? `${p.gb} GB` : `${p.mb} MB`;
+        item.innerHTML = `
+          <span>📁 <strong>${p.clientName || p.folderName}</strong> (${p.totalFiles} arch.)</span>
+          <span style="color: var(--gold); font-family: monospace;">${sizeStr}</span>
+        `;
+        listEl.appendChild(item);
+      });
+
+      modal.classList.add("open");
+    }
+
+    document.getElementById("btn-filter-delivered").onclick = () => {
+      recycleFilterMode = "delivered";
+      renderRecycleProjects();
+    };
+    document.getElementById("btn-filter-all-local").onclick = () => {
+      recycleFilterMode = "all";
+      renderRecycleProjects();
+    };
+    document.getElementById("btn-recycle-audit-nas").onclick = () => loadRecycleProjects(true);
+    document.getElementById("btn-recycle-all-delivered").onclick = () => {
+      const delivered = recycleProjectsCache.filter((p) => p.isDelivered);
+      if (delivered.length === 0) {
+        const t = I18N[currentLang] || I18N.fr;
+        alert(t.noRecycleItems);
+        return;
+      }
+      openRecycleConfirmModal(delivered);
+    };
+
+    document.getElementById("btn-close-recycle-modal").onclick = () => {
+      document.getElementById("modal-recycle-confirm").classList.remove("open");
+    };
+    document.getElementById("btn-cancel-recycle-modal").onclick = () => {
+      document.getElementById("modal-recycle-confirm").classList.remove("open");
+    };
+    document.getElementById("btn-confirm-recycle-exec").onclick = async () => {
+      if (!window.electronAPI || !pendingRecycleTargets.length) return;
+      const t = I18N[currentLang] || I18N.fr;
+      const btnExec = document.getElementById("btn-confirm-recycle-exec");
+      btnExec.disabled = true;
+      document.getElementById("modal-recycle-confirm").classList.remove("open");
+      progressSection.classList.add("visible");
+      document.getElementById("txt-ingest-status").textContent = "Vérification NAS & Recyclage en cours...";
+
+      try {
+        const folderNames = pendingRecycleTargets.map((p) => p.folderName);
+        const res = await window.electronAPI.recycleProjects(folderNames);
+        if (res && res.ok) {
+          alert(t.recycleSuccessMsg(res.recycledCount, res.freedGb, res.syncedBeforeRecycle));
+          await loadRecycleProjects(false);
+          await loadHistory();
+          await refreshSystemHealth();
+        } else if (res && res.error === "NAS_UNREACHABLE") {
+          alert(t.recycleErrNas);
+        } else {
+          alert(t.recycleErrIncomplete);
+        }
+      } finally {
+        btnExec.disabled = false;
+      }
+    };
+
+    // --- Paso 6: Historial Reciente de Actividad ------------------------------
+    async function loadHistory() {
+      if (!window.electronAPI || !window.electronAPI.getIngestHistory) return;
+      const t = I18N[currentLang] || I18N.fr;
+      const list = await window.electronAPI.getIngestHistory();
+      const el = document.getElementById("history-list");
+      el.innerHTML = "";
+      if (!list || list.length === 0) {
+        el.innerHTML = `<div style="color: var(--text-muted); padding: 10px; text-align: center;">${t.historyEmpty}</div>`;
+        return;
+      }
+      list.slice(0, 12).forEach((item) => {
+        const row = document.createElement("div");
+        row.style.display = "flex";
+        row.style.justifyContent = "space-between";
+        row.style.alignItems = "center";
+        row.style.padding = "7px 10px";
+        row.style.background = "var(--input-bg)";
+        row.style.border = "1px solid var(--card-border)";
+        row.style.borderRadius = "8px";
+        const dt = item.timestamp ? new Date(item.timestamp).toLocaleString([], { dateStyle: "short", timeStyle: "short" }) : "";
+        const icon = item.type === "recycle" ? "♻️" : "📥";
+        row.innerHTML = `
+          <div>
+            <strong style="color: var(--text-main);">${icon} ${item.client || item.folderName || "Atelier"}</strong>
+            <span style="color: var(--text-muted); font-size: 11px; margin-left: 6px;">${dt} • ${item.files || 0} arch. (${item.mb || 0} MB)</span>
+          </div>
+        `;
+        if (item.rootDir && item.type !== "recycle") {
+          const btn = document.createElement("button");
+          btn.className = "btn-icon";
+          btn.style.width = "26px";
+          btn.style.height = "26px";
+          btn.textContent = "📂";
+          btn.onclick = () => window.electronAPI.openPath(item.rootDir);
+          row.appendChild(btn);
+        }
+        el.appendChild(row);
+      });
+    }
+    document.getElementById("btn-refresh-history").onclick = () => loadHistory();
 
     function setLanguage(l) {
       currentLang = l;
@@ -964,7 +1634,17 @@
       document.getElementById("txt-step3-title").textContent = t.step3Title;
       document.getElementById("txt-step4-title").textContent = t.step4Title;
       document.getElementById("txt-step4-desc").textContent = t.step4Desc;
+      document.getElementById("txt-step5-title").textContent = t.step5Title;
+      document.getElementById("txt-step5-desc").textContent = t.step5Desc;
+      document.getElementById("txt-step6-title").textContent = t.step6Title;
       document.getElementById("txt-select-session-label").textContent = t.selectSessionLabel;
+      document.getElementById("session-search-input").placeholder = t.searchPlaceholder;
+      document.getElementById("txt-btn-new-session").textContent = t.btnNewSession;
+      document.getElementById("txt-new-sess-title").textContent = t.newSessTitle;
+      document.getElementById("txt-new-sess-client").textContent = t.newSessClient;
+      document.getElementById("txt-new-sess-date").textContent = t.newSessDate;
+      document.getElementById("txt-new-sess-cat").textContent = t.newSessCat;
+      document.getElementById("txt-btn-create-session").textContent = t.btnCreateSession;
       document.getElementById("txt-pipe-local").textContent = t.pipeLocal;
       document.getElementById("txt-pipe-local-desc").textContent = t.pipeLocalDesc;
       document.getElementById("txt-pipe-cloud").textContent = t.pipeCloud;
@@ -983,7 +1663,24 @@
       document.getElementById("txt-btn-accept-pending").textContent = t.btnAcceptPending;
       document.getElementById("txt-modal-pause-label").textContent = t.modalPauseLabel;
       document.getElementById("btn-dismiss-pending").textContent = t.btnDismissPending;
+      document.getElementById("txt-post-open-folder").textContent = t.postOpenFolder;
+      document.getElementById("txt-post-open-gallery").textContent = t.postOpenGallery;
+      document.getElementById("txt-post-eject-sd").textContent = t.postEjectSd;
+      document.getElementById("txt-filter-delivered").textContent = t.filterDelivered;
+      document.getElementById("txt-filter-all-local").textContent = t.filterAllLocal;
+      document.getElementById("txt-btn-recycle-audit").textContent = t.btnRecycleAudit;
+      document.getElementById("txt-btn-recycle-delivered").textContent = t.btnRecycleDelivered;
+      document.getElementById("txt-recycle-modal-title").textContent = t.recycleModalTitle;
+      document.getElementById("txt-recycle-warn-title").textContent = t.recycleWarnTitle;
+      document.getElementById("txt-recycle-nas-shield").textContent = t.recycleNasShield;
+      document.getElementById("txt-btn-confirm-recycle").textContent = t.btnConfirmRecycle;
+      document.getElementById("btn-cancel-recycle-modal").textContent = t.btnCancel;
+      document.getElementById("txt-cfg-autostart").textContent = t.cfgAutostart;
+      document.getElementById("txt-cfg-autostart-desc").textContent = t.cfgAutostartDesc;
       renderNasSyncState();
+      renderRecycleProjects();
+      refreshSystemHealth();
+      loadHistory();
     }
 
     // Toggle Theme
@@ -999,23 +1696,44 @@
       if (window.electronAPI) window.electronAPI.notifyLanguageChange(e.target.value);
     };
 
-    // Carga de proyectos reales desde Supabase
+    // Carga y filtrado instantáneo de proyectos reales desde Supabase
     const sessionSelect = document.getElementById("session-select");
+    const sessionSearchInput = document.getElementById("session-search-input");
 
-    // Carga de proyectos reales desde Supabase
+    function populateSessionSelect(filterText = "") {
+      const currentVal = sessionSelect.value;
+      const q = String(filterText || "").trim().toLowerCase();
+      const filtered = q
+        ? sessionsCache.filter((s) =>
+            `${s.client_name || ""} ${s.category || ""} ${s.session_date || ""} ${s.status || ""}`.toLowerCase().includes(q)
+          )
+        : sessionsCache;
+
+      sessionSelect.innerHTML = "<option value=''>-- Sélectionner un projet / client --</option>";
+      filtered.forEach((s) => {
+        const opt = document.createElement("option");
+        opt.value = s.id;
+        const date = s.session_date || "";
+        const stLabel = formatSessionStatusLabel(s.status);
+        opt.textContent = `${s.client_name || "Client"} - ${s.category || "Atelier"} (${date}) [${stLabel}]`;
+        sessionSelect.appendChild(opt);
+      });
+      if (currentVal && filtered.some((x) => x.id === currentVal)) {
+        sessionSelect.value = currentVal;
+      }
+    }
+
+    sessionSearchInput.oninput = (e) => {
+      populateSessionSelect(e.target.value);
+    };
+
     async function loadRealSessions() {
       sessionSelect.innerHTML = "<option value=''>Chargement des séances réelles...</option>";
       const res = await window.electronAPI.getSessions();
       if (res.ok && res.sessions) {
         sessionsCache = res.sessions;
-        sessionSelect.innerHTML = "<option value=''>-- Sélectionner un projet / client --</option>";
-        res.sessions.forEach((s) => {
-          const opt = document.createElement("option");
-          opt.value = s.id;
-          const date = s.session_date || "";
-          opt.textContent = `${s.client_name || "Client"} - ${s.category || "Atelier"} (${date})`;
-          sessionSelect.appendChild(opt);
-        });
+        populateSessionSelect(sessionSearchInput.value);
+        loadRecycleProjects(false);
       } else {
         sessionSelect.innerHTML = `<option value=''>Erreur : ${res.error || "Impossible de charger"}</option>`;
       }
@@ -1026,13 +1744,46 @@
       const box = document.getElementById("session-info");
       if (s) {
         box.style.display = "block";
-        box.textContent = `Projet: ${s.client_name} • Catégorie: ${s.category || "-"} • Date: ${s.session_date || "-"} • ID: ${s.id}`;
+        box.textContent = `Projet: ${s.client_name} • Catégorie: ${s.category || "-"} • Date: ${s.session_date || "-"} • État: ${formatSessionStatusLabel(s.status)}`;
       } else {
         box.style.display = "none";
       }
     };
 
-    // Escanear tarjeta / origen
+    // Modal de Creación Rápida de Proyecto (+ Nuevo Proyecto)
+    const modalNewSession = document.getElementById("modal-new-session");
+    document.getElementById("btn-new-session").onclick = () => {
+      document.getElementById("inp-new-client").value = "";
+      document.getElementById("inp-new-date").value = new Date().toISOString().split("T")[0];
+      modalNewSession.classList.add("open");
+      setTimeout(() => document.getElementById("inp-new-client").focus(), 50);
+    };
+    document.getElementById("btn-close-new-session").onclick = () => modalNewSession.classList.remove("open");
+    document.getElementById("btn-create-session-submit").onclick = async () => {
+      const clientName = document.getElementById("inp-new-client").value.trim();
+      const sessionDate = document.getElementById("inp-new-date").value;
+      const category = document.getElementById("inp-new-category").value;
+      if (!clientName) return;
+      const btn = document.getElementById("btn-create-session-submit");
+      btn.disabled = true;
+      try {
+        const res = await window.electronAPI.createSession({ clientName, sessionDate, category });
+        if (res && res.ok && res.session) {
+          sessionsCache.unshift(res.session);
+          sessionSearchInput.value = "";
+          populateSessionSelect("");
+          sessionSelect.value = res.session.id;
+          sessionSelect.onchange();
+          modalNewSession.classList.remove("open");
+        } else {
+          alert(res?.error || "Error creating session");
+        }
+      } finally {
+        btn.disabled = false;
+      }
+    };
+
+    // Escanear tarjeta / origen + Soporte Drag & Drop
     async function scanTarget(p) {
       selectedDrive = p;
       document.getElementById("drive-title").textContent = p;
@@ -1041,6 +1792,29 @@
         document.getElementById("drive-subtitle").textContent = `${info.count} fichiers détectés (${info.gb} Go)`;
       }
     }
+
+    document.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      document.getElementById("drive-box").style.borderColor = "var(--gold)";
+    });
+    document.addEventListener("dragleave", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    });
+    document.addEventListener("drop", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const files = e.dataTransfer && e.dataTransfer.files;
+      if (files && files.length > 0 && window.electronAPI) {
+        const droppedPath = window.electronAPI.getPathForFile
+          ? window.electronAPI.getPathForFile(files[0])
+          : files[0].path;
+        if (droppedPath) {
+          scanTarget(droppedPath);
+        }
+      }
+    });
 
     document.getElementById("btn-browse-folder").onclick = async () => {
       const f = await window.electronAPI.selectFolder();
@@ -1060,6 +1834,7 @@
       document.getElementById("cfg-nas-host").value = cfg.nasHost || "";
       document.getElementById("cfg-nas-user").value = cfg.nasUser || "admin";
       document.getElementById("cfg-nas-dir").value = cfg.nasBaseDir || "/Lamha-Storage";
+      document.getElementById("cfg-open-at-login").checked = cfg.openAtLogin !== false;
       modalSettings.classList.add("open");
     };
     document.getElementById("btn-close-settings").onclick = () => modalSettings.classList.remove("open");
@@ -1070,21 +1845,25 @@
         nasHost: document.getElementById("cfg-nas-host").value,
         nasUser: document.getElementById("cfg-nas-user").value,
         nasBaseDir: document.getElementById("cfg-nas-dir").value,
+        openAtLogin: document.getElementById("cfg-open-at-login").checked,
       };
       const p = document.getElementById("cfg-nas-pass").value;
       if (p) patch.nasPassword = p;
       await window.electronAPI.saveSettings(patch);
       modalSettings.classList.remove("open");
+      refreshSystemHealth();
+      loadRecycleProjects(false);
     };
 
     document.getElementById("link-open-web").onclick = async (e) => {
       e.preventDefault();
       const cfg = await window.electronAPI.getSettings();
-      window.electronAPI.openExternal(cfg.dashboardUrl || "https://lam7.ma");
+      window.electronAPI.openExternal(cfg.dashboardUrl || "https://admin.lam7a.ma");
     };
 
-    // Ingesta y Progreso llamativo
+    // Ingesta y Progreso llamativo + Acciones Post-Ingesta 1-Clic
     const progressSection = document.getElementById("progress-section");
+    const postIngestActions = document.getElementById("post-ingest-actions");
     const barFill = document.getElementById("bar-fill");
     const txtPct = document.getElementById("txt-pct");
     const txtCurFile = document.getElementById("txt-cur-file");
@@ -1094,6 +1873,23 @@
     const mPhase = document.getElementById("m-phase");
     const btnStart = document.getElementById("btn-start-ingest");
     const btnCancel = document.getElementById("btn-cancel-ingest");
+
+    document.getElementById("btn-post-open-folder").onclick = () => {
+      if (lastCompletedSummary && lastCompletedSummary.rootDir && window.electronAPI) {
+        window.electronAPI.openPath(lastCompletedSummary.rootDir);
+      }
+    };
+    document.getElementById("btn-post-open-gallery").onclick = async () => {
+      if (!window.electronAPI) return;
+      const cfg = await window.electronAPI.getSettings();
+      const base = (cfg.dashboardUrl || "https://admin.lam7a.ma").replace(/\/+$/, "");
+      const sid = (lastCompletedSummary && lastCompletedSummary.sessionId) || sessionSelect.value;
+      window.electronAPI.openExternal(sid ? `${base}/sessions/${sid}` : base);
+    };
+    document.getElementById("btn-post-eject-sd").onclick = async () => {
+      if (!window.electronAPI || !window.electronAPI.ejectDrive) return;
+      await window.electronAPI.ejectDrive(selectedDrive);
+    };
 
     btnCancel.onclick = async () => {
       if (window.electronAPI) {
@@ -1111,6 +1907,7 @@
       }
       btnStart.disabled = true;
       btnCancel.style.display = "inline-block";
+      postIngestActions.style.display = "none";
       progressSection.classList.add("visible");
       barFill.style.width = "0%";
       txtPct.textContent = "0%";
@@ -1197,7 +1994,8 @@
       window.electronAPI.onIngestEvent((ev) => {
         if (ev.type === "progress") {
           progressSection.classList.add("visible");
-          btnCancel.style.display = ev.isNasMirror ? "none" : "inline-block";
+          postIngestActions.style.display = "none";
+          btnCancel.style.display = "inline-block";
           const p = ev.percent || 0;
           barFill.style.width = p + "%";
           txtPct.textContent = Math.round(p) + "%";
@@ -1223,6 +2021,15 @@
             : "Ingestion terminée avec succès !";
           btnCancel.style.display = "none";
           btnStart.disabled = false;
+          if (ev.summary) {
+            lastCompletedSummary = ev.summary;
+            if (!ev.isNasMirror && ev.summary.rootDir) {
+              postIngestActions.style.display = "flex";
+            }
+          }
+          refreshSystemHealth();
+          loadRecycleProjects(false);
+          loadHistory();
         } else if (ev.type === "cancelled") {
           const t = I18N[currentLang] || I18N.fr;
           document.getElementById("txt-ingest-status").textContent = t.cancelledStatus;
@@ -1274,6 +2081,9 @@
     setLanguage("fr");
     loadRealSessions();
     scanTarget("D:\\");
+    refreshSystemHealth();
+    loadHistory();
+    setInterval(refreshSystemHealth, 25000);
   </script>
 </body>
 </html>

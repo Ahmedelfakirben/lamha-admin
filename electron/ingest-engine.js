@@ -198,6 +198,124 @@ async function listSessions() {
   }
 }
 
+async function createQuickSession(payload = {}) {
+  try {
+    const clientName = String(payload.clientName || "").trim()
+    if (!clientName) return { ok: false, error: "CLIENT_NAME_REQUIRED" }
+    const sessionDate = payload.sessionDate || new Date().toISOString().split("T")[0]
+    const category = String(payload.category || "Mariage").trim()
+    const projectName = String(payload.projectName || category || "Sesion").trim()
+
+    const row = {
+      client_name: clientName,
+      session_date: sessionDate,
+      category,
+      session_type: category,
+      tags: [projectName],
+      status: "planned",
+    }
+
+    const { data, error } = await getClient()
+      .from("sessions")
+      .insert([row])
+      .select("id, client_name, session_date, category, session_type, tags, status")
+      .single()
+
+    if (error) return { ok: false, error: error.message }
+    return { ok: true, session: data }
+  } catch (e) {
+    return { ok: false, error: e.code === "CONFIG_MISSING" ? "CONFIG_MISSING" : e.message }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Historial persistente de Actividad e Ingestas + Cola de Reintentos Offline
+// ---------------------------------------------------------------------------
+function getHistoryFilePath() {
+  return path.join(app.getPath("userData"), "ingest-history.json")
+}
+
+function getIngestHistory() {
+  try {
+    const f = getHistoryFilePath()
+    if (fs.existsSync(f)) {
+      const arr = JSON.parse(fs.readFileSync(f, "utf-8"))
+      return Array.isArray(arr) ? arr : []
+    }
+  } catch {}
+  return []
+}
+
+function addHistoryEntry(entry) {
+  try {
+    const current = getIngestHistory()
+    const item = {
+      id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      timestamp: new Date().toISOString(),
+      ...entry,
+    }
+    const next = [item, ...current].slice(0, 40)
+    fs.writeFileSync(getHistoryFilePath(), JSON.stringify(next, null, 2), "utf-8")
+    return item
+  } catch {
+    return null
+  }
+}
+
+function getRetryQueueFilePath() {
+  return path.join(app.getPath("userData"), "retry-queue.json")
+}
+
+function getRetryQueue() {
+  try {
+    const f = getRetryQueueFilePath()
+    if (fs.existsSync(f)) {
+      const arr = JSON.parse(fs.readFileSync(f, "utf-8"))
+      return Array.isArray(arr) ? arr : []
+    }
+  } catch {}
+  return []
+}
+
+function saveRetryQueue(items) {
+  try {
+    fs.writeFileSync(getRetryQueueFilePath(), JSON.stringify(items || [], null, 2), "utf-8")
+  } catch {}
+}
+
+function enqueueRetryItems(newItems = []) {
+  if (!Array.isArray(newItems) || newItems.length === 0) return getRetryQueue()
+  const current = getRetryQueue()
+  const byPath = new Map(current.map((it) => [it.fullPath, it]))
+  for (const it of newItems) {
+    if (it && it.fullPath) {
+      byPath.set(it.fullPath, {
+        fullPath: it.fullPath,
+        relPath: it.relPath,
+        projectFolder: it.projectFolder,
+        fileName: it.fileName,
+        size: it.size || 0,
+        mtimeMs: it.mtimeMs || Date.now(),
+        addedAt: new Date().toISOString(),
+      })
+    }
+  }
+  const merged = Array.from(byPath.values())
+  saveRetryQueue(merged)
+  return merged
+}
+
+function clearRetryQueue(completedPaths = null) {
+  if (!completedPaths) {
+    saveRetryQueue([])
+    return []
+  }
+  const removeSet = new Set(completedPaths)
+  const remaining = getRetryQueue().filter((it) => !removeSet.has(it.fullPath))
+  saveRetryQueue(remaining)
+  return remaining
+}
+
 // ---------------------------------------------------------------------------
 // Utilidades de ingesta
 // ---------------------------------------------------------------------------
@@ -818,6 +936,16 @@ async function runIngest(params, emit) {
             } else {
               nasFail++
               consecutiveFails++
+              enqueueRetryItems([
+                {
+                  fullPath: it.dest,
+                  relPath: `${folderName}/01_RAW/${it.sub}/${it.name}`,
+                  projectFolder: folderName,
+                  fileName: it.name,
+                  size: it.size,
+                  mtimeMs: Date.now(),
+                },
+              ])
             }
             nasProcessed++
             tracker.stages.nas.percent = Math.min(100, (nasBytes / nasTotal) * 100)
@@ -847,6 +975,8 @@ async function runIngest(params, emit) {
     await Promise.all([runCloudPhase(), runNasPhase()])
 
     const summary = {
+      sessionId: sess.id,
+      sourcePath: params.sourcePath || "",
       files: okItems.length,
       failedFiles: items.length - okItems.length,
       photos,
@@ -859,6 +989,18 @@ async function runIngest(params, emit) {
       folderName,
       client: sess.client_name,
     }
+    addHistoryEntry({
+      type: "ingest",
+      sessionId: sess.id,
+      client: sess.client_name,
+      folderName,
+      rootDir,
+      files: okItems.length,
+      mb: totalMb,
+      cloudOk,
+      nasOk,
+      nasFailed: nasFail,
+    })
     tracker.setPhase("done")
     tracker.push(true)
     emit({ type: "done", summary })
@@ -1176,6 +1318,12 @@ module.exports = {
   login, 
   logout, 
   listSessions, 
+  createQuickSession,
+  getIngestHistory,
+  addHistoryEntry,
+  getRetryQueue,
+  enqueueRetryItems,
+  clearRetryQueue,
   runIngest, 
   cancelIngest, 
   scanSource, 

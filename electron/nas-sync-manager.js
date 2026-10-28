@@ -9,8 +9,27 @@
 const fs = require("fs")
 const path = require("path")
 const EventEmitter = require("events")
-const { app } = require("electron")
+const { app, shell } = require("electron")
 const { getConfig, updateSettings } = require("./config")
+
+function normalizeFolderToken(val) {
+  return String(val || "")
+    .trim()
+    .replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ_-]/g, "_")
+    .toLowerCase()
+}
+
+function isDeliveredStatus(status) {
+  const s = String(status || "").trim().toLowerCase()
+  return (
+    s === "delivered" ||
+    s === "completed" ||
+    s === "entregado" ||
+    s === "livré" ||
+    s === "livre" ||
+    s === "archived"
+  )
+}
 
 const IGNORED_NAMES = new Set(["thumbs.db", ".ds_store", "desktop.ini"])
 
@@ -398,10 +417,11 @@ class NasSyncManager extends EventEmitter {
     const itemsToSync = [...this.pendingItems]
     this.pendingItems = []
     this.PendingSummary = null
-    return this.syncFilesList(itemsToSync)
+    return this.syncFilesList(itemsToSync, { force: true })
   }
 
-  async syncFilesList(items) {
+  async syncFilesList(items, options = {}) {
+    const force = Boolean(options.force)
     if (this.isRunning || !items || items.length === 0) return { ok: false, busy: true }
     const cfg = getConfig()
     if (!cfg.nasPassword || !cfg.nasHost) {
@@ -462,7 +482,7 @@ class NasSyncManager extends EventEmitter {
           })
         )
         for (const d of remoteDirs) {
-          if (this.cancelled || !this.isActive()) break
+          if (this.cancelled || (!force && !this.isActive())) break
           await initClient.ensureDir(d)
         }
       } finally {
@@ -492,7 +512,7 @@ class NasSyncManager extends EventEmitter {
 
         try {
           await connect()
-          while (!this.cancelled && this.isActive()) {
+          while (!this.cancelled && (force || this.isActive())) {
             const idx = nextIdx++
             if (idx >= items.length) return
             const it = items[idx]
@@ -541,7 +561,7 @@ class NasSyncManager extends EventEmitter {
       await Promise.all(Array.from({ length: poolSize }, worker))
       this.saveCache()
 
-      if (this.cancelled || !this.isActive()) {
+      if (this.cancelled || (!force && !this.isActive())) {
         this.emit("sync-progress", { type: "cancelled", isNasMirror: true })
         return { ok: false, cancelled: true }
       }
@@ -567,6 +587,303 @@ class NasSyncManager extends EventEmitter {
     } finally {
       this.isRunning = false
       this.emit("state-changed", this.getState())
+    }
+  }
+
+  /**
+   * Escanea todas las carpetas de proyectos en C:\Lamha-Storage, las cruza con las sesiones
+   * de Supabase (para conocer su estado: Entregado vs En curso) y verifica su estado en el NAS.
+   */
+  async scanLocalProjectsForRecycle(sessionsList = [], checkRemoteLive = false) {
+    const cfg = getConfig()
+    const baseRoot = cfg.ssdPath
+    if (!baseRoot || !fs.existsSync(baseRoot)) {
+      return {
+        ok: true,
+        nasReachable: false,
+        totalBytes: 0,
+        totalGb: 0,
+        deliveredBytes: 0,
+        deliveredGb: 0,
+        projects: [],
+      }
+    }
+
+    let entries = []
+    try {
+      entries = fs.readdirSync(baseRoot, { withFileTypes: true })
+    } catch {
+      return { ok: true, nasReachable: false, totalBytes: 0, totalGb: 0, deliveredBytes: 0, deliveredGb: 0, projects: [] }
+    }
+
+    const folderDirs = entries
+      .filter((e) => e.isDirectory() && !e.name.startsWith(".") && !/^(System Volume Information|\$RECYCLE\.BIN)$/i.test(e.name))
+      .map((e) => e.name)
+
+    const allLocalFiles = this.scanLocalTree(baseRoot)
+    const filesByProject = new Map()
+    for (const f of allLocalFiles) {
+      if (!filesByProject.has(f.projectFolder)) filesByProject.set(f.projectFolder, [])
+      filesByProject.get(f.projectFolder).push(f)
+    }
+
+    let remoteMap = null
+    let nasReachable = false
+    if (checkRemoteLive && cfg.nasPassword && cfg.nasHost && folderDirs.length > 0) {
+      const ftp = require("basic-ftp")
+      const client = new ftp.Client(10000)
+      try {
+        await client.access({
+          host: cfg.nasHost,
+          user: cfg.nasUser,
+          password: cfg.nasPassword,
+          port: 21,
+        })
+        nasReachable = true
+        remoteMap = await this.fetchRemoteTreeMap(client, cfg.nasBaseDir, folderDirs)
+      } catch {
+        remoteMap = null
+      } finally {
+        try {
+          client.close()
+        } catch {}
+      }
+    }
+
+    const matchSession = (folderName) => {
+      if (!Array.isArray(sessionsList) || sessionsList.length === 0) return null
+      const lowerFolder = folderName.toLowerCase()
+      const parts = folderName.split("_")
+      const dateInFolder = parts.find((p) => /^\d{4}-\d{2}-\d{2}$/.test(p)) || null
+
+      // 1. Coincidencia exacta con patrón generado
+      for (const s of sessionsList) {
+        const cleanDate = String(s.session_date || "").replace(/[^0-9-]/g, "")
+        const cleanClient = normalizeFolderToken(s.client_name || "Cliente")
+        const cleanProj = normalizeFolderToken((s.tags && s.tags[0]) || s.category || "Sesion")
+        const expected = `${cleanDate}_${cleanClient}_${cleanProj}`
+        if (lowerFolder === expected) return s
+      }
+
+      // 2. Coincidencia por fecha + nombre del cliente
+      if (dateInFolder) {
+        const byDateAndClient = sessionsList.find((s) => {
+          if (s.session_date !== dateInFolder) return false
+          const token = normalizeFolderToken(s.client_name)
+          return token && lowerFolder.includes(token)
+        })
+        if (byDateAndClient) return byDateAndClient
+      }
+
+      // 3. Coincidencia por nombre de cliente
+      return (
+        sessionsList.find((s) => {
+          const token = normalizeFolderToken(s.client_name)
+          return token && token.length >= 3 && lowerFolder.includes(token)
+        }) || null
+      )
+    }
+
+    let totalBytes = 0
+    let deliveredBytes = 0
+    const projects = []
+
+    for (const folderName of folderDirs) {
+      const files = filesByProject.get(folderName) || []
+      const bytes = files.reduce((acc, it) => acc + it.size, 0)
+      let syncedCount = 0
+      let unsyncedCount = 0
+      let unsyncedBytes = 0
+
+      for (const f of files) {
+        let synced = false
+        if (remoteMap !== null) {
+          const rSize = remoteMap.get(f.relPath)
+          if (rSize !== undefined && rSize === f.size) {
+            synced = true
+            this.cache[f.relPath] = { size: f.size, mtimeMs: f.mtimeMs }
+          }
+        } else {
+          const c = this.cache[f.relPath]
+          if (c && c.size === f.size && c.mtimeMs === f.mtimeMs) {
+            synced = true
+          }
+        }
+        if (synced) syncedCount++
+        else {
+          unsyncedCount++
+          unsyncedBytes += f.size
+        }
+      }
+
+      const matched = matchSession(folderName)
+      const status = matched ? matched.status || "planned" : "unlinked"
+      const isDelivered = matched ? isDeliveredStatus(status) : false
+      const parts = folderName.split("_")
+      const fallbackDate = parts.find((p) => /^\d{4}-\d{2}-\d{2}$/.test(p)) || ""
+
+      totalBytes += bytes
+      if (isDelivered) deliveredBytes += bytes
+
+      projects.push({
+        folderName,
+        fullPath: path.join(baseRoot, folderName),
+        sessionId: matched ? matched.id : null,
+        clientName: matched ? matched.client_name : parts.slice(1).join(" ") || folderName,
+        sessionDate: matched ? matched.session_date || fallbackDate : fallbackDate,
+        category: matched ? matched.category || "" : "",
+        status,
+        isDelivered,
+        totalFiles: files.length,
+        syncedFiles: syncedCount,
+        unsyncedFiles: unsyncedCount,
+        unsyncedMb: Number((unsyncedBytes / (1024 * 1024)).toFixed(1)),
+        isFullySynced: files.length > 0 ? unsyncedCount === 0 : true,
+        bytes,
+        mb: Number((bytes / (1024 * 1024)).toFixed(1)),
+        gb: Number((bytes / 1024 ** 3).toFixed(2)),
+      })
+    }
+
+    if (remoteMap !== null) this.saveCache()
+
+    // Ordenar: primero los entregados más pesados, luego el resto por peso
+    projects.sort((a, b) => {
+      if (a.isDelivered !== b.isDelivered) return a.isDelivered ? -1 : 1
+      return b.bytes - a.bytes
+    })
+
+    return {
+      ok: true,
+      nasReachable,
+      totalBytes,
+      totalMb: Number((totalBytes / (1024 * 1024)).toFixed(1)),
+      totalGb: Number((totalBytes / 1024 ** 3).toFixed(2)),
+      deliveredBytes,
+      deliveredMb: Number((deliveredBytes / (1024 * 1024)).toFixed(1)),
+      deliveredGb: Number((deliveredBytes / 1024 ** 3).toFixed(2)),
+      projects,
+    }
+  }
+
+  /**
+   * Reciclaje Seguro con Verificación NAS obligatoria:
+   * 1. Conecta al NAS en vivo y verifica que cada foto/vídeo/documento de la carpeta exista con idéntico peso.
+   * 2. Si faltan archivos en el NAS, los sube primero automáticamente al NAS con barra de progreso.
+   * 3. Si falla la conexión al NAS o falla aunque sea 1 archivo, ABORTA el reciclaje sin borrar nada en local.
+   * 4. Una vez 100% respaldado en el NAS, mueve la carpeta local a la Papelera de Reciclaje de Windows.
+   */
+  async verifyAndRecycleProjects(projectFolders = []) {
+    const folders = Array.isArray(projectFolders) ? projectFolders.filter(Boolean) : [projectFolders].filter(Boolean)
+    if (folders.length === 0) return { ok: false, error: "NO_PROJECTS_SELECTED" }
+    if (this.isRunning || this.isScanning) return { ok: false, error: "BUSY" }
+
+    const cfg = getConfig()
+    if (!cfg.nasPassword || !cfg.nasHost) {
+      return { ok: false, error: "NAS_NOT_CONFIGURED" }
+    }
+
+    const baseRoot = cfg.ssdPath
+    if (!baseRoot || !fs.existsSync(baseRoot)) {
+      return { ok: false, error: "SSD_PATH_NOT_FOUND" }
+    }
+
+    // 1. Recolectar todos los archivos locales de las carpetas seleccionadas
+    const allLocal = this.scanLocalTree(baseRoot)
+    const targetSet = new Set(folders)
+    const targetFiles = allLocal.filter((f) => targetSet.has(f.projectFolder))
+
+    // 2. Conectar al NAS por FTP para auditoría real en vivo (Fail-Safe estricto)
+    const ftp = require("basic-ftp")
+    let remoteMap = null
+    const auditClient = new ftp.Client(15000)
+    try {
+      await auditClient.access({
+        host: cfg.nasHost,
+        user: cfg.nasUser,
+        password: cfg.nasPassword,
+        port: 21,
+      })
+      remoteMap = await this.fetchRemoteTreeMap(auditClient, cfg.nasBaseDir, folders)
+    } catch (err) {
+      return {
+        ok: false,
+        error: "NAS_UNREACHABLE",
+        message: err.message || String(err),
+      }
+    } finally {
+      try {
+        auditClient.close()
+      } catch {}
+    }
+
+    if (remoteMap === null) {
+      return { ok: false, error: "NAS_UNREACHABLE" }
+    }
+
+    // 3. Detectar cualquier archivo que aún no esté sincronizado en el NAS
+    const missingFiles = []
+    for (const f of targetFiles) {
+      const rSize = remoteMap.get(f.relPath)
+      if (rSize === undefined || rSize !== f.size) {
+        missingFiles.push(f)
+      } else {
+        this.cache[f.relPath] = { size: f.size, mtimeMs: f.mtimeMs }
+      }
+    }
+    this.saveCache()
+
+    // 4. Si hay archivos sin sincronizar en el NAS, sincronizarlos automáticamente antes de reciclar
+    let syncedBeforeRecycle = 0
+    if (missingFiles.length > 0) {
+      const syncResult = await this.syncFilesList(missingFiles, { force: true })
+      if (!syncResult || !syncResult.ok || (syncResult.summary && syncResult.summary.failed > 0)) {
+        return {
+          ok: false,
+          error: "NAS_SYNC_INCOMPLETE",
+          failedCount: syncResult?.summary?.failed || missingFiles.length,
+        }
+      }
+      syncedBeforeRecycle = syncResult.summary?.files || missingFiles.length
+    }
+
+    // 5. Enviar las carpetas locales verificadas a la Papelera de Reciclaje de Windows
+    let freedBytes = 0
+    const recycledProjects = []
+    const failedRecycle = []
+
+    for (const folderName of folders) {
+      const fullProjectPath = path.join(baseRoot, folderName)
+      if (!fs.existsSync(fullProjectPath)) continue
+      const projBytes = targetFiles
+        .filter((f) => f.projectFolder === folderName)
+        .reduce((acc, f) => acc + f.size, 0)
+
+      try {
+        await shell.trashItem(fullProjectPath)
+        freedBytes += projBytes
+        recycledProjects.push(folderName)
+        // Limpiar del mapa en tiempo real
+        for (const f of targetFiles) {
+          if (f.projectFolder === folderName) {
+            this.knownRealtime.delete(f.fullPath)
+            this.stabilizing.delete(f.fullPath)
+          }
+        }
+      } catch (trashErr) {
+        failedRecycle.push({ folderName, error: trashErr.message || String(trashErr) })
+      }
+    }
+
+    return {
+      ok: failedRecycle.length === 0,
+      recycledProjects,
+      recycledCount: recycledProjects.length,
+      syncedBeforeRecycle,
+      freedBytes,
+      freedMb: Number((freedBytes / (1024 * 1024)).toFixed(1)),
+      freedGb: Number((freedBytes / 1024 ** 3).toFixed(2)),
+      failedRecycle,
     }
   }
 }
