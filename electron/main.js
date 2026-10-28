@@ -284,10 +284,17 @@ const DONE_TEXT = {
   ar: (c) => ["اكتمل التفريغ", `صور ${c} جاهزة.`],
 }
 
+const SD_READY_TEXT = {
+  fr: (n) => ["Carte SD prête à être retirée", `Copie SSD terminée (${n} fichiers). Synchronisation Cloud & NAS en arrière-plan...`],
+  es: (n) => ["Tarjeta SD lista para retirar", `Copia en SSD completada (${n} archivos). Sincronizando Nube y NAS en segundo plano...`],
+  en: (n) => ["SD Card Safe to Remove", `SSD copy finished (${n} files). Syncing Cloud & NAS in background...`],
+  ar: (n) => ["يمكنك إزالة بطاقة SD الآن", `اكتمل النسخ إلى SSD (${n} ملفًا). جارٍ مزامنة السحابة و NAS في الخلفية...`],
+}
+
 const MASTER_NOTIFY_TEXT = {
-  fr: (f, p) => ["Synchronisation Édition Master terminée", `${f} est synchronisé avec Supabase et le NAS (${p}).`],
-  es: (f, p) => ["Sincronización Edición Master completada", `${f} está sincronizado con Supabase y el NAS (${p}).`],
-  en: (f, p) => ["Master Edition Sync Complete", `${f} has been synced to Supabase and NAS (${p}).`],
+  fr: (f, p) => ["Synchronisation Édition Master terminée", `${f} synchronisé avec Supabase et le NAS (${p}).`],
+  es: (f, p) => ["Sincronización Edición Master completada", `${f} sincronizado con Supabase y el NAS (${p}).`],
+  en: (f, p) => ["Master Edition Sync Complete", `${f} synced to Supabase and NAS (${p}).`],
   ar: (f, p) => ["اكتملت مزامنة نسخة ماستر", `تمت مزامنة ${f} مع Supabase و NAS (${p}).`],
 }
 
@@ -295,6 +302,13 @@ const MASTER_NOTIFY_TEXT = {
 // Arranque
 // ---------------------------------------------------------------------------
 app.whenReady().then(() => {
+  // Activar inicio automático con Windows en entorno empaquetado de producción
+  if (!process.defaultApp) {
+    try {
+      app.setLoginItemSettings({ openAtLogin: true })
+    } catch {}
+  }
+
   currentLanguage = getConfig().language || "fr"
   createWindow()
 
@@ -329,21 +343,35 @@ app.whenReady().then(() => {
   })
   driveWatcher.start()
 
-  // Observador de archivos en 03_Edicion_Master
+  // Observador de archivos en 03_Edicion_Master con cola inteligente por lotes
   masterWatcher = new MasterFolderWatcher()
-  masterWatcher.on("master-file-added", async (item) => {
+  masterWatcher.on("master-file-added", (item) => {
     logToFile("[MASTER_WATCHER] Archivo detectado en 03_Edicion_Master:", item.filePath)
     showMini()
-    const cfg = getConfig()
-    const lang = cfg.language || currentLanguage || "fr"
-    const res = await engine.syncMasterFile(item, lang, (ev) => {
-      broadcastIngest(ev)
-    })
-    if (res && res.ok) {
-      const notifyFn = MASTER_NOTIFY_TEXT[lang] || MASTER_NOTIFY_TEXT.fr
-      const [title, body] = notifyFn(item.fileName, res.client || item.projectFolder)
-      notify(title, body)
-    }
+    engine.enqueueMasterFile(
+      item,
+      (ev) => {
+        broadcastIngest(ev)
+      },
+      (summary) => {
+        const cfg = getConfig()
+        const lang = cfg.language || currentLanguage || "fr"
+        const notifyFn = MASTER_NOTIFY_TEXT[lang] || MASTER_NOTIFY_TEXT.fr
+        const label =
+          summary.count > 1
+            ? lang === "fr"
+              ? `${summary.count} fichiers Master`
+              : lang === "en"
+              ? `${summary.count} Master files`
+              : lang === "ar"
+              ? `${summary.count} ملفات ماستر`
+              : `${summary.count} archivos Master`
+            : summary.fileName
+        const [title, body] = notifyFn(label, summary.client || item.projectFolder)
+        notify(title, body)
+        miniCloseTimer = setTimeout(closeMini, 15000)
+      }
+    )
   })
   masterWatcher.start()
 
@@ -451,7 +479,10 @@ async function triggerIngestWorkflow(params) {
 
   const result = await engine.runIngest({ ...params, lang: currentLanguage }, (ev) => {
     broadcastIngest(ev)
-    if (ev.type === "done" && !ev.empty) {
+    if (ev.type === "sd-ready") {
+      const [title, body] = (SD_READY_TEXT[currentLanguage] || SD_READY_TEXT.fr)(ev.files || 0)
+      notify(title, body)
+    } else if (ev.type === "done" && !ev.empty) {
       const [title, body] = (DONE_TEXT[currentLanguage] || DONE_TEXT.fr)(ev.summary?.client || "")
       notify(title, body)
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.flashFrame(true)
@@ -468,6 +499,7 @@ app.on("before-quit", () => {
   app.isQuitting = true
   if (bridgeServer) bridgeServer.stop()
   if (driveWatcher) driveWatcher.stop()
+  if (masterWatcher) masterWatcher.stop()
   if (systemTray) systemTray.destroy()
 })
 

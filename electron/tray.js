@@ -130,7 +130,12 @@ class LamhaSystemTray {
       {
         label: t.openLocalStorage,
         click: () => {
-          const ssdPath = "C:\\Lamha_Vault"
+          const fs = require("fs")
+          const { getConfig } = require("./config")
+          const ssdPath = getConfig().ssdPath || "C:\\Lamha-Storage"
+          try {
+            if (!fs.existsSync(ssdPath)) fs.mkdirSync(ssdPath, { recursive: true })
+          } catch {}
           shell.openPath(ssdPath).catch(() => {
             shell.openPath(app.getPath("desktop"))
           })

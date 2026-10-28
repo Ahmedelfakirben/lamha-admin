@@ -191,6 +191,7 @@
       <span class="title" id="txt-title">Ingestion en cours</span>
     </div>
     <div class="actions">
+      <button class="btn-action" id="btn-cancel" title="Annuler / Cancelar" style="color: #ef4444; border-color: rgba(239,68,68,0.35);">■</button>
       <button class="btn-action" id="btn-expand" title="Agrandir">↗</button>
       <button class="btn-action" id="btn-close" title="Fermer">✕</button>
     </div>
@@ -247,7 +248,11 @@
           txtTitle.textContent = (I18N[lang] || I18N.fr).title;
         }
         if (ev.currentFile) txtFile.textContent = ev.currentFile;
-        txtCount.textContent = ev.isMasterSync ? "03_Édition_Master" : `${ev.processed || 0} / ${ev.total || 0}`;
+        txtCount.textContent = ev.isMasterSync
+          ? ev.total && ev.total > 1
+            ? `03_Master • ${ev.processed || 1}/${ev.total}`
+            : "03_Édition_Master"
+          : `${ev.processed || 0} / ${ev.total || 0}`;
         txtSpeed.textContent = (ev.speed || 0) + " MB/s";
 
         if (ev.stages) {
@@ -262,6 +267,7 @@
         txtFile.textContent = ev.fileName || (ev.summary ? `Client: ${ev.summary.client || "OK"}` : "Prêt");
         document.getElementById("dot").style.background = "#10b981";
         document.getElementById("dot").style.boxShadow = "0 0 8px #10b981";
+        document.getElementById("btn-cancel").style.display = "none";
         if (ev.isMasterSync) {
           tagCopy.className = "stage-tag done";
           tagCloud.className = "stage-tag done";
@@ -269,6 +275,7 @@
         }
       } else if (ev.type === "cancelled") {
         txtTitle.textContent = (I18N[lang] || I18N.fr).cancelled;
+        document.getElementById("btn-cancel").style.display = "none";
       }
     }
 
@@ -279,6 +286,7 @@
       else if (stage.state === "active") el.classList.add("active");
     }
 
+    document.getElementById("btn-cancel").onclick = () => window.electronAPI && window.electronAPI.cancelIngest();
     document.getElementById("btn-expand").onclick = () => window.electronAPI.miniExpand();
     document.getElementById("btn-close").onclick = () => window.electronAPI.miniClose();
 

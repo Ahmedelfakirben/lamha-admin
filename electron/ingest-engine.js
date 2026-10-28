@@ -329,11 +329,81 @@ function createTracker(emit, enabled) {
 // ---------------------------------------------------------------------------
 // Ingesta completa
 // ---------------------------------------------------------------------------
+const os = require("os")
 let currentJob = null
+let masterCancelled = false
+const masterQueue = []
+let masterProcessing = false
 
 function cancelIngest() {
   if (currentJob) currentJob.cancelled = true
+  masterCancelled = true
+  masterQueue.length = 0
   return { ok: true }
+}
+
+function getFfmpegPath() {
+  const { execSync } = require("child_process")
+  try {
+    const out = execSync("where ffmpeg", { stdio: ["pipe", "pipe", "ignore"], encoding: "utf-8" }).trim()
+    const firstLine = out.split(/\r?\n/)[0].trim()
+    if (firstLine && fs.existsSync(firstLine)) return firstLine
+  } catch {}
+
+  const localApp = process.env.LOCALAPPDATA || ""
+  if (localApp) {
+    const wingetDir = path.join(localApp, "Microsoft", "WinGet", "Packages")
+    if (fs.existsSync(wingetDir)) {
+      try {
+        const pkgs = fs.readdirSync(wingetDir)
+        for (const pkg of pkgs) {
+          if (pkg.toLowerCase().includes("ffmpeg")) {
+            const candidateDir = path.join(wingetDir, pkg)
+            const sub = fs.readdirSync(candidateDir)
+            for (const s of sub) {
+              const binP = path.join(candidateDir, s, "bin", "ffmpeg.exe")
+              if (fs.existsSync(binP)) return binP
+              const rootP = path.join(candidateDir, s, "ffmpeg.exe")
+              if (fs.existsSync(rootP)) return rootP
+            }
+          }
+        }
+      } catch {}
+    }
+  }
+
+  return "ffmpeg"
+}
+
+async function extractVideoWebpBuffer(videoPath, sharp) {
+  if (!sharp) return null
+  const ffmpegBin = getFfmpegPath()
+  const tempThumb = path.join(app.getPath("temp"), `lamha_thumb_${Date.now()}_${Math.random().toString(36).substring(7)}.jpg`)
+  try {
+    const { execFile } = require("child_process")
+    await new Promise((resolve) => {
+      execFile(ffmpegBin, ["-ss", "00:00:01", "-i", videoPath, "-vframes", "1", "-q:v", "2", tempThumb, "-y"], (err) => {
+        if (err) {
+          execFile(ffmpegBin, ["-ss", "00:00:00.1", "-i", videoPath, "-vframes", "1", "-q:v", "2", tempThumb, "-y"], () => resolve())
+        } else {
+          resolve()
+        }
+      })
+    })
+    if (fs.existsSync(tempThumb)) {
+      return await sharp(tempThumb, { failOn: "none" })
+        .resize({ width: 1280, height: 720, fit: "inside", withoutEnlargement: true })
+        .webp({ quality: 80, effort: 2 })
+        .toBuffer()
+    }
+  } catch (err) {
+    console.warn("Error extrayendo fotograma de vídeo:", err.message)
+  } finally {
+    try {
+      if (fs.existsSync(tempThumb)) fs.unlinkSync(tempThumb)
+    } catch {}
+  }
+  return null
 }
 
 async function runIngest(params, emit) {
@@ -427,52 +497,66 @@ async function runIngest(params, emit) {
       let copiedBytes = 0
       let skipped = 0
       let done = 0
-      for (const it of items) {
-        if (isCancelled()) throw new Error("CANCELLED")
-        tracker.setFile(it.name, done, items.length)
-        let already = false
-        try {
-          already = fs.existsSync(it.dest) && fs.statSync(it.dest).size === it.size
-        } catch {}
-        if (already) {
-          skipped++
-          tracker.addBytes(it.size)
-          copiedBytes += it.size
-        } else {
+      let copyIdx = 0
+
+      // Copia concurrente (2 flujos simultáneos) para saturar el lector UHS-II / CFexpress
+      const copyWorker = async () => {
+        while (!isCancelled()) {
+          const idx = copyIdx++
+          if (idx >= items.length) return
+          const it = items[idx]
+          tracker.setFile(it.name, done, items.length)
+          let already = false
           try {
-            await copyWithProgress(
-              it.src,
-              it.dest,
-              (n) => {
-                copiedBytes += n
-                tracker.addBytes(n)
-                tracker.stages.copy.percent = Math.min(100, (copiedBytes / totalBytes) * 100)
-                tracker.push()
-              },
-              isCancelled
-            )
-            if (fs.statSync(it.dest).size !== it.size) throw new Error("SIZE_MISMATCH")
-            fs.utimesSync(it.dest, it.atime, it.mtime)
-          } catch (e) {
-            if (e.message === "CANCELLED") throw e
-            tracker.log("warn", t.copyFail(it.name, e.message))
+            already = fs.existsSync(it.dest) && fs.statSync(it.dest).size === it.size
+          } catch {}
+          if (already) {
+            skipped++
+            tracker.addBytes(it.size)
+            copiedBytes += it.size
+          } else {
             try {
-              fs.unlinkSync(it.dest)
-            } catch {}
-            it.failed = true
+              await copyWithProgress(
+                it.src,
+                it.dest,
+                (n) => {
+                  copiedBytes += n
+                  tracker.addBytes(n)
+                  tracker.stages.copy.percent = Math.min(100, (copiedBytes / totalBytes) * 100)
+                  tracker.push()
+                },
+                isCancelled
+              )
+              if (fs.statSync(it.dest).size !== it.size) throw new Error("SIZE_MISMATCH")
+              fs.utimesSync(it.dest, it.atime, it.mtime)
+            } catch (e) {
+              if (e.message === "CANCELLED") throw e
+              tracker.log("warn", t.copyFail(it.name, e.message))
+              try {
+                fs.unlinkSync(it.dest)
+              } catch {}
+              it.failed = true
+            }
           }
+          if (!it.failed) it.type === "photo" ? photos++ : videos++
+          done++
+          tracker.stages.copy.percent = (done / items.length) * 100
+          tracker.setFile(it.name, done, items.length)
         }
-        if (!it.failed) it.type === "photo" ? photos++ : videos++
-        done++
-        tracker.stages.copy.percent = (done / items.length) * 100
-        tracker.setFile(it.name, done, items.length)
       }
+
+      await Promise.all(Array.from({ length: 2 }, copyWorker))
       okItems = items.filter((i) => !i.failed)
       const copySec = Math.max(0.001, (Date.now() - copyStart) / 1000)
       totalMb = Number((copiedBytes / 1024 ** 2).toFixed(1))
       if (skipped) tracker.log("info", t.skipped(skipped))
       tracker.log("success", t.copyDone(okItems.length, totalMb, copySec.toFixed(0), (totalMb / copySec).toFixed(1)))
       tracker.setStage("copy", { state: "done", percent: 100 }, true)
+
+      // Notificar inmediatamente que la tarjeta SD ya se puede retirar de forma segura
+      if ((useCloud || useNas) && okItems.length > 0) {
+        emit({ type: "sd-ready", client: sess.client_name, files: okItems.length })
+      }
     } else {
       for (const it of items) {
         it.localDest = it.dest
@@ -484,18 +568,37 @@ async function runIngest(params, emit) {
       tracker.setStage("copy", { state: "off", percent: 100 }, true)
     }
 
-    // --- FASE 2: Supabase (registro + previews WebP) ------------------------
+    // --- FASE 2 (Supabase Cloud) + FASE 3 (NAS FTP) EN PARALELO --------------
     let cloudOk = 0
     let cloudFail = 0
-    if (useCloud) {
-      if (isCancelled()) throw new Error("CANCELLED")
+    let nasOk = 0
+    let nasFail = 0
+    let nasState = "off"
+
+    if (useCloud && useNas) {
+      tracker.setPhase("cloud+nas")
+    } else if (useCloud) {
       tracker.setPhase("cloud")
+    } else if (useNas) {
+      tracker.setPhase("nas")
+    }
+
+    const runCloudPhase = async () => {
+      if (!useCloud) return
+      if (isCancelled()) throw new Error("CANCELLED")
       tracker.setStage("cloud", { state: "active", percent: 0 }, true)
       tracker.log("info", t.cloudStart)
       tracker.state.total = okItems.length
       tracker.state.processed = 0
 
-      // 2.1 Registro en media_assets (sin duplicar si ya existen)
+      // Precalcular storagePath y URL pública determinista para evitar N llamadas UPDATE individuales
+      for (const c of okItems) {
+        c.storagePath = `${sess.id}/${path.parse(c.name).name}_preview.webp`
+        const { data: pub } = supabase.storage.from("session-previews").getPublicUrl(c.storagePath)
+        c.publicPreviewUrl = pub?.publicUrl || `/api/media/preview?file=${encodeURIComponent(c.dest)}`
+      }
+
+      // 2.1 Registro en lote en media_assets con la URL definitiva de Supabase Storage ya asignada
       const idByName = new Map()
       for (let i = 0; i < okItems.length; i += 100) {
         const chunk = okItems.slice(i, i + 100)
@@ -510,7 +613,7 @@ async function runIngest(params, emit) {
             filename: c.name,
             nas_path: `${folderName}/01_RAW/${c.sub}/${c.name}`,
             size_mb: Number((c.size / 1024 ** 2).toFixed(2)),
-            preview_url: `/api/media/preview?file=${encodeURIComponent(c.dest)}`,
+            preview_url: c.publicPreviewUrl,
             is_archived: false,
             notes: `SSD: ${c.dest}`,
           }))
@@ -523,61 +626,66 @@ async function runIngest(params, emit) {
         }
       }
 
-      // 2.2 Previews WebP (1600px) -> bucket session-previews
+      // 2.2 Previews WebP (Fotos 1600px + Vídeos 1280x720 vía FFmpeg) -> bucket session-previews
+      const cpuThreads = Math.max(2, Math.min(6, Math.floor((os.cpus()?.length || 4) / 2)))
       let sharp = null
       let et = null
       try {
         sharp = require("sharp")
-        sharp.concurrency(2)
+        sharp.concurrency(cpuThreads)
         sharp.cache(false)
       } catch (e) {
         tracker.log("warn", t.dbError(`sharp: ${e.message}`))
       }
       try {
         const { ExifTool } = require("exiftool-vendored")
-        et = new ExifTool({ maxProcs: 2, taskTimeoutMillis: 30000 })
+        et = new ExifTool({ maxProcs: cpuThreads, taskTimeoutMillis: 30000 })
       } catch {}
 
-      const photoItems = okItems.filter((i) => i.type === "photo")
-      const videoCount = okItems.length - photoItems.length
-      let processed = videoCount // los vídeos no generan preview: cuentan como hechos
+      let processed = 0
       let next = 0
-      const bump = () => {
+      const bump = (name) => {
         processed++
         tracker.stages.cloud.percent = okItems.length ? (processed / okItems.length) * 100 : 100
-        tracker.setFile("", processed, okItems.length)
+        tracker.setFile(name || "", processed, okItems.length)
       }
-      tracker.stages.cloud.percent = okItems.length ? (processed / okItems.length) * 100 : 100
 
+      const workerCount = Math.min(6, cpuThreads + 1)
       const worker = async () => {
         while (!isCancelled()) {
           const i = next++
-          if (i >= photoItems.length) return
-          const it = photoItems[i]
+          if (i >= okItems.length) return
+          const it = okItems[i]
           tracker.state.currentFile = it.name
           try {
             if (!sharp) throw new Error("NO_SHARP")
-            let input = it.dest
-            if (!it.isJpg && et) {
-              for (const tag of ["PreviewImage", "JpgFromRaw"]) {
-                try {
-                  const buf = await et.extractBinaryTagToBuffer(tag, it.dest)
-                  if (buf && buf.length > 2000) {
-                    input = buf
-                    break
-                  }
-                } catch {}
+            let webp = null
+            if (it.type === "video") {
+              webp = await extractVideoWebpBuffer(it.dest, sharp)
+              if (!webp) throw new Error("NO_VIDEO_THUMB")
+            } else {
+              let input = it.dest
+              if (!it.isJpg && et) {
+                for (const tag of ["PreviewImage", "JpgFromRaw"]) {
+                  try {
+                    const buf = await et.extractBinaryTagToBuffer(tag, it.dest)
+                    if (buf && buf.length > 2000) {
+                      input = buf
+                      break
+                    }
+                  } catch {}
+                }
               }
+              webp = await sharp(input, { failOn: "none" })
+                .rotate()
+                .resize({ width: 1600, height: 1600, fit: "inside", withoutEnlargement: true })
+                .webp({ quality: 80, effort: 2 })
+                .toBuffer()
             }
-            const webp = await sharp(input, { failOn: "none" })
-              .rotate()
-              .resize({ width: 1600, height: 1600, fit: "inside", withoutEnlargement: true })
-              .webp({ quality: 80, effort: 2 })
-              .toBuffer()
-            const storagePath = `${sess.id}/${path.parse(it.name).name}_preview.webp`
+
             let upErr = null
             for (let attempt = 0; attempt < 3; attempt++) {
-              const { error } = await supabase.storage.from("session-previews").upload(storagePath, webp, {
+              const { error } = await supabase.storage.from("session-previews").upload(it.storagePath, webp, {
                 contentType: "image/webp",
                 cacheControl: "31536000",
                 upsert: true,
@@ -588,21 +696,16 @@ async function runIngest(params, emit) {
             }
             if (upErr) throw upErr
             tracker.addBytes(webp.length)
-            const { data: pub } = supabase.storage.from("session-previews").getPublicUrl(storagePath)
-            const id = idByName.get(it.name)
-            if (id) {
-              const { error: updErr } = await supabase.from("media_assets").update({ preview_url: pub.publicUrl }).eq("id", id)
-              if (updErr) throw updErr
-            }
             cloudOk++
           } catch (e) {
             cloudFail++
             tracker.log("warn", `${it.name}: ${e.message || e}`)
           }
-          bump()
+          bump(it.name)
         }
       }
-      await Promise.all(Array.from({ length: 4 }, worker))
+
+      await Promise.all(Array.from({ length: workerCount }, worker))
       try {
         if (et) await et.end()
       } catch {}
@@ -611,21 +714,52 @@ async function runIngest(params, emit) {
       tracker.setStage("cloud", { state: cloudFail && !cloudOk ? "error" : "done", percent: 100 }, true)
     }
 
-    // --- FASE 3: NAS por FTP ------------------------------------------------
-    let nasOk = 0
-    let nasFail = 0
-    let nasState = "off"
-    if (useNas) {
+    const runNasPhase = async () => {
+      if (!useNas) return
       if (isCancelled()) throw new Error("CANCELLED")
-      tracker.setPhase("nas")
       if (!cfg.nasPassword) {
         tracker.log("warn", t.nasNoPass)
         nasState = "skipped"
         tracker.setStage("nas", { state: "error", percent: 100 }, true)
-      } else {
-        tracker.setStage("nas", { state: "active", percent: 0 }, true)
-        tracker.log("info", t.nasStart(cfg.nasHost))
-        const ftp = require("basic-ftp")
+        return
+      }
+
+      tracker.setStage("nas", { state: "active", percent: 0 }, true)
+      tracker.log("info", t.nasStart(cfg.nasHost))
+      const ftp = require("basic-ftp")
+
+      // 1. Asegurar directorios remotos en el NAS con 1 cliente inicial
+      const initClient = new ftp.Client(120000)
+      try {
+        await initClient.access({ host: cfg.nasHost, user: cfg.nasUser, password: cfg.nasPassword, port: 21 })
+        const uniqueDirs = new Set(okItems.map((it) => `${cfg.nasBaseDir}/${folderName}/01_RAW/${it.sub}`))
+        for (const d of uniqueDirs) {
+          await initClient.ensureDir(d)
+        }
+      } catch (e) {
+        try {
+          initClient.close()
+        } catch {}
+        if (e.message === "CANCELLED") throw e
+        tracker.log("warn", t.nasUnavailable(e.message))
+        nasState = "failed"
+        tracker.setStage("nas", { state: "error", percent: 100 }, true)
+        return
+      } finally {
+        try {
+          initClient.close()
+        } catch {}
+      }
+
+      // 2. Pool de hasta 3 clientes FTP en paralelo para saturar la red Gigabit local
+      const nasTotal = okItems.reduce((a, b) => a + b.size, 0) || 1
+      let nasBytes = 0
+      let nasProcessed = 0
+      let nasIdx = 0
+      let consecutiveFails = 0
+      const poolSize = Math.min(3, Math.max(1, okItems.length))
+
+      const nasWorker = async () => {
         let client = new ftp.Client(120000)
         const connect = async () => {
           try {
@@ -636,23 +770,17 @@ async function runIngest(params, emit) {
         }
         try {
           await connect()
-          const ensured = new Set()
-          const nasTotal = okItems.reduce((a, b) => a + b.size, 0) || 1
-          let nasBytes = 0
-          let consecutiveFails = 0
-          let n = 0
-          for (const it of okItems) {
-            if (isCancelled()) throw new Error("CANCELLED")
-            tracker.setFile(it.name, n, okItems.length)
+          while (!isCancelled()) {
+            if (consecutiveFails >= 6) break
+            const i = nasIdx++
+            if (i >= okItems.length) return
+            const it = okItems[i]
             const dir = `${cfg.nasBaseDir}/${folderName}/01_RAW/${it.sub}`
             const remote = `${dir}/${it.name}`
             let sent = false
+
             for (let attempt = 0; attempt < 2 && !sent; attempt++) {
               try {
-                if (!ensured.has(dir)) {
-                  await client.ensureDir(dir)
-                  ensured.add(dir)
-                }
                 let remoteSize = -1
                 try {
                   remoteSize = await client.size(remote)
@@ -674,43 +802,49 @@ async function runIngest(params, emit) {
                   client.trackProgress()
                 }
                 sent = true
-              } catch (e) {
+              } catch {
                 client.trackProgress()
                 if (attempt === 0) {
                   try {
-                    ensured.clear()
                     await connect()
                   } catch {}
                 }
               }
             }
+
             if (sent) {
               nasOk++
               consecutiveFails = 0
             } else {
               nasFail++
               consecutiveFails++
-              if (consecutiveFails >= 5) throw new Error("NAS_UNSTABLE")
             }
-            n++
+            nasProcessed++
             tracker.stages.nas.percent = Math.min(100, (nasBytes / nasTotal) * 100)
-            tracker.setFile(it.name, n, okItems.length)
+            tracker.setFile(it.name, nasProcessed, okItems.length)
           }
-          tracker.log(nasFail ? "warn" : "success", t.nasDone(nasOk, nasFail))
-          nasState = nasFail ? "partial" : "done"
-          tracker.setStage("nas", { state: nasFail && !nasOk ? "error" : "done", percent: 100 }, true)
-        } catch (e) {
-          if (e.message === "CANCELLED") throw e
-          tracker.log("warn", t.nasUnavailable(e.message))
-          nasState = "failed"
-          tracker.setStage("nas", { state: "error", percent: 100 }, true)
         } finally {
           try {
             client.close()
           } catch {}
         }
       }
+
+      try {
+        await Promise.all(Array.from({ length: poolSize }, nasWorker))
+        if (isCancelled()) throw new Error("CANCELLED")
+        tracker.log(nasFail ? "warn" : "success", t.nasDone(nasOk, nasFail))
+        nasState = nasFail ? (nasOk ? "partial" : "failed") : "done"
+        tracker.setStage("nas", { state: nasFail && !nasOk ? "error" : "done", percent: 100 }, true)
+      } catch (e) {
+        if (e.message === "CANCELLED") throw e
+        tracker.log("warn", t.nasUnavailable(e.message))
+        nasState = "failed"
+        tracker.setStage("nas", { state: "error", percent: 100 }, true)
+      }
     }
+
+    await Promise.all([runCloudPhase(), runNasPhase()])
 
     const summary = {
       files: okItems.length,
@@ -743,81 +877,34 @@ async function runIngest(params, emit) {
 }
 
 // ---------------------------------------------------------------------------
-// Sincronización Automática de 03_Edicion_Master
+// Sincronización Automática y Cola de Lotes para 03_Edicion_Master
 // ---------------------------------------------------------------------------
-function getFfmpegPath() {
-  const { execSync } = require("child_process")
-  try {
-    const out = execSync("where ffmpeg", { stdio: ["pipe", "pipe", "ignore"], encoding: "utf-8" }).trim()
-    const firstLine = out.split(/\r?\n/)[0].trim()
-    if (firstLine && fs.existsSync(firstLine)) return firstLine
-  } catch {}
+const sessionFolderCache = new Map() // projectFolder -> { sessionId, clientName }
 
-  const localApp = process.env.LOCALAPPDATA || ""
-  if (localApp) {
-    const wingetDir = path.join(localApp, "Microsoft", "WinGet", "Packages")
-    if (fs.existsSync(wingetDir)) {
-      try {
-        const pkgs = fs.readdirSync(wingetDir)
-        for (const pkg of pkgs) {
-          if (pkg.toLowerCase().includes("ffmpeg")) {
-            const candidateDir = path.join(wingetDir, pkg)
-            const sub = fs.readdirSync(candidateDir)
-            for (const s of sub) {
-              const binP = path.join(candidateDir, s, "bin", "ffmpeg.exe")
-              if (fs.existsSync(binP)) return binP
-              const rootP = path.join(candidateDir, s, "ffmpeg.exe")
-              if (fs.existsSync(rootP)) return rootP
-            }
-          }
-        }
-      } catch {}
-    }
+async function resolveSessionForFolder(supabase, projectFolder) {
+  if (sessionFolderCache.has(projectFolder)) {
+    return sessionFolderCache.get(projectFolder)
   }
-
-  return "ffmpeg"
-}
-
-async function syncMasterFile(item, lang = "fr", onProgress = () => {}) {
-  const startTime = Date.now()
-  onProgress({
-    type: "progress",
-    isMasterSync: true,
-    currentFile: item.fileName,
-    percent: 15,
-    speed: 0,
-    processed: 1,
-    total: 1,
-    stages: {
-      copy: { state: "done", percent: 100 },
-      cloud: { state: "active", percent: 15 },
-      nas: { state: "pending", percent: 0 },
-    },
-  })
-
   let sessionId = null
   let clientName = ""
-  const supabase = getClient()
-
-  // 1. Resolver Sesión en Supabase
   try {
     const { data: matchedAsset } = await supabase
       .from("media_assets")
       .select("session_id")
-      .ilike("nas_path", `${item.projectFolder}/%`)
+      .ilike("nas_path", `${projectFolder}/%`)
       .not("session_id", "is", null)
       .limit(1)
 
     if (matchedAsset && matchedAsset.length > 0 && matchedAsset[0].session_id) {
       sessionId = matchedAsset[0].session_id
     } else {
-      const parts = item.projectFolder.split("_")
+      const parts = projectFolder.split("_")
       const dateCandidate = parts.find((p) => /^\d{4}-\d{2}-\d{2}$/.test(p))
       let query = supabase.from("sessions").select("id, client_name")
       if (dateCandidate) query = query.eq("session_date", dateCandidate)
       const { data: sessList } = await query.limit(20)
       if (sessList && sessList.length > 0) {
-        const found = sessList.find((s) => s.client_name && item.projectFolder.toLowerCase().includes(s.client_name.toLowerCase()))
+        const found = sessList.find((s) => s.client_name && projectFolder.toLowerCase().includes(s.client_name.toLowerCase()))
         sessionId = found ? found.id : sessList[0].id
         clientName = found ? found.client_name : sessList[0].client_name
       }
@@ -830,13 +917,47 @@ async function syncMasterFile(item, lang = "fr", onProgress = () => {}) {
   } catch (e) {
     console.warn("Error resolviendo sesión para master file:", e.message)
   }
+  const result = { sessionId, clientName }
+  if (sessionId) sessionFolderCache.set(projectFolder, result)
+  return result
+}
 
-  // 2. Generar Previsualización WebP (Fotos y Vídeos)
+async function processSingleMasterItem(item, ftpClient, ensuredDirs, batchState, onProgress) {
+  const startTime = Date.now()
+  const supabase = getClient()
+  const { sessionId, clientName } = await resolveSessionForFolder(supabase, item.projectFolder)
+  batchState.lastClient = clientName || item.projectFolder
+  batchState.lastFile = item.fileName
+
+  const emitStep = (filePct, cloudState, nasState, speed = 0) => {
+    const overallPct = Math.min(
+      99,
+      Math.round(((batchState.processed + filePct / 100) / Math.max(1, batchState.total)) * 100)
+    )
+    onProgress({
+      type: "progress",
+      isMasterSync: true,
+      currentFile: item.fileName,
+      percent: overallPct,
+      speed,
+      processed: batchState.processed + 1,
+      total: batchState.total,
+      stages: {
+        copy: { state: "done", percent: 100 },
+        cloud: { state: cloudState, percent: cloudState === "done" ? 100 : filePct },
+        nas: { state: nasState, percent: nasState === "done" ? 100 : filePct },
+      },
+    })
+  }
+
+  emitStep(15, "active", "pending")
+
+  // 1. Generar Previsualización WebP (Fotos y Vídeos)
   let previewWebpBuffer = null
   let sharp = null
   try {
     sharp = require("sharp")
-    sharp.concurrency(2)
+    sharp.concurrency(Math.max(2, Math.min(4, Math.floor((os.cpus()?.length || 4) / 2))))
     sharp.cache(false)
   } catch {}
 
@@ -850,174 +971,203 @@ async function syncMasterFile(item, lang = "fr", onProgress = () => {}) {
     } catch (err) {
       console.warn("Error Sharp en imagen master:", err.message)
     }
-  } else if (item.isVideo) {
-    const ffmpegBin = getFfmpegPath()
-    const tempThumb = path.join(app.getPath("temp"), `lamha_thumb_${Date.now()}_${Math.random().toString(36).substring(7)}.jpg`)
-    try {
-      const { execFile } = require("child_process")
-      await new Promise((resolve) => {
-        execFile(ffmpegBin, ["-ss", "00:00:01", "-i", item.filePath, "-vframes", "1", "-q:v", "2", tempThumb, "-y"], (err) => {
-          if (err) {
-            execFile(ffmpegBin, ["-ss", "00:00:00.1", "-i", item.filePath, "-vframes", "1", "-q:v", "2", tempThumb, "-y"], () => resolve())
-          } else {
-            resolve()
-          }
-        })
-      })
-
-      if (fs.existsSync(tempThumb) && sharp) {
-        previewWebpBuffer = await sharp(tempThumb, { failOn: "none" })
-          .resize({ width: 1280, height: 720, fit: "inside", withoutEnlargement: true })
-          .webp({ quality: 80, effort: 2 })
-          .toBuffer()
-      }
-    } catch (err) {
-      console.warn("Error extrayendo fotograma de vídeo:", err.message)
-    } finally {
-      try {
-        if (fs.existsSync(tempThumb)) fs.unlinkSync(tempThumb)
-      } catch {}
-    }
+  } else if (item.isVideo && sharp) {
+    previewWebpBuffer = await extractVideoWebpBuffer(item.filePath, sharp)
   }
 
-  // 3. Subir WebP a Supabase Storage (bucket session-previews)
-  let previewUrl = null
-  if (previewWebpBuffer) {
-    const cleanBase = path.parse(item.fileName).name
-    const storagePath = `master/${sessionId || "unassigned"}/${cleanBase}_preview.webp`
-    try {
-      const { error: upErr } = await supabase.storage.from("session-previews").upload(storagePath, previewWebpBuffer, {
-        contentType: "image/webp",
-        cacheControl: "31536000",
-        upsert: true,
-      })
-      if (!upErr) {
-        const { data: pub } = supabase.storage.from("session-previews").getPublicUrl(storagePath)
-        previewUrl = pub?.publicUrl || null
-      }
-    } catch (err) {
-      console.warn("Error subiendo preview a Supabase Storage:", err.message)
-    }
-  }
-
-  // 4. Registrar o Actualizar en media_assets
+  // 2. Subir WebP a Supabase Storage + Registrar en media_assets y Subir a NAS FTP en paralelo
+  const cleanBase = path.parse(item.fileName).name
+  const storagePath = `master/${sessionId || "unassigned"}/${cleanBase}_preview.webp`
   const nasRelativePath = `${item.projectFolder}/${item.masterSubfolder}/${item.fileName}`
   const sizeMb = Number((item.size / 1024 ** 2).toFixed(2))
   const assetType = item.isVideo ? "raw_video" : "jpg"
 
-  try {
-    const { data: existing } = await supabase
-      .from("media_assets")
-      .select("id")
-      .eq("filename", item.fileName)
-      .eq("nas_path", nasRelativePath)
-      .limit(1)
-
-    if (existing && existing.length > 0) {
-      await supabase
-        .from("media_assets")
-        .update({
-          session_id: sessionId || null,
-          asset_type: assetType,
-          size_mb: sizeMb,
-          preview_url: previewUrl,
-          notes: `Master: ${item.filePath}`,
-          is_archived: false,
+  const cloudTask = async () => {
+    let previewUrl = null
+    if (previewWebpBuffer) {
+      try {
+        const { error: upErr } = await supabase.storage.from("session-previews").upload(storagePath, previewWebpBuffer, {
+          contentType: "image/webp",
+          cacheControl: "31536000",
+          upsert: true,
         })
-        .eq("id", existing[0].id)
-    } else {
-      await supabase.from("media_assets").insert([
-        {
-          session_id: sessionId || null,
-          asset_type: assetType,
-          filename: item.fileName,
-          nas_path: nasRelativePath,
-          size_mb: sizeMb,
-          preview_url: previewUrl,
-          notes: `Master: ${item.filePath}`,
-          is_archived: false,
-        },
-      ])
+        if (!upErr) {
+          const { data: pub } = supabase.storage.from("session-previews").getPublicUrl(storagePath)
+          previewUrl = pub?.publicUrl || null
+        }
+      } catch (err) {
+        console.warn("Error subiendo preview a Supabase Storage:", err.message)
+      }
     }
-  } catch (dbErr) {
-    console.warn("Error registrando archivo master en base de datos:", dbErr.message)
+
+    try {
+      const { data: existing } = await supabase
+        .from("media_assets")
+        .select("id")
+        .eq("filename", item.fileName)
+        .eq("nas_path", nasRelativePath)
+        .limit(1)
+
+      if (existing && existing.length > 0) {
+        await supabase
+          .from("media_assets")
+          .update({
+            session_id: sessionId || null,
+            asset_type: assetType,
+            size_mb: sizeMb,
+            preview_url: previewUrl,
+            notes: `Master: ${item.filePath}`,
+            is_archived: false,
+          })
+          .eq("id", existing[0].id)
+      } else {
+        await supabase.from("media_assets").insert([
+          {
+            session_id: sessionId || null,
+            asset_type: assetType,
+            filename: item.fileName,
+            nas_path: nasRelativePath,
+            size_mb: sizeMb,
+            preview_url: previewUrl,
+            notes: `Master: ${item.filePath}`,
+            is_archived: false,
+          },
+        ])
+      }
+    } catch (dbErr) {
+      console.warn("Error registrando archivo master en base de datos:", dbErr.message)
+    }
   }
 
-  onProgress({
-    type: "progress",
-    isMasterSync: true,
-    currentFile: item.fileName,
-    percent: 60,
-    speed: 0,
-    stages: {
-      copy: { state: "done", percent: 100 },
-      cloud: { state: "done", percent: 100 },
-      nas: { state: "active", percent: 10 },
-    },
-  })
-
-  // 5. Transferencia a NAS por FTP
-  const cfg = getConfig()
-  if (cfg.nasPassword && cfg.nasHost) {
-    const ftp = require("basic-ftp")
-    const client = new ftp.Client(120000)
+  const nasTask = async () => {
+    const cfg = getConfig()
+    if (!cfg.nasPassword || !cfg.nasHost || !ftpClient) return
     try {
-      await client.access({
-        host: cfg.nasHost,
-        user: cfg.nasUser,
-        password: cfg.nasPassword,
-        port: 21,
-      })
       const remoteDir = `${cfg.nasBaseDir}/${item.projectFolder}/${item.masterSubfolder}`
-      await client.ensureDir(remoteDir)
+      if (!ensuredDirs.has(remoteDir)) {
+        await ftpClient.ensureDir(remoteDir)
+        ensuredDirs.add(remoteDir)
+      }
+      ftpClient.trackProgress((info) => {
+        const pct = Math.min(100, Math.round((info.bytes / Math.max(1, item.size)) * 100))
+        const elapsedSec = Math.max(0.5, (Date.now() - startTime) / 1000)
+        const speed = Number((info.bytes / (1024 * 1024) / elapsedSec).toFixed(1))
+        emitStep(50 + Math.round(pct * 0.5), "done", "active", speed)
+      })
+      await ftpClient.uploadFrom(item.filePath, `${remoteDir}/${item.fileName}`)
+      ftpClient.trackProgress()
+    } catch (ftpErr) {
+      ftpClient.trackProgress()
+      console.warn("Error enviando master a NAS FTP:", ftpErr.message)
+    }
+  }
 
-      let lastBytes = 0
-      client.trackProgress((info) => {
-        const delta = info.bytes - lastBytes
-        lastBytes = info.bytes
-        const pct = Math.min(100, Math.round((info.bytes / item.size) * 100))
-        const elapsedSec = Math.max(1, (Date.now() - startTime) / 1000)
+  await cloudTask()
+  emitStep(55, "done", "active")
+  await nasTask()
+}
+
+let activeBatchState = null
+
+function enqueueMasterFile(item, onProgress = () => {}, onBatchComplete = () => {}) {
+  masterQueue.push(item)
+  if (activeBatchState) {
+    activeBatchState.total++
+  } else {
+    activeBatchState = {
+      total: 1,
+      processed: 0,
+      lastFile: item.fileName,
+      lastClient: item.projectFolder,
+    }
+  }
+
+  if (masterProcessing) return
+
+  masterProcessing = true
+  masterCancelled = false
+
+  ;(async () => {
+    const cfg = getConfig()
+    const ftp = require("basic-ftp")
+    let ftpClient = null
+    const ensuredDirs = new Set()
+
+    if (cfg.nasPassword && cfg.nasHost) {
+      try {
+        ftpClient = new ftp.Client(120000)
+        await ftpClient.access({
+          host: cfg.nasHost,
+          user: cfg.nasUser,
+          password: cfg.nasPassword,
+          port: 21,
+        })
+      } catch (e) {
+        console.warn("No se pudo abrir conexión FTP inicial para lote Master:", e.message)
+        try {
+          if (ftpClient) ftpClient.close()
+        } catch {}
+        ftpClient = null
+      }
+    }
+
+    try {
+      while (masterQueue.length > 0 && !masterCancelled) {
+        const nextItem = masterQueue.shift()
+        // Verificar si el cliente FTP sigue abierto o reconectar si se cerró
+        if (cfg.nasPassword && cfg.nasHost && (!ftpClient || ftpClient.closed)) {
+          try {
+            ftpClient = new ftp.Client(120000)
+            await ftpClient.access({
+              host: cfg.nasHost,
+              user: cfg.nasUser,
+              password: cfg.nasPassword,
+              port: 21,
+            })
+            ensuredDirs.clear()
+          } catch {
+            ftpClient = null
+          }
+        }
+        await processSingleMasterItem(nextItem, ftpClient, ensuredDirs, activeBatchState, onProgress)
+        activeBatchState.processed++
+      }
+
+      if (masterCancelled) {
+        onProgress({ type: "cancelled", isMasterSync: true })
+      } else if (activeBatchState && activeBatchState.processed > 0) {
+        const summaryInfo = {
+          count: activeBatchState.processed,
+          fileName: activeBatchState.processed === 1 ? activeBatchState.lastFile : `${activeBatchState.processed} archivos Master`,
+          client: activeBatchState.lastClient,
+        }
         onProgress({
-          type: "progress",
+          type: "done",
           isMasterSync: true,
-          currentFile: item.fileName,
-          percent: 60 + Math.round(pct * 0.4),
-          speed: Number((info.bytes / (1024 * 1024) / elapsedSec).toFixed(1)),
-          stages: {
-            copy: { state: "done", percent: 100 },
-            cloud: { state: "done", percent: 100 },
-            nas: { state: "active", percent: pct },
+          fileName: summaryInfo.fileName,
+          summary: {
+            client: summaryInfo.client,
+            files: summaryInfo.count,
           },
         })
-      })
-
-      await client.uploadFrom(item.filePath, `${remoteDir}/${item.fileName}`)
-      client.trackProgress()
-    } catch (ftpErr) {
-      console.warn("Error enviando master a NAS FTP:", ftpErr.message)
+        onBatchComplete(summaryInfo)
+      }
     } finally {
       try {
-        client.close()
+        if (ftpClient) ftpClient.close()
       } catch {}
+      activeBatchState = null
+      masterProcessing = false
     }
-  }
+  })()
+}
 
-  // 6. Completado
-  onProgress({
-    type: "done",
-    isMasterSync: true,
-    fileName: item.fileName,
-    summary: {
-      client: clientName || item.projectFolder,
-      files: 1,
-    },
+async function syncMasterFile(item, _lang = "fr", onProgress = () => {}) {
+  return new Promise((resolve) => {
+    enqueueMasterFile(item, onProgress, (summary) => {
+      resolve({ ok: true, ...summary })
+    })
   })
-
-  return {
-    ok: true,
-    fileName: item.fileName,
-    client: clientName || item.projectFolder,
-  }
 }
 
 module.exports = { 
@@ -1030,5 +1180,6 @@ module.exports = {
   scanSource, 
   classify,
   syncMasterFile,
-  isIngesting: () => Boolean(currentJob),
+  enqueueMasterFile,
+  isIngesting: () => Boolean(currentJob || masterProcessing),
 }

@@ -560,7 +560,12 @@
     <div id="progress-section" class="progress-section">
       <div class="progress-head">
         <h3 id="txt-ingest-status">Ingestion en cours...</h3>
-        <span class="pct-large" id="txt-pct">0%</span>
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <button id="btn-cancel-ingest" style="background: rgba(239, 68, 68, 0.14); border: 1px solid rgba(239, 68, 68, 0.45); color: #ef4444; padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; display: none;">
+            ✕ <span id="txt-btn-cancel">Annuler</span>
+          </button>
+          <span class="pct-large" id="txt-pct">0%</span>
+        </div>
       </div>
 
       <div class="progress-track">
@@ -645,6 +650,8 @@
         pipeNas: "3. Sauvegarde Réseau vers le NAS de l'Atelier",
         pipeNasDesc: "Archivage automatique sécurisé en arrière-plan",
         btnStart: "DÉMARRER L'INGESTION COMPLÈTE",
+        btnCancel: "Annuler",
+        cancelledStatus: "Opération annulée.",
         browseOther: "Choisir un autre dossier manuellement...",
         loginOk: "Connecté :",
         loginNeed: "Connexion Supabase requise",
@@ -663,6 +670,8 @@
         pipeNas: "3. Respaldo en Red al NAS del Estudio",
         pipeNasDesc: "Archivado automático seguro en segundo plano",
         btnStart: "INICIAR INGESTA COMPLETA",
+        btnCancel: "Cancelar",
+        cancelledStatus: "Operación cancelada.",
         browseOther: "Seleccionar otra carpeta manualmente...",
         loginOk: "Conectado:",
         loginNeed: "Iniciar sesión en Supabase",
@@ -681,6 +690,8 @@
         pipeNas: "3. Network Backup to Studio NAS",
         pipeNasDesc: "Secure automatic background archival",
         btnStart: "START FULL INGESTION",
+        btnCancel: "Cancel",
+        cancelledStatus: "Operation cancelled.",
         browseOther: "Choose another folder manually...",
         loginOk: "Connected:",
         loginNeed: "Supabase Login Required",
@@ -699,6 +710,8 @@
         pipeNas: "٣. نسخ احتياطي على شبكة NAS الاستوديو",
         pipeNasDesc: "أرشفة أوتوماتيكية آمنة في الخلفية",
         btnStart: "بدء عملية التفريغ الكاملة",
+        btnCancel: "إلغاء",
+        cancelledStatus: "تم إلغاء العملية.",
         browseOther: "اختيار مجلد آخر يدويًا...",
         loginOk: "متصل:",
         loginNeed: "تسجيل الدخول إلى Supabase",
@@ -727,6 +740,7 @@
       document.getElementById("txt-pipe-nas").textContent = t.pipeNas;
       document.getElementById("txt-pipe-nas-desc").textContent = t.pipeNasDesc;
       document.getElementById("txt-btn-start").textContent = t.btnStart;
+      document.getElementById("txt-btn-cancel").textContent = t.btnCancel;
       document.getElementById("btn-browse-folder").textContent = t.browseOther;
     }
 
@@ -837,6 +851,15 @@
     const mEta = document.getElementById("m-eta");
     const mPhase = document.getElementById("m-phase");
     const btnStart = document.getElementById("btn-start-ingest");
+    const btnCancel = document.getElementById("btn-cancel-ingest");
+
+    btnCancel.onclick = async () => {
+      if (window.electronAPI) {
+        await window.electronAPI.cancelIngest();
+        btnCancel.style.display = "none";
+        btnStart.disabled = false;
+      }
+    };
 
     btnStart.onclick = async () => {
       const sessId = sessionSelect.value;
@@ -845,6 +868,7 @@
         return;
       }
       btnStart.disabled = true;
+      btnCancel.style.display = "inline-block";
       progressSection.classList.add("visible");
       barFill.style.width = "0%";
       txtPct.textContent = "0%";
@@ -861,21 +885,36 @@
     if (window.electronAPI) {
       window.electronAPI.onIngestEvent((ev) => {
         if (ev.type === "progress") {
+          btnCancel.style.display = "inline-block";
           const p = ev.percent || 0;
           barFill.style.width = p + "%";
           txtPct.textContent = Math.round(p) + "%";
           if (ev.currentFile) txtCurFile.textContent = ev.currentFile;
           mCount.textContent = `${ev.processed || 0} / ${ev.total || 0}`;
           mSpeed.textContent = (ev.speed || 0) + " MB/s";
-          mEta.textContent = ev.eta !== null ? `${ev.eta}s` : "Calcul...";
-          mPhase.textContent = ev.phase === "copy" ? "Copie SSD" : ev.phase === "cloud" ? "Supabase WebP" : "NAS FTP";
+          mEta.textContent = ev.eta !== null && ev.eta !== undefined ? `${ev.eta}s` : "Calcul...";
+          mPhase.textContent =
+            ev.phase === "copy"
+              ? "Copie SSD"
+              : ev.phase === "cloud+nas"
+              ? "Cloud + NAS"
+              : ev.phase === "cloud"
+              ? "Supabase WebP"
+              : "NAS FTP";
         } else if (ev.type === "done") {
           barFill.style.width = "100%";
           txtPct.textContent = "100%";
           document.getElementById("txt-ingest-status").textContent = "Ingestion terminée avec succès !";
+          btnCancel.style.display = "none";
+          btnStart.disabled = false;
+        } else if (ev.type === "cancelled") {
+          const t = I18N[currentLang] || I18N.fr;
+          document.getElementById("txt-ingest-status").textContent = t.cancelledStatus;
+          btnCancel.style.display = "none";
           btnStart.disabled = false;
         } else if (ev.type === "error") {
           document.getElementById("txt-ingest-status").textContent = `Erreur : ${ev.message}`;
+          btnCancel.style.display = "none";
           btnStart.disabled = false;
         }
       });

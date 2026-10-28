@@ -65,6 +65,7 @@ class WindowsDriveWatcher extends EventEmitter {
               letter,
               drive: driveRoot,
               path: targetPath,
+              dcimPath: targetPath,
               count,
               detectedAt: Date.now()
             }
