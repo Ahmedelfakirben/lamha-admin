@@ -27,6 +27,12 @@ import {
   ZoomIn,
   ZoomOut,
   Maximize2,
+  Minimize2,
+  LayoutGrid,
+  Grid3X3,
+  Scan,
+  PanelBottomClose,
+  PanelBottomOpen,
   Server,
   ChevronDown,
   ChevronLeft,
@@ -347,18 +353,60 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
     })
   }
 
-  // Estado de la galería Lightbox avanzada
+  // Estado de diseño de cuadrícula (Grid) y galería Lightbox Pro
+  const [gridDensity, setGridDensity] = useState<"compact" | "normal" | "large">("normal")
+  const [fitMode, setFitMode] = useState<"cover" | "contain">("cover")
   const [rotation, setRotation] = useState<number>(0)
   const [zoom, setZoom] = useState<number>(1)
+  const [panOffset, setPanOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragStart, setDragStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
+  const [hideLightboxUI, setHideLightboxUI] = useState(false)
+  const [showFilmstrip, setShowFilmstrip] = useState(true)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [isNoteExpanded, setIsNoteExpanded] = useState(true)
   const [openMenuAssetId, setOpenMenuAssetId] = useState<string | null>(null)
   const [isLightboxFolderMenuOpen, setIsLightboxFolderMenuOpen] = useState(false)
   const filmstripRef = useRef<HTMLDivElement | null>(null)
+  const lightboxContainerRef = useRef<HTMLDivElement | null>(null)
 
-  // Reset rotation y zoom al cambiar de foto
+  const toggleFullscreen = async () => {
+    try {
+      if (!document.fullscreenElement) {
+        await (lightboxContainerRef.current || document.documentElement).requestFullscreen()
+        setIsFullscreen(true)
+      } else {
+        await document.exitFullscreen()
+        setIsFullscreen(false)
+      }
+    } catch {}
+  }
+
+  useEffect(() => {
+    const onFsChange = () => setIsFullscreen(Boolean(document.fullscreenElement))
+    document.addEventListener("fullscreenchange", onFsChange)
+    return () => document.removeEventListener("fullscreenchange", onFsChange)
+  }, [])
+
+  // Reset rotation, zoom y pan al cambiar de foto + precarga de foto anterior/siguiente
   useEffect(() => {
     setRotation(0)
     setZoom(1)
-  }, [lightboxIndex])
+    setPanOffset({ x: 0, y: 0 })
+    setIsDragging(false)
+    setIsNoteExpanded(true)
+
+    if (lightboxIndex !== null) {
+      const preloadIndexes = [lightboxIndex - 1, lightboxIndex + 1]
+      preloadIndexes.forEach((idx) => {
+        const item = currentList[idx]
+        if (item?.preview_url) {
+          const img = new Image()
+          img.src = item.preview_url
+        }
+      })
+    }
+  }, [lightboxIndex, currentList])
 
   // Centrar miniatura activa en el carrusel inferior
   useEffect(() => {
@@ -368,13 +416,16 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
         activeThumb.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" })
       }
     }
-  }, [lightboxIndex])
+  }, [lightboxIndex, showFilmstrip])
 
-  // Navegación con teclado en Lightbox (flechas izq/der, escape, rotación 'r')
+  // Navegación con teclado en Lightbox (flechas izq/der, escape, rotación 'r', zoom, compartir 'p', fullscreen 'f', modo inmersivo 'Tab')
   useEffect(() => {
     if (lightboxIndex === null) return
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        if (document.fullscreenElement) {
+          document.exitFullscreen().catch(() => {})
+        }
         setLightboxIndex(null)
       } else if (e.key === "ArrowLeft") {
         setLightboxIndex(prev => prev !== null && prev > 0 ? prev - 1 : prev)
@@ -383,14 +434,30 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
       } else if (e.key === "r" || e.key === "R") {
         setRotation(prev => (prev + 90) % 360)
       } else if (e.key === "+" || e.key === "=") {
-        setZoom(prev => Math.min(prev + 0.25, 3))
+        setZoom(prev => Math.min(prev + 0.35, 4))
       } else if (e.key === "-") {
-        setZoom(prev => Math.max(prev - 0.25, 0.5))
+        setZoom(prev => {
+          const next = Math.max(prev - 0.35, 1)
+          if (next <= 1) setPanOffset({ x: 0, y: 0 })
+          return next
+        })
+      } else if (e.key === "0") {
+        setZoom(1)
+        setRotation(0)
+        setPanOffset({ x: 0, y: 0 })
+      } else if (e.key === "p" || e.key === "P") {
+        const cur = currentList[lightboxIndex]
+        if (cur) handleToggleShared(cur)
+      } else if (e.key === "f" || e.key === "F") {
+        toggleFullscreen()
+      } else if (e.key === "Tab") {
+        e.preventDefault()
+        setHideLightboxUI(prev => !prev)
       }
     }
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [lightboxIndex, currentList.length])
+  }, [lightboxIndex, currentList])
 
   // Abrir archivo en Local (SSD) o NAS directamente en el Explorador de Windows
   const handleOpenFile = async (nasPath: string, mode: "open_with" | "reveal" | "open", target: "local" | "nas" = "local") => {
@@ -602,22 +669,86 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
         />
       )}
 
-      {/* Filter and Bulk Actions Bar */}
+      {/* Filter, View Controls and Bulk Actions Bar */}
       {activeTab !== "delivery" && (
         <>
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3 rounded-xl bg-[#141210] border border-[#26211c]">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#70665a]" />
-          <input
-            type="text"
-            placeholder={t.searchMediaPlaceholder}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-1.5 text-xs rounded-lg bg-[#0b0a09] border border-[#26211c] text-[#f5f2eb] focus:border-[#c69f68] outline-none"
-          />
+          <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 p-3 rounded-xl bg-[#141210] border border-[#26211c]">
+        <div className="flex flex-wrap items-center gap-2.5 flex-1">
+          <div className="relative flex-1 min-w-[200px] max-w-sm">
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#70665a]" />
+            <input
+              type="text"
+              placeholder={t.searchMediaPlaceholder}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-9 pr-3 py-1.5 text-xs rounded-lg bg-[#0b0a09] border border-[#26211c] text-[#f5f2eb] focus:border-[#c69f68] outline-none"
+            />
+          </div>
+
+          {/* Controles de Proporción (Cover vs Contain) y Densidad de Columnas */}
+          <div className="flex items-center gap-1.5 bg-[#0b0a09] border border-[#26211c] rounded-lg p-1">
+            <button
+              type="button"
+              onClick={() => setFitMode(fitMode === "cover" ? "contain" : "cover")}
+              className={`px-2.5 py-1 rounded-md text-[11px] font-medium flex items-center gap-1.5 transition-all cursor-pointer ${
+                fitMode === "contain"
+                  ? "bg-[#c69f68] text-[#0b0a09] font-bold shadow-sm"
+                  : "text-[#8c7a6b] hover:text-[#f5f2eb]"
+              }`}
+              title={
+                language === "fr"
+                  ? "Basculer entre recadrage uniforme (Cover) et photo entière non coupée (Contain)"
+                  : language === "ar"
+                  ? "تبديل عرض الصورة كاملة أو مقصوصة"
+                  : language === "en"
+                  ? "Toggle between uniform crop (Cover) and full uncropped photo (Contain)"
+                  : "Alternar entre recorte uniforme (Cover) y foto completa sin recortar (Contain)"
+              }
+            >
+              <Scan className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">
+                {fitMode === "contain"
+                  ? language === "fr" ? "Entière" : language === "ar" ? "كاملة" : language === "en" ? "Full Fit" : "Completa"
+                  : language === "fr" ? "Recadrée" : language === "ar" ? "مربعة" : language === "en" ? "Crop" : "Uniforme"}
+              </span>
+            </button>
+
+            <div className="w-px h-4 bg-[#26211c]" />
+
+            <button
+              type="button"
+              onClick={() => setGridDensity("compact")}
+              className={`p-1 rounded-md transition-colors cursor-pointer ${
+                gridDensity === "compact" ? "bg-[#c69f68]/20 text-[#c69f68]" : "text-[#70665a] hover:text-[#f5f2eb]"
+              }`}
+              title={language === "fr" ? "Grille compacte (6 col)" : language === "ar" ? "شبكة مدمجة" : language === "en" ? "Compact grid" : "Vista compacta (6 col)"}
+            >
+              <Grid3X3 className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setGridDensity("normal")}
+              className={`p-1 rounded-md transition-colors cursor-pointer ${
+                gridDensity === "normal" ? "bg-[#c69f68]/20 text-[#c69f68]" : "text-[#70665a] hover:text-[#f5f2eb]"
+              }`}
+              title={language === "fr" ? "Grille standard (4 col)" : language === "ar" ? "شبكة قياسية" : language === "en" ? "Standard grid" : "Vista estándar (4 col)"}
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setGridDensity("large")}
+              className={`p-1 rounded-md transition-colors cursor-pointer ${
+                gridDensity === "large" ? "bg-[#c69f68]/20 text-[#c69f68]" : "text-[#70665a] hover:text-[#f5f2eb]"
+              }`}
+              title={language === "fr" ? "Grands aperçus (3 col)" : language === "ar" ? "صور كبيرة" : language === "en" ? "Large cards" : "Vista grande (3 col)"}
+            >
+              <Maximize2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Botón Auditer & Sincronizar Almacenamiento Global */}
           <button
             type="button"
@@ -700,17 +831,32 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-4">
+        <div
+          className={`grid gap-3 sm:gap-4 ${
+            gridDensity === "compact"
+              ? "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"
+              : gridDensity === "large"
+              ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3"
+              : "grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+          }`}
+        >
           {currentList.map((asset, index) => {
             const isClientSelected = isAssetSelected(asset)
             const isVideo = asset.asset_type.includes("video")
             const isMaster = masterAssets.some(m => m.id === asset.id)
             const hasClientNote = Boolean(asset.client_notes && asset.client_notes.trim().length > 0)
+            const folderShort = (asset.nas_path || "").includes("03_Edicion_Master") || (asset.nas_path || "").includes("03_Édition_Master")
+              ? "03_Edicion_Master"
+              : (asset.nas_path || "").includes("02_Seleccion")
+              ? "02_Seleccion"
+              : (asset.nas_path || "").includes("04_Entregas")
+              ? "04_Entregas"
+              : "01_RAW"
 
             return (
               <div
                 key={asset.id}
-                className={`group rounded-xl bg-[#141210] border transition-all duration-300 flex flex-col justify-between ${
+                className={`group rounded-2xl bg-[#141210] border transition-all duration-300 flex flex-col justify-between hover:-translate-y-0.5 ${
                   openMenuAssetId === asset.id ? "z-30 relative" : "relative"
                 } ${
                   hasClientNote
@@ -721,21 +867,23 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
                     ? "border-purple-600/40 hover:border-purple-500 shadow-md shadow-purple-950/20"
                     : asset.is_shared 
                     ? "border-emerald-500/40 hover:border-emerald-500" 
-                    : "border-[#26211c] hover:border-[#70665a]"
+                    : "border-[#26211c] hover:border-[#c69f68]/50"
                 }`}
               >
                 {/* Media Image / Preview */}
                 <div 
-                  className="aspect-[4/3] bg-[#0b0a09] relative overflow-hidden rounded-t-xl flex items-center justify-center cursor-pointer group"
+                  className={`${
+                    fitMode === "contain" ? "aspect-[4/3] p-1.5" : "aspect-[4/3]"
+                  } bg-[#090807] relative overflow-hidden rounded-t-2xl flex items-center justify-center cursor-pointer group/img`}
                   onClick={() => setLightboxIndex(index)}
                 >
                   {isVideo ? (
-                    <div className="w-full h-full relative group-hover:scale-105 transition-transform duration-500 flex items-center justify-center bg-[#090807]">
+                    <div className="w-full h-full relative group-hover/img:scale-105 transition-transform duration-500 flex items-center justify-center bg-[#090807]">
                       {asset.preview_url ? (
                         <SafeImage
                           src={asset.preview_url}
                           alt={asset.filename || "Preview"}
-                          className="w-full h-full object-cover opacity-85 group-hover:opacity-100 transition-opacity"
+                          className={`w-full h-full ${fitMode === "contain" ? "object-contain" : "object-cover"} opacity-90 group-hover/img:opacity-100 transition-opacity`}
                         />
                       ) : (
                         <div className="flex flex-col items-center justify-center text-[#554c42] p-4 text-center">
@@ -745,22 +893,50 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
                           </span>
                         </div>
                       )}
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/25 group-hover:bg-transparent transition-colors">
-                        <div className="w-10 h-10 rounded-full bg-[#c69f68] text-[#0b0a09] flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/25 group-hover/img:bg-black/10 transition-colors">
+                        <div className="w-11 h-11 rounded-full bg-[#c69f68] text-[#0b0a09] flex items-center justify-center shadow-xl group-hover/img:scale-110 transition-transform">
                           <Play className="w-4 h-4 ml-0.5 fill-current" />
                         </div>
                       </div>
                     </div>
                   ) : asset.preview_url ? (
-                    <SafeImage
-                      src={asset.preview_url}
-                      alt={asset.filename || "Preview"}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
+                    <>
+                      {/* Halo sutil de fondo cuando está en modo foto entera (Contain) */}
+                      {fitMode === "contain" && (
+                        <img
+                          src={asset.preview_url}
+                          alt=""
+                          aria-hidden="true"
+                          className="absolute inset-0 w-full h-full object-cover blur-xl opacity-25 scale-110 pointer-events-none"
+                        />
+                      )}
+                      <SafeImage
+                        src={asset.preview_url}
+                        alt={asset.filename || "Preview"}
+                        className={`relative z-[1] w-full h-full ${
+                          fitMode === "contain" ? "object-contain rounded-lg" : "object-cover"
+                        } group-hover/img:scale-105 transition-transform duration-500`}
+                      />
+                    </>
                   ) : (
                     <div className="flex flex-col items-center justify-center text-[#554c42] p-4 text-center">
                       <Camera className="w-8 h-8 mb-1" />
                       <span className="text-[10px] uppercase font-mono">{t.networkOriginal}</span>
+                    </div>
+                  )}
+
+                  {/* Hover Overlay Sutil con botón de Ampliar */}
+                  {!isVideo && (
+                    <div className="absolute inset-0 z-[5] bg-gradient-to-t from-black/70 via-transparent to-black/20 opacity-0 group-hover/img:opacity-100 transition-opacity duration-200 flex items-end justify-between p-2.5 pointer-events-none">
+                      <span className="px-2 py-1 rounded-lg bg-black/75 backdrop-blur-md border border-white/15 text-[#f5f2eb] text-[10px] font-medium flex items-center gap-1.5 shadow-lg">
+                        <ZoomIn className="w-3 h-3 text-[#c69f68]" />
+                        <span>{language === "fr" ? "Agrandir" : language === "ar" ? "تكبير" : language === "en" ? "Inspect" : "Ampliar"}</span>
+                      </span>
+                      {asset.size_mb && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-md bg-black/75 text-[#d6cec2] font-mono">
+                          {asset.size_mb} MB
+                        </span>
+                      )}
                     </div>
                   )}
 
@@ -772,18 +948,13 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
                         <span>{t.withNoteBadge}</span>
                       </span>
                     )}
-                    <span className="text-[10px] px-2 py-0.5 rounded-md bg-[#0b0a09]/90 border border-[#26211c] text-[#c69f68] font-mono font-semibold uppercase">
+                    <span className="text-[10px] px-2 py-0.5 rounded-md bg-[#0b0a09]/85 backdrop-blur-md border border-white/10 text-[#c69f68] font-mono font-semibold uppercase">
                       {asset.asset_type.replace("_", " ")}
                     </span>
                     {isMaster && (
                       <span className="text-[10px] px-2 py-0.5 rounded-md bg-purple-950/90 border border-purple-700/60 text-purple-300 font-mono font-bold uppercase flex items-center gap-1">
                         <Clapperboard className="w-2.5 h-2.5" />
                         <span>{t.masterTag}</span>
-                      </span>
-                    )}
-                    {asset.size_mb && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-[#0b0a09]/80 text-[#8c7a6b] font-mono">
-                        {asset.size_mb} MB
                       </span>
                     )}
                   </div>
@@ -798,14 +969,17 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
                 </div>
 
                 {/* Info and Actions */}
-                <div className="p-3.5 space-y-2.5">
-                  <div className="truncate">
-                    <h4 className="text-xs font-serif font-bold text-[#f5f2eb] truncate" title={asset.filename || ""}>
+                <div className="p-3 space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <h4 className="text-xs font-serif font-bold text-[#f5f2eb] truncate flex-1" title={asset.filename || ""}>
                       {asset.filename || t.unnamedFile}
                     </h4>
-                    <p className="text-[10px] font-mono text-[#70665a] truncate mt-0.5" title={asset.nas_path}>
-                      {asset.nas_path}
-                    </p>
+                    <span
+                      className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[#1c1916] border border-[#2a241f] text-[#8c7a6b] shrink-0"
+                      title={asset.nas_path}
+                    >
+                      {folderShort}
+                    </span>
                   </div>
 
                   {/* Client Note if present */}
@@ -815,7 +989,7 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
                         <MessageSquare className="w-3.5 h-3.5" />
                         <span>{t.clientNoteLabel}</span>
                       </div>
-                      <p className="italic text-amber-200/90 leading-relaxed font-sans font-medium pl-1">
+                      <p className="italic text-amber-200/90 leading-relaxed font-sans font-medium pl-1 line-clamp-2" title={asset.client_notes || ""}>
                         &quot;{asset.client_notes}&quot;
                       </p>
                     </div>
@@ -933,308 +1107,501 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
       </>
     )}
 
-      {/* Lightbox Modal — Teléfono / Visor Pro Avanzado */}
-      {lightboxIndex !== null && currentList[lightboxIndex] && (
-        <div 
-          className="fixed inset-0 z-[100] flex flex-col bg-black/95 backdrop-blur-xl animate-in fade-in select-none"
-          onClick={() => {
-            if (openMenuAssetId) setOpenMenuAssetId(null)
-            if (isLightboxFolderMenuOpen) setIsLightboxFolderMenuOpen(false)
-          }}
-        >
-          {/* Header Superior del Visor */}
-          <div className="h-16 px-4 sm:px-6 flex items-center justify-between border-b border-white/10 bg-black/40 backdrop-blur-md z-50">
-            {/* Información del archivo */}
-            <div className="flex items-center gap-3 min-w-0">
-              <span className="px-2.5 py-1 rounded-md bg-white/10 text-white font-mono text-xs font-semibold tracking-wider">
-                {lightboxIndex + 1} / {currentList.length}
-              </span>
-              <div className="truncate">
-                <p className="text-white font-medium text-sm truncate max-w-[200px] sm:max-w-md">
-                  {currentList[lightboxIndex].filename || t.unnamedFile}
-                </p>
-                {currentList[lightboxIndex].client_notes && (
-                  <p className="text-amber-400 text-xs truncate max-w-[200px] sm:max-w-md flex items-center gap-1">
-                    <MessageSquare className="w-3 h-3 shrink-0" />
-                    <span>&quot;{currentList[lightboxIndex].client_notes}&quot;</span>
-                  </p>
-                )}
-              </div>
-            </div>
+      {/* Lightbox Modal — Estudio / Visor Pro Inmersivo */}
+      {lightboxIndex !== null && currentList[lightboxIndex] && (() => {
+        const currentAsset = currentList[lightboxIndex]
+        const isCurrentVideo = currentAsset.asset_type.includes("video")
+        const isCurrentSelected = isAssetSelected(currentAsset)
+        const hasCurrentNote = Boolean(currentAsset.client_notes && currentAsset.client_notes.trim().length > 0)
 
-            {/* Barra de herramientas / Controles de imagen */}
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              {/* Botón Rotar */}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setRotation(prev => (prev + 90) % 360)
-                }}
-                className="p-2 sm:px-3 sm:py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center gap-1.5 text-xs font-medium transition-colors cursor-pointer border border-white/10"
-                title={`${t.rotatePhoto} (R)`}
-              >
-                <RotateCw className="w-4 h-4 text-[#c69f68]" />
-                <span className="hidden sm:inline">{t.rotatePhoto}</span>
-                {rotation !== 0 && (
-                  <span className="text-[10px] px-1 rounded bg-[#c69f68]/30 text-[#c69f68]">{rotation}°</span>
-                )}
-              </button>
+        return (
+          <div 
+            ref={lightboxContainerRef}
+            className="fixed inset-0 z-[100] flex flex-col bg-[#070605]/98 backdrop-blur-2xl animate-in fade-in select-none overflow-hidden"
+            onClick={() => {
+              if (openMenuAssetId) setOpenMenuAssetId(null)
+              if (isLightboxFolderMenuOpen) setIsLightboxFolderMenuOpen(false)
+            }}
+          >
+            {/* Fondo Ambiente Dinámico (Cinema Ambient Glow) */}
+            {currentAsset.preview_url && (
+              <img
+                src={currentAsset.preview_url}
+                alt=""
+                aria-hidden="true"
+                className="absolute inset-0 w-full h-full object-cover blur-3xl opacity-20 scale-125 pointer-events-none transition-all duration-700"
+              />
+            )}
 
-              {/* Botón Zoom In */}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setZoom(prev => Math.min(prev + 0.25, 3))
-                }}
-                className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer border border-white/10 hidden sm:flex items-center justify-center"
-                title={t.zoomIn}
-              >
-                <ZoomIn className="w-4 h-4" />
-              </button>
-
-              {/* Botón Zoom Out */}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setZoom(prev => Math.max(prev - 0.25, 0.5))
-                }}
-                className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer border border-white/10 hidden sm:flex items-center justify-center"
-                title={t.zoomOut}
-              >
-                <ZoomOut className="w-4 h-4" />
-              </button>
-
-              {/* Reset Zoom / Rotación */}
-              {(zoom !== 1 || rotation !== 0) && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setZoom(1)
-                    setRotation(0)
-                  }}
-                  className="px-2.5 py-1.5 rounded-lg bg-[#c69f68]/20 hover:bg-[#c69f68]/30 border border-[#c69f68]/40 text-[#c69f68] text-xs font-medium transition-colors cursor-pointer"
-                  title={t.resetView}
-                >
-                  <Maximize2 className="w-3.5 h-3.5" />
-                </button>
-              )}
-
-              {/* Botón Abrir Carpeta (Local vs NAS) */}
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setIsLightboxFolderMenuOpen(!isLightboxFolderMenuOpen)
-                  }}
-                  className="p-2 sm:px-3 sm:py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center gap-1.5 text-xs font-medium transition-colors cursor-pointer border border-white/10"
-                  title={t.revealInFolder}
-                >
-                  <FolderOpen className="w-4 h-4 text-emerald-400" />
-                  <span className="hidden md:inline">{t.revealInFolder}</span>
-                  <ChevronDown className="w-3 h-3 opacity-70" />
-                </button>
-
-                {isLightboxFolderMenuOpen && (
-                  <>
-                    <div 
-                      className="fixed inset-0 z-40 cursor-default" 
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setIsLightboxFolderMenuOpen(false)
-                      }}
-                    />
-                    <div 
-                      className="absolute right-0 top-full mt-2 w-60 rounded-xl bg-[#171411] border border-[#383129] shadow-2xl z-50 py-1.5 text-xs animate-in fade-in zoom-in-95 backdrop-blur-2xl"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => handleOpenFile(currentList[lightboxIndex].nas_path, "reveal", "local")}
-                        className="w-full px-3 py-2.5 text-left flex items-center gap-2.5 hover:bg-[#26211c] text-[#f5f2eb] transition-colors cursor-pointer"
-                      >
-                        <HardDrive className="w-4 h-4 text-[#c69f68]" />
-                        <div>
-                          <div className="font-semibold">{t.openInLocalFolder}</div>
-                          <div className="text-[10px] text-[#8c7a6b]">C:\Lamha-Storage\...</div>
-                        </div>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleOpenFile(currentList[lightboxIndex].nas_path, "reveal", "nas")}
-                        className="w-full px-3 py-2.5 text-left flex items-center gap-2.5 hover:bg-[#26211c] text-[#f5f2eb] transition-colors cursor-pointer border-t border-[#26211c]"
-                      >
-                        <Server className="w-4 h-4 text-sky-400" />
-                        <div>
-                          <div className="font-semibold">{t.openInNasFolder}</div>
-                          <div className="text-[10px] text-[#8c7a6b]">Explorador de Windows (NAS)</div>
-                        </div>
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* Cerrar modal */}
-              <button 
-                type="button"
-                className="p-2 sm:p-2.5 rounded-full bg-white/10 hover:bg-rose-500/20 hover:text-rose-400 text-white transition-colors cursor-pointer border border-white/10 ml-2"
-                onClick={() => setLightboxIndex(null)}
-                title="Cerrar (Esc)"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-
-          {/* Área Central: Visualizador Principal con Controles Laterales */}
-          <div className="flex-1 relative flex items-center justify-center overflow-hidden p-4 sm:p-8">
-            {/* Flecha Anterior */}
-            <button 
-              type="button"
-              className="absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 p-3 sm:p-4 rounded-full bg-black/60 hover:bg-black/90 text-white border border-white/15 transition-all z-40 disabled:opacity-20 disabled:pointer-events-none cursor-pointer shadow-2xl hover:scale-105 active:scale-95"
-              onClick={(e) => {
-                e.stopPropagation()
-                setLightboxIndex(prev => prev !== null && prev > 0 ? prev - 1 : prev)
-              }}
-              disabled={lightboxIndex === 0}
-              title="Anterior (Flecha Izquierda)"
-            >
-              <ChevronLeft className="w-6 h-6" />
-            </button>
-
-            {/* Contenedor de la Imagen / Video Central con Transformación CSS */}
-            <div 
-              className="w-full h-full flex items-center justify-center transition-transform duration-300 ease-out"
-              style={{
-                transform: `rotate(${rotation}deg) scale(${zoom})`,
-              }}
-            >
-              {currentList[lightboxIndex].asset_type.includes("video") ? (
-                <div className="flex flex-col items-center justify-center max-w-full max-h-[70vh] gap-3">
-                  <div className="relative flex items-center justify-center max-w-full max-h-[60vh] rounded-2xl overflow-hidden shadow-2xl ring-1 ring-white/15 bg-black/60">
-                    {currentList[lightboxIndex].preview_url ? (
-                      <img
-                        src={currentList[lightboxIndex].preview_url || ""}
-                        alt={currentList[lightboxIndex].filename || "Video poster"}
-                        className="max-w-full max-h-[56vh] object-contain rounded-xl"
-                      />
-                    ) : (
-                      <div className="w-[420px] h-[260px] max-w-[85vw] flex flex-col items-center justify-center text-[#70665a] p-6 text-center">
-                        <Film className="w-16 h-16 mb-2 text-[#c69f68]/80 animate-pulse" />
-                        <span className="text-xs uppercase font-mono text-[#c69f68] font-bold">
-                          {currentList[lightboxIndex].filename || "RAW VIDEO"}
-                        </span>
-                        <span className="text-[10px] text-[#8c7a6b] mt-1">{t.playNativeVideoHint}</span>
-                      </div>
+            {/* Header Superior Flotante del Visor */}
+            {!hideLightboxUI && (
+              <div className="h-14 px-4 sm:px-6 flex items-center justify-between border-b border-white/10 bg-black/55 backdrop-blur-xl z-50 shrink-0">
+                {/* Izquierda: Contador, Nombre y Badges de Estado */}
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span className="px-2.5 py-1 rounded-lg bg-[#c69f68]/20 border border-[#c69f68]/40 text-[#e8c89b] font-mono text-xs font-bold tracking-wider shrink-0">
+                    {lightboxIndex + 1} / {currentList.length}
+                  </span>
+                  <div className="truncate flex items-center gap-2">
+                    <p className="text-white font-serif font-bold text-sm truncate max-w-[160px] sm:max-w-xs md:max-w-md" title={currentAsset.filename || ""}>
+                      {currentAsset.filename || t.unnamedFile}
+                    </p>
+                    {isCurrentSelected && (
+                      <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#c69f68] text-[#0b0a09] text-[10px] font-bold shadow-sm shrink-0">
+                        <Sparkles className="w-3 h-3" />
+                        <span>{t.inBookBadge}</span>
+                      </span>
                     )}
-
-                    {/* Central Play Badge */}
-                    <button
-                      type="button"
-                      onClick={() => handleOpenFile(currentList[lightboxIndex].nas_path, "open", "local")}
-                      className="absolute inset-0 flex items-center justify-center bg-black/30 hover:bg-black/10 transition-colors cursor-pointer group"
-                      title={t.playNativeVideo}
-                    >
-                      <div className="w-16 h-16 rounded-full bg-[#c69f68] hover:bg-[#dfba85] text-[#0b0a09] flex items-center justify-center shadow-2xl transition-transform hover:scale-110 active:scale-95">
-                        <Play className="w-7 h-7 ml-1 fill-current" />
-                      </div>
-                    </button>
-                  </div>
-
-                  {/* Primary Native Play Action Bar */}
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleOpenFile(currentList[lightboxIndex].nas_path, "open", "local")}
-                      className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#c69f68] via-[#dfba85] to-[#c69f68] text-[#0b0a09] font-bold text-xs flex items-center gap-2 shadow-lg shadow-[#c69f68]/20 hover:scale-105 active:scale-95 transition-all cursor-pointer"
-                      title={t.playNativeVideoHint}
-                    >
-                      <Play className="w-4 h-4 fill-current" />
-                      <span>{t.playNativeVideo}</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleOpenFile(currentList[lightboxIndex].nas_path, "reveal", "local")}
-                      className="px-3 py-2 rounded-xl bg-[#1c1814] hover:bg-[#28221c] border border-[#383129] text-[#f5f2eb] text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-                    >
-                      <FolderOpen className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>{t.revealInFolder}</span>
-                    </button>
+                    {currentAsset.size_mb && (
+                      <span className="hidden lg:inline-block text-[11px] font-mono text-white/50 shrink-0">
+                        ({currentAsset.size_mb} MB)
+                      </span>
+                    )}
                   </div>
                 </div>
-              ) : (
-                <img 
-                  src={currentList[lightboxIndex].preview_url || ""} 
-                  alt={currentList[lightboxIndex].filename || "Preview"} 
-                  className="max-w-full max-h-[68vh] object-contain rounded-xl shadow-2xl ring-1 ring-white/15"
-                  draggable={false}
-                />
-              )}
-            </div>
 
-            {/* Flecha Siguiente */}
-            <button 
-              type="button"
-              className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 p-3 sm:p-4 rounded-full bg-black/60 hover:bg-black/90 text-white border border-white/15 transition-all z-40 disabled:opacity-20 disabled:pointer-events-none cursor-pointer shadow-2xl hover:scale-105 active:scale-95"
-              onClick={(e) => {
-                e.stopPropagation()
-                setLightboxIndex(prev => prev !== null && prev < currentList.length - 1 ? prev + 1 : prev)
-              }}
-              disabled={lightboxIndex === currentList.length - 1}
-              title="Siguiente (Flecha Derecha)"
-            >
-              <ChevronRight className="w-6 h-6" />
-            </button>
-          </div>
-
-          {/* Carrusel Inferior de Fotos Pequeñas (Estilo Galería de Teléfono) */}
-          <div className="h-24 px-4 py-2 border-t border-white/10 bg-black/70 backdrop-blur-md z-40 flex items-center justify-center">
-            <div 
-              ref={filmstripRef}
-              className="flex items-center gap-2 overflow-x-auto max-w-5xl w-full h-full px-2 no-scrollbar scroll-smooth"
-            >
-              {currentList.map((thumbAsset, idx) => {
-                const isActive = idx === lightboxIndex
-                return (
+                {/* Derecha: Acciones de Estudio + Controles de Imagen */}
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  {/* Acción Rápida: Compartir / Ocultar al Cliente (Tecla P) */}
                   <button
-                    key={thumbAsset.id || idx}
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation()
-                      setLightboxIndex(idx)
+                      handleToggleShared(currentAsset)
                     }}
-                    className={`relative shrink-0 h-16 w-16 sm:w-20 rounded-lg overflow-hidden transition-all duration-200 cursor-pointer ${
-                      isActive 
-                        ? "ring-2 ring-[#c69f68] scale-105 opacity-100 shadow-lg shadow-[#c69f68]/20" 
-                        : "opacity-40 hover:opacity-80 hover:scale-100"
+                    className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer border ${
+                      currentAsset.is_shared
+                        ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-300 hover:bg-emerald-500/30"
+                        : "bg-white/10 border-white/15 text-white/75 hover:text-white hover:bg-white/15"
                     }`}
+                    title={`${currentAsset.is_shared ? t.sharedStatus : t.hiddenStatus} (P)`}
                   >
-                    <img 
-                      src={thumbAsset.preview_url || ""} 
-                      alt={thumbAsset.filename || ""} 
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                    />
-                    {thumbAsset.client_notes && (
-                      <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-amber-400 ring-1 ring-black" />
-                    )}
-                    {thumbAsset.asset_type.includes("video") && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                        <Play className="w-3.5 h-3.5 text-white drop-shadow" />
-                      </div>
+                    {currentAsset.is_shared ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                    <span className="hidden md:inline">{currentAsset.is_shared ? t.sharedStatus : t.hiddenStatus}</span>
+                  </button>
+
+                  {/* Acción Rápida: Editar en Photoshop / App externa */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleOpenFile(currentAsset.nas_path, isCurrentVideo ? "open" : "open_with", "local")
+                    }}
+                    className="p-2 sm:px-2.5 sm:py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center gap-1.5 text-xs font-medium transition-colors cursor-pointer border border-white/10"
+                    title={isCurrentVideo ? t.playNativeVideo : t.openWithApp}
+                  >
+                    {isCurrentVideo ? <Play className="w-3.5 h-3.5 text-[#c69f68] fill-current" /> : <PenTool className="w-3.5 h-3.5 text-[#c69f68]" />}
+                    <span className="hidden lg:inline">{isCurrentVideo ? t.playNativeVideo : "Photoshop / App"}</span>
+                  </button>
+
+                  <div className="hidden sm:block w-px h-5 bg-white/15 mx-0.5" />
+
+                  {/* Controles de Zoom (- / % / +) */}
+                  <div className="hidden sm:flex items-center bg-white/10 border border-white/10 rounded-lg p-0.5">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setZoom(prev => {
+                          const next = Math.max(prev - 0.35, 1)
+                          if (next <= 1) setPanOffset({ x: 0, y: 0 })
+                          return next
+                        })
+                      }}
+                      className="p-1.5 rounded-md hover:bg-white/15 text-white transition-colors cursor-pointer"
+                      title={`${t.zoomOut} (-)`}
+                    >
+                      <ZoomOut className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setZoom(1)
+                        setRotation(0)
+                        setPanOffset({ x: 0, y: 0 })
+                      }}
+                      className="px-2 text-[11px] font-mono font-bold text-[#c69f68] hover:text-white transition-colors cursor-pointer"
+                      title={`${t.resetView} (0 / Doble clic)`}
+                    >
+                      {Math.round(zoom * 100)}%
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setZoom(prev => Math.min(prev + 0.35, 4))
+                      }}
+                      className="p-1.5 rounded-md hover:bg-white/15 text-white transition-colors cursor-pointer"
+                      title={`${t.zoomIn} (+)`}
+                    >
+                      <ZoomIn className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  {/* Botón Rotar */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setRotation(prev => (prev + 90) % 360)
+                    }}
+                    className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center gap-1 text-xs font-medium transition-colors cursor-pointer border border-white/10"
+                    title={`${t.rotatePhoto} (R)`}
+                  >
+                    <RotateCw className="w-3.5 h-3.5 text-[#c69f68]" />
+                    {rotation !== 0 && (
+                      <span className="text-[10px] px-1 rounded bg-[#c69f68]/30 text-[#c69f68] font-mono">{rotation}°</span>
                     )}
                   </button>
-                )
-              })}
+
+                  {/* Botón Mostrar/Ocultar Filmstrip */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setShowFilmstrip(prev => !prev)
+                    }}
+                    className={`p-2 rounded-lg border transition-colors cursor-pointer hidden sm:flex items-center justify-center ${
+                      showFilmstrip
+                        ? "bg-white/10 border-white/10 text-white hover:bg-white/20"
+                        : "bg-[#c69f68]/20 border-[#c69f68]/40 text-[#c69f68]"
+                    }`}
+                    title={language === "fr" ? "Afficher/Masquer les miniatures" : language === "ar" ? "إظهار/إخفاء المصغرات" : language === "en" ? "Toggle filmstrip" : "Mostrar/Ocultar tira de miniaturas"}
+                  >
+                    {showFilmstrip ? <PanelBottomClose className="w-3.5 h-3.5" /> : <PanelBottomOpen className="w-3.5 h-3.5" />}
+                  </button>
+
+                  {/* Botón Pantalla Completa (Tecla F) */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      toggleFullscreen()
+                    }}
+                    className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer border border-white/10 hidden sm:flex items-center justify-center"
+                    title="Pantalla completa (F)"
+                  >
+                    {isFullscreen ? <Minimize2 className="w-3.5 h-3.5 text-[#c69f68]" /> : <Maximize2 className="w-3.5 h-3.5" />}
+                  </button>
+
+                  {/* Botón Abrir Carpeta (Local vs NAS) */}
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setIsLightboxFolderMenuOpen(!isLightboxFolderMenuOpen)
+                      }}
+                      className="p-2 sm:px-2.5 sm:py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center gap-1 text-xs font-medium transition-colors cursor-pointer border border-white/10"
+                      title={t.revealInFolder}
+                    >
+                      <FolderOpen className="w-3.5 h-3.5 text-emerald-400" />
+                      <ChevronDown className="w-3 h-3 opacity-70" />
+                    </button>
+
+                    {isLightboxFolderMenuOpen && (
+                      <>
+                        <div 
+                          className="fixed inset-0 z-40 cursor-default" 
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setIsLightboxFolderMenuOpen(false)
+                          }}
+                        />
+                        <div 
+                          className="absolute right-0 top-full mt-2 w-60 rounded-xl bg-[#171411] border border-[#383129] shadow-2xl z-50 py-1.5 text-xs animate-in fade-in zoom-in-95 backdrop-blur-2xl"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => handleOpenFile(currentAsset.nas_path, "reveal", "local")}
+                            className="w-full px-3 py-2.5 text-left flex items-center gap-2.5 hover:bg-[#26211c] text-[#f5f2eb] transition-colors cursor-pointer"
+                          >
+                            <HardDrive className="w-4 h-4 text-[#c69f68]" />
+                            <div>
+                              <div className="font-semibold">{t.openInLocalFolder}</div>
+                              <div className="text-[10px] text-[#8c7a6b]">C:\Lamha-Storage\...</div>
+                            </div>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenFile(currentAsset.nas_path, "reveal", "nas")}
+                            className="w-full px-3 py-2.5 text-left flex items-center gap-2.5 hover:bg-[#26211c] text-[#f5f2eb] transition-colors cursor-pointer border-t border-[#26211c]"
+                          >
+                            <Server className="w-4 h-4 text-sky-400" />
+                            <div>
+                              <div className="font-semibold">{t.openInNasFolder}</div>
+                              <div className="text-[10px] text-[#8c7a6b]">Explorador de Windows (NAS)</div>
+                            </div>
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Cerrar modal */}
+                  <button 
+                    type="button"
+                    className="p-2 rounded-full bg-white/10 hover:bg-rose-500/25 hover:text-rose-400 text-white transition-colors cursor-pointer border border-white/10 ml-1"
+                    onClick={() => {
+                      if (document.fullscreenElement) document.exitFullscreen().catch(() => {})
+                      setLightboxIndex(null)
+                    }}
+                    title="Cerrar (Esc)"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Área Central: Lienzo de Inspección con Rueda de Zoom, Doble Clic y Arrastrar (Pan) */}
+            <div 
+              className={`flex-1 relative flex items-center justify-center overflow-hidden px-2 sm:px-8 py-2 ${
+                !isCurrentVideo && zoom > 1 ? (isDragging ? "cursor-grabbing" : "cursor-grab") : "cursor-default"
+              }`}
+              onWheel={(e) => {
+                if (isCurrentVideo) return
+                e.preventDefault()
+                const delta = e.deltaY < 0 ? 0.25 : -0.25
+                setZoom((prev) => {
+                  const next = Math.min(Math.max(Number((prev + delta).toFixed(2)), 1), 4)
+                  if (next <= 1) setPanOffset({ x: 0, y: 0 })
+                  return next
+                })
+              }}
+              onMouseDown={(e) => {
+                if (isCurrentVideo || zoom <= 1) return
+                e.preventDefault()
+                setIsDragging(true)
+                setDragStart({ x: e.clientX - panOffset.x, y: e.clientY - panOffset.y })
+              }}
+              onMouseMove={(e) => {
+                if (!isDragging || zoom <= 1) return
+                setPanOffset({
+                  x: e.clientX - dragStart.x,
+                  y: e.clientY - dragStart.y,
+                })
+              }}
+              onMouseUp={() => setIsDragging(false)}
+              onMouseLeave={() => setIsDragging(false)}
+              onDoubleClick={(e) => {
+                if (isCurrentVideo) return
+                e.stopPropagation()
+                if (zoom > 1) {
+                  setZoom(1)
+                  setPanOffset({ x: 0, y: 0 })
+                } else {
+                  setZoom(2.4)
+                }
+              }}
+            >
+              {/* Flecha Anterior */}
+              {!hideLightboxUI && (
+                <button 
+                  type="button"
+                  className="absolute left-3 sm:left-5 top-1/2 -translate-y-1/2 p-3 sm:p-3.5 rounded-full bg-black/60 hover:bg-[#c69f68] text-white hover:text-[#0b0a09] border border-white/15 transition-all z-40 disabled:opacity-15 disabled:pointer-events-none cursor-pointer shadow-2xl hover:scale-105 active:scale-95"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setLightboxIndex(prev => prev !== null && prev > 0 ? prev - 1 : prev)
+                  }}
+                  disabled={lightboxIndex === 0}
+                  title="Anterior (←)"
+                >
+                  <ChevronLeft className="w-6 h-6" />
+                </button>
+              )}
+
+              {/* Contenedor de la Imagen / Video Central */}
+              <div 
+                className={`w-full h-full flex items-center justify-center ${
+                  isDragging ? "" : "transition-transform duration-200 ease-out"
+                }`}
+                style={{
+                  transform: `translate3d(${panOffset.x}px, ${panOffset.y}px, 0) rotate(${rotation}deg) scale(${zoom})`,
+                }}
+              >
+                {isCurrentVideo ? (
+                  <div className="flex flex-col items-center justify-center max-w-full max-h-[82vh] gap-4">
+                    <div className="relative flex items-center justify-center max-w-full max-h-[70vh] rounded-2xl overflow-hidden shadow-2xl ring-1 ring-white/15 bg-black/60">
+                      {currentAsset.preview_url ? (
+                        <img
+                          src={currentAsset.preview_url || ""}
+                          alt={currentAsset.filename || "Video poster"}
+                          className="max-w-full max-h-[68vh] object-contain rounded-xl"
+                        />
+                      ) : (
+                        <div className="w-[460px] h-[280px] max-w-[85vw] flex flex-col items-center justify-center text-[#70665a] p-6 text-center">
+                          <Film className="w-16 h-16 mb-2 text-[#c69f68]/80 animate-pulse" />
+                          <span className="text-xs uppercase font-mono text-[#c69f68] font-bold">
+                            {currentAsset.filename || "RAW VIDEO"}
+                          </span>
+                          <span className="text-[10px] text-[#8c7a6b] mt-1">{t.playNativeVideoHint}</span>
+                        </div>
+                      )}
+
+                      {/* Central Play Badge */}
+                      <button
+                        type="button"
+                        onClick={() => handleOpenFile(currentAsset.nas_path, "open", "local")}
+                        className="absolute inset-0 flex items-center justify-center bg-black/30 hover:bg-black/10 transition-colors cursor-pointer group"
+                        title={t.playNativeVideo}
+                      >
+                        <div className="w-16 h-16 rounded-full bg-[#c69f68] hover:bg-[#dfba85] text-[#0b0a09] flex items-center justify-center shadow-2xl transition-transform hover:scale-110 active:scale-95">
+                          <Play className="w-7 h-7 ml-1 fill-current" />
+                        </div>
+                      </button>
+                    </div>
+
+                    {/* Primary Native Play Action Bar */}
+                    <div className="flex items-center gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenFile(currentAsset.nas_path, "open", "local")}
+                        className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#c69f68] via-[#dfba85] to-[#c69f68] text-[#0b0a09] font-bold text-xs flex items-center gap-2 shadow-lg shadow-[#c69f68]/20 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                        title={t.playNativeVideoHint}
+                      >
+                        <Play className="w-4 h-4 fill-current" />
+                        <span>{t.playNativeVideo}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenFile(currentAsset.nas_path, "reveal", "local")}
+                        className="px-3 py-2 rounded-xl bg-[#1c1814] hover:bg-[#28221c] border border-[#383129] text-[#f5f2eb] text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        <FolderOpen className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>{t.revealInFolder}</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <img 
+                    src={currentAsset.preview_url || ""} 
+                    alt={currentAsset.filename || "Preview"} 
+                    className={`max-w-[94vw] ${
+                      hideLightboxUI || !showFilmstrip ? "max-h-[90vh]" : "max-h-[78vh]"
+                    } object-contain rounded-lg shadow-[0_20px_70px_rgba(0,0,0,0.85)] ring-1 ring-white/10 transition-all`}
+                    draggable={false}
+                  />
+                )}
+              </div>
+
+              {/* Tarjeta Flotante Plegable con la Nota de Retoque del Cliente */}
+              {hasCurrentNote && !hideLightboxUI && (
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  className="absolute bottom-4 left-4 sm:left-6 z-40 max-w-md rounded-2xl bg-[#17130e]/95 border border-amber-500/60 shadow-2xl backdrop-blur-xl p-3.5 text-xs text-[#f5f2eb] animate-in fade-in slide-in-from-bottom-2"
+                >
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-amber-400 font-bold">
+                      <MessageSquare className="w-3.5 h-3.5 fill-current" />
+                      <span>{t.clientNoteLabel}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsNoteExpanded(prev => !prev)}
+                      className="text-[10px] text-amber-300/80 hover:text-amber-200 underline cursor-pointer"
+                    >
+                      {isNoteExpanded ? "Minimizar" : "Ver nota"}
+                    </button>
+                  </div>
+                  {isNoteExpanded && (
+                    <p className="mt-1.5 italic text-amber-100 leading-relaxed font-sans text-xs">
+                      &quot;{currentAsset.client_notes}&quot;
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Indicador de Atajos / Zoom en la esquina inferior derecha del lienzo */}
+              {!hideLightboxUI && !isCurrentVideo && (
+                <div className="hidden lg:flex items-center gap-2 absolute bottom-3 right-5 z-30 px-2.5 py-1 rounded-full bg-black/50 backdrop-blur-md border border-white/10 text-[10px] text-white/55 pointer-events-none">
+                  <span>Rueda / Doble clic: Zoom</span>
+                  <span>•</span>
+                  <span>P: Compartir</span>
+                  <span>•</span>
+                  <span>F: Pantalla completa</span>
+                  <span>•</span>
+                  <span>Tab: Modo limpio</span>
+                </div>
+              )}
+
+              {/* Flecha Siguiente */}
+              {!hideLightboxUI && (
+                <button 
+                  type="button"
+                  className="absolute right-3 sm:right-5 top-1/2 -translate-y-1/2 p-3 sm:p-3.5 rounded-full bg-black/60 hover:bg-[#c69f68] text-white hover:text-[#0b0a09] border border-white/15 transition-all z-40 disabled:opacity-15 disabled:pointer-events-none cursor-pointer shadow-2xl hover:scale-105 active:scale-95"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setLightboxIndex(prev => prev !== null && prev < currentList.length - 1 ? prev + 1 : prev)
+                  }}
+                  disabled={lightboxIndex === currentList.length - 1}
+                  title="Siguiente (→)"
+                >
+                  <ChevronRight className="w-6 h-6" />
+                </button>
+              )}
             </div>
+
+            {/* Carrusel Inferior de Miniaturas (Filmstrip Pro con indicadores de estado) */}
+            {!hideLightboxUI && showFilmstrip && (
+              <div className="h-20 px-4 py-2 border-t border-white/10 bg-black/75 backdrop-blur-xl z-40 flex items-center justify-center shrink-0">
+                <div 
+                  ref={filmstripRef}
+                  className="flex items-center gap-2 overflow-x-auto max-w-6xl w-full h-full px-2 no-scrollbar scroll-smooth"
+                >
+                  {currentList.map((thumbAsset, idx) => {
+                    const isActive = idx === lightboxIndex
+                    const thumbSelected = isAssetSelected(thumbAsset)
+                    const thumbHasNote = Boolean(thumbAsset.client_notes && thumbAsset.client_notes.trim().length > 0)
+                    return (
+                      <button
+                        key={thumbAsset.id || idx}
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setLightboxIndex(idx)
+                        }}
+                        className={`relative shrink-0 h-14 w-14 sm:w-18 rounded-lg overflow-hidden transition-all duration-200 cursor-pointer ${
+                          isActive 
+                            ? "ring-2 ring-[#c69f68] scale-105 opacity-100 shadow-lg shadow-[#c69f68]/30" 
+                            : thumbSelected
+                            ? "ring-1 ring-[#c69f68]/60 opacity-75 hover:opacity-100"
+                            : "opacity-45 hover:opacity-85"
+                        }`}
+                      >
+                        <img 
+                          src={thumbAsset.preview_url || ""} 
+                          alt={thumbAsset.filename || ""} 
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                        />
+                        {/* Indicadores rápidos en cada miniatura */}
+                        <div className="absolute top-1 right-1 flex items-center gap-0.5">
+                          {thumbHasNote && (
+                            <span className="w-2 h-2 rounded-full bg-amber-400 ring-1 ring-black" title={t.withNoteBadge} />
+                          )}
+                          {thumbSelected && (
+                            <span className="w-2 h-2 rounded-full bg-[#c69f68] ring-1 ring-black" title={t.inBookBadge} />
+                          )}
+                          {thumbAsset.is_shared && (
+                            <span className="w-2 h-2 rounded-full bg-emerald-400 ring-1 ring-black" title={t.sharedStatus} />
+                          )}
+                        </div>
+                        {thumbAsset.asset_type.includes("video") && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                            <Play className="w-3.5 h-3.5 text-white drop-shadow" />
+                          </div>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        )
+      })()}
     </div>
   )
 }
