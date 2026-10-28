@@ -66,30 +66,28 @@ export default function RootLayout({
         className={`${outfit.className} h-full m-0 p-0 overflow-hidden bg-[#0b0a09] text-[#f5f2eb] flex flex-col`}
         suppressHydrationWarning
       >
+        {/* Luxury Desktop Drag Header Bar with Quick Refresh Button */}
+        <header
+          className="w-full h-9 min-h-[36px] bg-[#0b0a09] border-b border-[#231f1a] flex items-center justify-between px-4 select-none z-50 shrink-0"
+          style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
+        >
+          <div className="flex items-center gap-2 text-xs">
+            <span className="w-2 h-2 rounded-full bg-[#c69f68] shadow-[0_0_8px_rgba(198,159,104,0.6)]"></span>
+            <span className="font-serif tracking-wider text-[#f5f2eb] font-medium text-[11px] uppercase">Lam7a Studios</span>
+            <span className="text-[#c69f68]/40">•</span>
+            <span className="text-[#c69f68]/80 text-[11px] font-sans tracking-wide">Studio Atelier</span>
+          </div>
+          <div className="flex items-center h-full gap-2">
+            <HeaderRefreshButton />
+            {/* Reserved space for native Windows title bar controls (Minimize, Maximize, Close) */}
+            <div className="w-36 h-full" style={{ WebkitAppRegion: "drag" } as React.CSSProperties} />
+          </div>
+        </header>
+
         <ThemeProvider>
           <LanguageProvider>
             <UploadProvider>
-              {/* Luxury Desktop Drag Header Bar with Quick Refresh Button */}
-              <header
-                className="w-full h-9 min-h-[36px] bg-[#0b0a09] border-b border-[#231f1a] flex items-center justify-between px-4 select-none z-50 shrink-0"
-                style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
-              >
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="w-2 h-2 rounded-full bg-[#c69f68] shadow-[0_0_8px_rgba(198,159,104,0.6)]"></span>
-                  <span className="font-serif tracking-wider text-[#f5f2eb] font-medium text-[11px] uppercase">Lam7a Studios</span>
-                  <span className="text-[#c69f68]/40">•</span>
-                  <span className="text-[#c69f68]/80 text-[11px] font-sans tracking-wide">Studio Atelier</span>
-                </div>
-                <div className="flex items-center h-full gap-2">
-                  <HeaderRefreshButton />
-                  {/* Reserved space for native Windows title bar controls (Minimize, Maximize, Close) */}
-                  <div className="w-36 h-full" style={{ WebkitAppRegion: "drag" } as React.CSSProperties} />
-                </div>
-              </header>
-
-              {/* Subtle Top Gold Shimmer & Floating Loading Pill */}
               <NavigationProgress />
-
               {isAuthPage ? (
                 <div className="w-full flex-1 overflow-y-auto bg-[#0b0a09]">
                   {children}

@@ -2,38 +2,38 @@
 
 import React, { useEffect, useState, useCallback, useRef } from "react"
 import { usePathname, useRouter } from "next/navigation"
-import { RotateCw, Sparkles } from "lucide-react"
-import { useLanguage } from "@/context/language-context"
-import { useUpload } from "@/context/upload-context"
+import { RotateCw } from "lucide-react"
+import { useLanguage, Language } from "@/context/language-context"
 
-const LABELS = {
+const LABELS: Record<Language, {
+  loading: string
+  refreshing: string
+  refreshBtn: string
+  refreshTooltip: string
+}> = {
   fr: {
     loading: "Chargement...",
     refreshing: "Actualisation...",
     refreshBtn: "Actualiser",
-    refreshTooltip: "Actualiser la page (F5) • Double-clic pour rechargement forcé",
-    uploadWarn: "Une synchronisation est en cours. Voulez-vous vraiment recharger la page ?",
+    refreshTooltip: "Actualiser les données (F5) • Double-clic pour recharger la fenêtre",
   },
   es: {
     loading: "Cargando...",
     refreshing: "Actualizando...",
     refreshBtn: "Actualizar",
-    refreshTooltip: "Actualizar página (F5) • Doble clic para recarga completa",
-    uploadWarn: "Hay una subida o sincronización en curso. ¿Seguro que deseas recargar la página?",
+    refreshTooltip: "Actualizar datos (F5) • Doble clic para recargar toda la ventana",
   },
   en: {
     loading: "Loading...",
     refreshing: "Refreshing...",
     refreshBtn: "Refresh",
-    refreshTooltip: "Refresh page (F5) • Double-click for hard reload",
-    uploadWarn: "An upload/sync is currently running. Are you sure you want to reload?",
+    refreshTooltip: "Refresh data (F5) • Double-click to reload window",
   },
   ar: {
     loading: "جارٍ التحميل...",
     refreshing: "جارٍ التحديث...",
     refreshBtn: "تحديث",
     refreshTooltip: "تحديث الصفحة (F5)",
-    uploadWarn: "توجد عملية رفع جارية حالياً. هل أنت متأكد من إعادة تحميل الصفحة؟",
   },
 }
 
@@ -75,12 +75,11 @@ export function NavigationProgress() {
         const step = prev < 50 ? 12 : prev < 75 ? 6 : 2
         return Math.min(prev + step, 90)
       })
-    }, 180)
+    }, 160)
 
-    // Safety auto-hide if route didn't change (e.g. same route or cancelled)
     safetyTimeoutRef.current = setTimeout(() => {
       finishProgress()
-    }, 8000)
+    }, 4500)
   }, [finishProgress])
 
   // Detectar cuando cambia el pathname (navegación completada)
@@ -127,6 +126,9 @@ export function NavigationProgress() {
 
     const handleCustomRefresh = () => {
       startProgress("refreshing")
+      setTimeout(() => {
+        finishProgress()
+      }, 900)
     }
 
     document.addEventListener("click", handleClick, true)
@@ -135,7 +137,7 @@ export function NavigationProgress() {
       document.removeEventListener("click", handleClick, true)
       window.removeEventListener("lamha:page-refresh-start", handleCustomRefresh)
     }
-  }, [startProgress])
+  }, [startProgress, finishProgress])
 
   if (!isNavigating && progress === 0) return null
 
@@ -169,22 +171,32 @@ export function NavigationProgress() {
 
 /**
  * Botón de Actualizar / Recargar página para la barra superior de la app
+ * Independiente de providers para mantenerse en el <header> raíz del <body>
  */
 export function HeaderRefreshButton() {
   const router = useRouter()
-  const { language } = useLanguage()
-  const { uploadState } = useUpload()
+  const [lang, setLang] = useState<Language>("fr")
   const [isSpinning, setIsSpinning] = useState(false)
 
-  const t = LABELS[language] || LABELS.fr
+  useEffect(() => {
+    const syncLang = () => {
+      try {
+        const saved = (localStorage.getItem("lamha_admin_lang") || document.documentElement.lang || "fr") as Language
+        if (["fr", "es", "en", "ar"].includes(saved)) {
+          setLang(saved)
+        }
+      } catch {}
+    }
+    syncLang()
+    const obs = new MutationObserver(syncLang)
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["lang"] })
+    return () => obs.disconnect()
+  }, [])
+
+  const t = LABELS[lang] || LABELS.fr
 
   const triggerReload = useCallback(
     (hardReload = false) => {
-      if (uploadState?.isRunning) {
-        const ok = window.confirm(t.uploadWarn)
-        if (!ok) return
-      }
-
       setIsSpinning(true)
       window.dispatchEvent(new CustomEvent("lamha:page-refresh-start"))
 
@@ -193,16 +205,18 @@ export function HeaderRefreshButton() {
         return
       }
 
-      // Refrescar datos de servidor Next.js y recargar la ventana para desbloquear cualquier estado colgado
+      // Refrescar datos de servidor Next.js sin destruir la ventana
       try {
         router.refresh()
-      } catch {}
+      } catch {
+        window.location.reload()
+      }
 
       setTimeout(() => {
-        window.location.reload()
-      }, 180)
+        setIsSpinning(false)
+      }, 900)
     },
-    [router, t.uploadWarn, uploadState?.isRunning]
+    [router]
   )
 
   // Atajo global F5 para recargar en la app de escritorio
@@ -210,7 +224,7 @@ export function HeaderRefreshButton() {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "F5") {
         e.preventDefault()
-        triggerReload(true)
+        triggerReload(false)
       }
     }
     window.addEventListener("keydown", onKeyDown)
