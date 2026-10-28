@@ -35,11 +35,8 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(event.request.url);
 
-  // Network-first strategy with cache fallback for navigation and API
-  if (event.request.mode === 'navigate') {
-    event.respondWith(
-      fetch(event.request).catch(() => caches.match(event.request))
-    );
+  // Para navegación HTML y RSC de Next.js, dejar que el navegador gestione la red directamente
+  if (event.request.mode === 'navigate' || url.searchParams.has('_rsc') || url.pathname.startsWith('/api/')) {
     return;
   }
 
