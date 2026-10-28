@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld("desktopAdminAPI", {
   createProjectFolders: (folderName) => ipcRenderer.invoke("create-project-folders", folderName),
   checkNasConnection: (host, port) => ipcRenderer.invoke("check-nas-connection", host, port),
   launchIngestCompanion: (params) => ipcRenderer.invoke("launch-ingest-companion", params),
+  copyClientSelection: (params) => ipcRenderer.invoke("copy-client-selection", params),
   retry: () => ipcRenderer.send("retry-connect"),
   connectTo: (targetUrl) => ipcRenderer.send("connect-to-url", targetUrl),
   getServerStatus: () => ipcRenderer.invoke("get-server-status"),

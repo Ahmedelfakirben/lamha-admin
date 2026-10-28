@@ -45,6 +45,7 @@ export interface DesktopAdminAPI {
   createProjectFolders?: (folderName: string) => Promise<{ success: boolean; path?: string; error?: string }>
   checkNasConnection: (host?: string, port?: number) => Promise<{ reachable: boolean; host: string; port: number; error?: string }>
   launchIngestCompanion: (params?: { sessionId?: string; clientName?: string }) => Promise<{ success: boolean; error?: string }>
+  copyClientSelection?: (params: { folderName: string; filenames: string[] }) => Promise<{ success: boolean; copiedCount?: number; destDir?: string; error?: string }>
   retry?: () => void
 }
 
@@ -229,4 +230,44 @@ export async function checkStudioNas(host: string = "192.168.11.1", port: number
 
   return { reachable: false, host, port, error: "Desktop bridge no disponible" }
 }
+
+/**
+ * Copia automáticamente los archivos originales (RAW + JPG) seleccionados por el cliente
+ * hacia la carpeta local C:\Lamha-Storage\<folderName>\02_Seleccion_Cliente y la abre en Windows Explorer
+ */
+export async function copySelectedToClientFolder(
+  folderName: string,
+  filenames: string[]
+): Promise<{ success: boolean; copiedCount?: number; destDir?: string; error?: string }> {
+  if (!folderName || !filenames.length) {
+    return { success: false, error: "Sin archivos seleccionados para copiar" }
+  }
+
+  // 1. Prioridad: Puente nativo directo del Panel Admin Electron
+  if (typeof window !== "undefined" && window.desktopAdminAPI?.copyClientSelection) {
+    try {
+      const res = await window.desktopAdminAPI.copyClientSelection({ folderName, filenames })
+      if (res.success) return res
+    } catch (e: any) {
+      console.warn("Fallo en desktopAdminAPI.copyClientSelection:", e)
+    }
+  }
+
+  // 2. Fallback API local
+  try {
+    const res = await fetch("/api/media/copy-client-selection", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ folderName, filenames }),
+    })
+    const data = await res.json()
+    if (res.ok && data.success) {
+      return data
+    }
+    return { success: false, error: data.error || "No se pudo copiar localmente" }
+  } catch (e: any) {
+    return { success: false, error: e.message || "Error al copiar archivos a 02_Seleccion_Cliente" }
+  }
+}
+
 

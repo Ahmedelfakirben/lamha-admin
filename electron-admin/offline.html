@@ -154,14 +154,22 @@
   </div>
 
   <script>
-    let dots = 0;
+    let countdown = 6;
+    const el = document.getElementById("statusLabel");
     setInterval(() => {
-      dots = (dots + 1) % 4;
-      const el = document.getElementById("statusLabel");
-      if (el) {
-        el.innerText = "Conectando con el servidor en la nube" + ".".repeat(dots);
+      countdown--;
+      if (countdown <= 0) {
+        countdown = 6;
+        if (window.desktopAdminAPI && window.desktopAdminAPI.retry) {
+          window.desktopAdminAPI.retry();
+        } else {
+          location.reload();
+        }
       }
-    }, 500);
+      if (el) {
+        el.innerText = "Reconectando automáticamente con el estudio en " + countdown + "s...";
+      }
+    }, 1000);
   </script>
 </body>
 </html>

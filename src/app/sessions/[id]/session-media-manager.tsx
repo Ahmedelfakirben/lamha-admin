@@ -47,7 +47,7 @@ import { toggleAssetSharedAction, bulkSetAssetsSharedAction, deleteAssetAction }
 import { useLanguage } from "@/context/language-context"
 import { createClient } from "@/lib/supabase"
 import { SessionDeliveryHub } from "./session-delivery-hub"
-import { openLocalFolderOrFile } from "@/lib/desktop-bridge"
+import { openLocalFolderOrFile, copySelectedToClientFolder } from "@/lib/desktop-bridge"
 
 interface MediaAsset {
   id: string
@@ -107,13 +107,40 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
 
   // IDs o nombres de archivos seleccionados por el cliente en el portal
   const [selectedAssetKeys, setSelectedAssetKeys] = useState<string[]>(session.selected_assets || [])
+  const [quickFilter, setQuickFilter] = useState<"all" | "with_note" | "shared" | "hidden">("all")
+  const [checkedIds, setCheckedIds] = useState<string[]>([])
+  const lastCheckedIdxRef = useRef<number | null>(null)
+  const [retouchDoneIds, setRetouchDoneIds] = useState<string[]>([])
+  const [visibleLimit, setVisibleLimit] = useState<number>(60)
+  const [isCopyingSelection, setIsCopyingSelection] = useState(false)
+  const loadMoreRef = useRef<HTMLDivElement | null>(null)
   const fName = projectFolder || session.tags?.[0] || session.client_name
 
-  // Sincronización reactiva con Supabase
+  // Cargar estado de "Retoque completado" por sesión desde localStorage
   useEffect(() => {
-    const fetchLatest = async () => {
+    try {
+      const saved = localStorage.getItem(`lamha_retouch_done_${session.id}`)
+      if (saved) setRetouchDoneIds(JSON.parse(saved))
+    } catch {}
+  }, [session.id])
+
+  const toggleRetouchDone = (assetId: string) => {
+    setRetouchDoneIds((prev) => {
+      const next = prev.includes(assetId) ? prev.filter((id) => id !== assetId) : [...prev, assetId]
       try {
-        const supabase = createClient()
+        localStorage.setItem(`lamha_retouch_done_${session.id}`, JSON.stringify(next))
+      } catch {}
+      return next
+    })
+  }
+
+  // Sincronización en Tiempo Real (Supabase Realtime WebSockets + refresco ligero cada 30s si la ventana está visible)
+  useEffect(() => {
+    const supabase = createClient()
+
+    const fetchLatest = async () => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return
+      try {
         const { data: sData } = await supabase
           .from("sessions")
           .select("selected_assets")
@@ -125,24 +152,53 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
 
         const { data: aData } = await supabase
           .from("media_assets")
-          .select("id, client_selected, client_notes")
+          .select("id, session_id, asset_type, filename, nas_path, size_mb, preview_url, is_shared, client_selected, client_notes, notes")
           .eq("session_id", session.id)
         if (aData && aData.length > 0) {
-          setAssets(prev => prev.map(a => {
-            const found = aData.find(d => d.id === a.id)
-            if (found) {
-              return { ...a, client_selected: found.client_selected, client_notes: found.client_notes }
-            }
-            return a
-          }))
+          setAssets(aData as MediaAsset[])
         }
-      } catch (err) {}
+      } catch {}
     }
 
     fetchLatest()
-    const interval = setInterval(fetchLatest, 4000)
-    return () => clearInterval(interval)
-  }, [session.id, activeTab])
+
+    // Suscripción Realtime instantánea a cambios en media_assets y sessions
+    const channel = supabase
+      .channel(`session-media-${session.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "media_assets", filter: `session_id=eq.${session.id}` },
+        (payload) => {
+          if (payload.eventType === "INSERT" && payload.new) {
+            const newItem = payload.new as MediaAsset
+            setAssets((prev) => (prev.some((a) => a.id === newItem.id) ? prev : [...prev, newItem]))
+          } else if (payload.eventType === "UPDATE" && payload.new) {
+            const updated = payload.new as MediaAsset
+            setAssets((prev) => prev.map((a) => (a.id === updated.id ? { ...a, ...updated } : a)))
+          } else if (payload.eventType === "DELETE" && payload.old) {
+            const deletedId = (payload.old as any).id
+            setAssets((prev) => prev.filter((a) => a.id !== deletedId))
+          }
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "sessions", filter: `id=eq.${session.id}` },
+        (payload) => {
+          const updatedSession = payload.new as any
+          if (updatedSession?.selected_assets && Array.isArray(updatedSession.selected_assets)) {
+            setSelectedAssetKeys(updatedSession.selected_assets)
+          }
+        }
+      )
+      .subscribe()
+
+    const interval = setInterval(fetchLatest, 30000)
+    return () => {
+      clearInterval(interval)
+      supabase.removeChannel(channel)
+    }
+  }, [session.id])
 
   const isAssetSelected = (a: MediaAsset) => {
     if (a.client_selected) return true
@@ -222,12 +278,89 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
     else if (activeTab === "selected") list = selectedByClient
     else list = sharedWithClient
 
+    if (quickFilter === "with_note") {
+      list = list.filter(a => Boolean(a.client_notes && a.client_notes.trim().length > 0))
+    } else if (quickFilter === "shared") {
+      list = list.filter(a => Boolean(a.is_shared))
+    } else if (quickFilter === "hidden") {
+      list = list.filter(a => !a.is_shared)
+    }
+
     if (search.trim()) {
       const q = search.toLowerCase()
       return list.filter(a => (a.filename && a.filename.toLowerCase().includes(q)) || (a.client_notes && a.client_notes.toLowerCase().includes(q)))
     }
     return list
-  }, [activeTab, photos, videos, masterAssets, masterPhotos, masterVideos, masterSubFilter, selectedByClient, sharedWithClient, search])
+  }, [activeTab, photos, videos, masterAssets, masterPhotos, masterVideos, masterSubFilter, selectedByClient, sharedWithClient, quickFilter, search])
+
+  // Resetear límite de paginación y selección al cambiar pestaña o filtro
+  useEffect(() => {
+    setVisibleLimit(60)
+    setCheckedIds([])
+    lastCheckedIdxRef.current = null
+  }, [activeTab, masterSubFilter, quickFilter, search])
+
+  const visibleList = useMemo(() => {
+    return currentList.slice(0, visibleLimit)
+  }, [currentList, visibleLimit])
+
+  // Infinite Scroll progresivo mediante IntersectionObserver
+  useEffect(() => {
+    const el = loadMoreRef.current
+    if (!el || visibleLimit >= currentList.length) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setVisibleLimit((prev) => Math.min(prev + 60, currentList.length))
+        }
+      },
+      { rootMargin: "320px" }
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [visibleLimit, currentList.length])
+
+  // Selección manual múltiple (soporta Shift + Clic para seleccionar rangos)
+  const handleCheckAsset = (assetId: string, index: number, shiftKey: boolean) => {
+    setCheckedIds((prev) => {
+      const isAlreadyChecked = prev.includes(assetId)
+      if (shiftKey && lastCheckedIdxRef.current !== null) {
+        const start = Math.min(lastCheckedIdxRef.current, index)
+        const end = Math.max(lastCheckedIdxRef.current, index)
+        const rangeIds = currentList.slice(start, end + 1).map((a) => a.id)
+        const merged = new Set(prev)
+        rangeIds.forEach((id) => merged.add(id))
+        lastCheckedIdxRef.current = index
+        return Array.from(merged)
+      }
+      lastCheckedIdxRef.current = index
+      return isAlreadyChecked ? prev.filter((id) => id !== assetId) : [...prev, assetId]
+    })
+  }
+
+  // Copiar selección del cliente (o archivos marcados) a la carpeta local 02_Seleccion_Cliente
+  const handleCopySelectionToFolder = async (customAssets?: MediaAsset[]) => {
+    const targets = customAssets && customAssets.length > 0 ? customAssets : selectedByClient
+    const filenames = targets.map((a) => a.filename || a.nas_path.split(/[/\\]/).pop() || "").filter(Boolean)
+    if (filenames.length === 0) {
+      showNotification("No hay archivos seleccionados para copiar a 02_Seleccion_Cliente.")
+      return
+    }
+    setIsCopyingSelection(true)
+    try {
+      showNotification(`Copiando ${filenames.length} originales (RAW + JPG) a 02_Seleccion_Cliente...`)
+      const res = await copySelectedToClientFolder(fName, filenames)
+      if (res.success) {
+        showNotification(
+          `✓ ${res.copiedCount || filenames.length} archivos originales copiados a 02_Seleccion_Cliente y abiertos en el Explorador`
+        )
+      } else {
+        showNotification(`Aviso: ${res.error || "No se pudo copiar automáticamente"}`)
+      }
+    } finally {
+      setIsCopyingSelection(false)
+    }
+  }
 
   const showNotification = (msg: string) => {
     setActionMessage(msg)
@@ -746,9 +879,79 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
               <Maximize2 className="w-3.5 h-3.5" />
             </button>
           </div>
+
+          {/* Filtros Rápidos: Todas / Con Nota / Compartidas / Ocultas */}
+          <div className="flex items-center gap-1 bg-[#0b0a09] border border-[#26211c] rounded-lg p-1 text-[11px]">
+            <button
+              type="button"
+              onClick={() => setQuickFilter("all")}
+              className={`px-2 py-1 rounded-md transition-colors cursor-pointer ${
+                quickFilter === "all" ? "bg-[#26211c] text-[#f5f2eb] font-bold" : "text-[#70665a] hover:text-[#f5f2eb]"
+              }`}
+            >
+              {language === "fr" ? "Tout" : language === "ar" ? "الكل" : language === "en" ? "All" : "Todas"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setQuickFilter(quickFilter === "with_note" ? "all" : "with_note")}
+              className={`px-2 py-1 rounded-md flex items-center gap-1 transition-colors cursor-pointer ${
+                quickFilter === "with_note"
+                  ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold"
+                  : "text-[#8c7a6b] hover:text-amber-300"
+              }`}
+            >
+              <MessageSquare className="w-3 h-3 text-amber-400" />
+              <span>{language === "fr" ? "Avec note" : language === "ar" ? "بملاحظة" : language === "en" ? "With note" : "Con nota"}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setQuickFilter(quickFilter === "shared" ? "all" : "shared")}
+              className={`px-2 py-1 rounded-md hidden sm:flex items-center gap-1 transition-colors cursor-pointer ${
+                quickFilter === "shared"
+                  ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold"
+                  : "text-[#8c7a6b] hover:text-emerald-300"
+              }`}
+            >
+              <Eye className="w-3 h-3 text-emerald-400" />
+              <span>{language === "fr" ? "Partagées" : language === "ar" ? "مشاركة" : language === "en" ? "Shared" : "Compartidas"}</span>
+            </button>
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* Botón Seleccionar / Deseleccionar Todo */}
+          {currentList.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                if (checkedIds.length === currentList.length) {
+                  setCheckedIds([])
+                } else {
+                  setCheckedIds(currentList.map((a) => a.id))
+                }
+              }}
+              className={`px-2.5 py-1.5 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer ${
+                checkedIds.length > 0
+                  ? "border-[#c69f68] bg-[#c69f68]/20 text-[#f5f2eb]"
+                  : "border-[#26211c] hover:bg-[#201c18] text-[#a89f91]"
+              }`}
+              title="Seleccionar varios archivos (o usa Shift + Clic en las tarjetas)"
+            >
+              <Check className="w-3.5 h-3.5 text-[#c69f68]" />
+              <span>
+                {checkedIds.length > 0
+                  ? `${checkedIds.length}/${currentList.length}`
+                  : language === "fr"
+                  ? "Sélectionner"
+                  : language === "ar"
+                  ? "تحديد"
+                  : language === "en"
+                  ? "Select"
+                  : "Seleccionar"}
+              </span>
+            </button>
+          )}
+
           {/* Botón Auditer & Sincronizar Almacenamiento Global */}
           <button
             type="button"
@@ -797,10 +1000,10 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
         </div>
       </div>
 
-      {/* Media Grid */}
+      {/* Media Grid — Banner de Selección del Cliente con Botón 1-Clic a 02_Seleccion_Cliente */}
       {activeTab === "selected" && selectedByClient.length > 0 && (
         <div className="p-3.5 rounded-xl bg-[#171411] border border-[#2d261e] flex flex-wrap items-center justify-between gap-3 text-xs mb-4">
-          <div className="flex items-center gap-2 text-[#e5c38e]">
+          <div className="flex flex-wrap items-center gap-2 text-[#e5c38e]">
             <Sparkles className="w-4 h-4 text-[#c69f68]" />
             <span>
               <strong>{selectedByClient.length}</strong> {t.selectedPhotosForBook}
@@ -812,9 +1015,31 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
               </span>
             )}
           </div>
-          <span className="text-[11px] text-[#70665a] italic">
-            {t.commentedPhotosHint}
-          </span>
+
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              disabled={isCopyingSelection}
+              onClick={() => handleCopySelectionToFolder(selectedByClient)}
+              className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-[#c69f68] to-[#dfba85] hover:opacity-95 text-[#0b0a09] font-bold text-xs flex items-center gap-1.5 shadow-md cursor-pointer disabled:opacity-50"
+              title="Copia automáticamente los archivos RAW y JPG originales elegidos por el cliente desde 01_RAW hacia 02_Seleccion_Cliente y abre la carpeta"
+            >
+              <FolderOpen className="w-3.5 h-3.5 text-[#0b0a09]" />
+              <span>
+                {isCopyingSelection
+                  ? language === "fr"
+                    ? "Copie des RAW..."
+                    : "Copiando originales..."
+                  : language === "fr"
+                  ? "Copier les originaux vers 02_Seleccion_Cliente"
+                  : language === "ar"
+                  ? "نسخ الملفات الأصلية إلى 02_Seleccion_Cliente"
+                  : language === "en"
+                  ? "Copy originals to 02_Seleccion_Cliente"
+                  : "Copiar originales a 02_Seleccion_Cliente"}
+              </span>
+            </button>
+          </div>
         </div>
       )}
 
@@ -831,6 +1056,7 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
           </p>
         </div>
       ) : (
+        <>
         <div
           className={`grid gap-3 sm:gap-4 ${
             gridDensity === "compact"
@@ -840,11 +1066,13 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
               : "grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
           }`}
         >
-          {currentList.map((asset, index) => {
+          {visibleList.map((asset, index) => {
             const isClientSelected = isAssetSelected(asset)
             const isVideo = asset.asset_type.includes("video")
             const isMaster = masterAssets.some(m => m.id === asset.id)
             const hasClientNote = Boolean(asset.client_notes && asset.client_notes.trim().length > 0)
+            const isChecked = checkedIds.includes(asset.id)
+            const isRetouchDone = retouchDoneIds.includes(asset.id)
             const folderShort = (asset.nas_path || "").includes("03_Edicion_Master") || (asset.nas_path || "").includes("03_Édition_Master")
               ? "03_Edicion_Master"
               : (asset.nas_path || "").includes("02_Seleccion")
@@ -859,7 +1087,9 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
                 className={`group rounded-2xl bg-[#141210] border transition-all duration-300 flex flex-col justify-between hover:-translate-y-0.5 ${
                   openMenuAssetId === asset.id ? "z-30 relative" : "relative"
                 } ${
-                  hasClientNote
+                  isChecked
+                    ? "border-[#c69f68] ring-2 ring-[#c69f68] shadow-xl shadow-[#c69f68]/20"
+                    : hasClientNote
                     ? "border-amber-500 shadow-lg shadow-amber-950/40 ring-1 ring-amber-500/80"
                     : isClientSelected 
                     ? "border-[#c69f68] shadow-lg shadow-[#c69f68]/15 ring-1 ring-[#c69f68]/50" 
@@ -875,7 +1105,13 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
                   className={`${
                     fitMode === "contain" ? "aspect-[4/3] p-1.5" : "aspect-[4/3]"
                   } bg-[#090807] relative overflow-hidden rounded-t-2xl flex items-center justify-center cursor-pointer group/img`}
-                  onClick={() => setLightboxIndex(index)}
+                  onClick={(e) => {
+                    if (e.shiftKey || checkedIds.length > 0) {
+                      handleCheckAsset(asset.id, index, e.shiftKey)
+                    } else {
+                      setLightboxIndex(index)
+                    }
+                  }}
                 >
                   {isVideo ? (
                     <div className="w-full h-full relative group-hover/img:scale-105 transition-transform duration-500 flex items-center justify-center bg-[#090807]">
@@ -940,8 +1176,23 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
                     </div>
                   )}
 
-                  {/* Top Badges */}
+                  {/* Top Badges + Checkbox de Selección Manual */}
                   <div className="absolute top-2 left-2 flex items-center gap-1.5 flex-wrap z-10">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleCheckAsset(asset.id, index, e.shiftKey)
+                      }}
+                      className={`w-5 h-5 rounded-md flex items-center justify-center border transition-all cursor-pointer ${
+                        isChecked
+                          ? "bg-[#c69f68] border-[#c69f68] text-[#0b0a09] opacity-100 shadow-md"
+                          : "bg-black/65 border-white/30 text-transparent opacity-0 group-hover:opacity-100 hover:border-[#c69f68]"
+                      }`}
+                      title="Seleccionar (Shift + Clic para rango)"
+                    >
+                      <Check className="w-3.5 h-3.5 stroke-[3]" />
+                    </button>
                     {hasClientNote && (
                       <span className="text-[10px] px-2 py-0.5 rounded-md bg-amber-500 text-[#0b0a09] font-sans font-bold flex items-center gap-1 shadow-md">
                         <MessageSquare className="w-3 h-3 fill-current" />
@@ -982,14 +1233,34 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
                     </span>
                   </div>
 
-                  {/* Client Note if present */}
+                  {/* Client Note if present + Botón de Retoque Listo ✓ */}
                   {hasClientNote && (
-                    <div className="p-2.5 rounded-xl bg-amber-950/40 border border-amber-500/50 text-[#f5f2eb] text-xs space-y-1">
-                      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-amber-400 font-bold">
-                        <MessageSquare className="w-3.5 h-3.5" />
-                        <span>{t.clientNoteLabel}</span>
+                    <div
+                      className={`p-2.5 rounded-xl border text-xs space-y-1.5 transition-colors ${
+                        isRetouchDone
+                          ? "bg-emerald-950/30 border-emerald-500/40 text-emerald-100"
+                          : "bg-amber-950/40 border-amber-500/50 text-[#f5f2eb]"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className={`flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-bold ${isRetouchDone ? "text-emerald-400" : "text-amber-400"}`}>
+                          <MessageSquare className="w-3.5 h-3.5" />
+                          <span>{t.clientNoteLabel}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => toggleRetouchDone(asset.id)}
+                          className={`px-2 py-0.5 rounded-md text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-colors ${
+                            isRetouchDone
+                              ? "bg-emerald-500 text-[#0b0a09]"
+                              : "bg-amber-500/20 hover:bg-amber-500/35 text-amber-300 border border-amber-500/40"
+                          }`}
+                        >
+                          <Check className="w-2.5 h-2.5" />
+                          <span>{isRetouchDone ? "Retoque listo" : "Marcar listo"}</span>
+                        </button>
                       </div>
-                      <p className="italic text-amber-200/90 leading-relaxed font-sans font-medium pl-1 line-clamp-2" title={asset.client_notes || ""}>
+                      <p className={`italic leading-relaxed font-sans font-medium pl-1 line-clamp-2 ${isRetouchDone ? "line-through opacity-70 text-emerald-200" : "text-amber-200/90"}`} title={asset.client_notes || ""}>
                         &quot;{asset.client_notes}&quot;
                       </p>
                     </div>
@@ -1103,6 +1374,83 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
             )
           })}
         </div>
+
+        {/* Paginación Progresiva / Infinite Scroll Sentinel */}
+        {visibleLimit < currentList.length && (
+          <div ref={loadMoreRef} className="py-6 flex flex-col sm:flex-row items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => setVisibleLimit((prev) => Math.min(prev + 60, currentList.length))}
+              className="px-5 py-2.5 rounded-xl bg-[#181512] hover:bg-[#241f1a] border border-[#c69f68]/40 text-[#c69f68] text-xs font-bold cursor-pointer transition-all"
+            >
+              Mostrar 60 más ({visibleLimit} de {currentList.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setVisibleLimit(currentList.length)}
+              className="px-4 py-2.5 rounded-xl bg-[#12100e] hover:bg-[#1a1714] border border-[#26211c] text-[#8c7a6b] hover:text-[#f5f2eb] text-xs font-medium cursor-pointer transition-all"
+            >
+              Mostrar todas ({currentList.length})
+            </button>
+          </div>
+        )}
+
+        {/* Barra Flotante Inferior de Selección Múltiple Manual */}
+        {checkedIds.length > 0 && (
+          <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 flex flex-wrap items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-[#141210]/95 border border-[#c69f68] shadow-[0_15px_50px_rgba(0,0,0,0.85)] backdrop-blur-xl animate-in fade-in slide-in-from-bottom-3">
+            <span className="px-2.5 py-1 rounded-lg bg-[#c69f68] text-[#0b0a09] font-mono text-xs font-extrabold">
+              {checkedIds.length} seleccionados
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setAssets((prev) => prev.map((a) => (checkedIds.includes(a.id) ? { ...a, is_shared: true } : a)))
+                startTransition(async () => {
+                  await bulkSetAssetsSharedAction(checkedIds, true, session.id)
+                  showNotification(`${checkedIds.length} archivos compartidos con el cliente`)
+                })
+              }}
+              className="px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+            >
+              <Eye className="w-3.5 h-3.5" />
+              <span>Compartir</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setAssets((prev) => prev.map((a) => (checkedIds.includes(a.id) ? { ...a, is_shared: false } : a)))
+                startTransition(async () => {
+                  await bulkSetAssetsSharedAction(checkedIds, false, session.id)
+                  showNotification(`${checkedIds.length} archivos ocultados al cliente`)
+                })
+              }}
+              className="px-3 py-1.5 rounded-xl bg-[#1c1916] hover:bg-[#26211c] border border-[#383129] text-[#d6cec2] text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+            >
+              <EyeOff className="w-3.5 h-3.5" />
+              <span>Ocultar</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const chosen = safeAssets.filter((a) => checkedIds.includes(a.id))
+                handleCopySelectionToFolder(chosen)
+              }}
+              className="px-3 py-1.5 rounded-xl bg-[#c69f68]/20 hover:bg-[#c69f68]/30 border border-[#c69f68]/50 text-[#e8c89b] text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+            >
+              <FolderOpen className="w-3.5 h-3.5 text-[#c69f68]" />
+              <span>Copiar a 02_Seleccion</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setCheckedIds([])}
+              className="p-1.5 rounded-lg hover:bg-white/10 text-[#8c7a6b] hover:text-white cursor-pointer"
+              title="Limpiar selección"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+        </>
       )}
       </>
     )}

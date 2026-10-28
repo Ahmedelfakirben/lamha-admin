@@ -114,6 +114,21 @@ function createWindow() {
 
   loadPanel()
 
+  // Atajos nativos de teclado en el contenedor de escritorio (F5, Ctrl+R, Ctrl+Shift+R, Ctrl+Shift+I)
+  mainWindow.webContents.on("before-input-event", (event, input) => {
+    if (input.type !== "keyDown") return
+    if (input.key === "F5" || (input.control && !input.shift && input.key.toLowerCase() === "r")) {
+      event.preventDefault()
+      mainWindow.webContents.reload()
+    } else if (input.control && input.shift && input.key.toLowerCase() === "r") {
+      event.preventDefault()
+      mainWindow.webContents.reloadIgnoringCache()
+    } else if (input.control && input.shift && input.key.toLowerCase() === "i") {
+      event.preventDefault()
+      mainWindow.webContents.toggleDevTools()
+    }
+  })
+
   mainWindow.webContents.on("did-fail-load", (_event, errorCode, errorDescription) => {
     if (errorCode !== -3) {
       console.warn("Fallo de red al conectar con el servidor:", errorCode, errorDescription)
@@ -505,6 +520,87 @@ ipcMain.handle("launch-ingest-companion", async (_event, params = {}) => {
   }
 })
 
+// 12. Copiar automáticamente los archivos originales (RAW + JPG) seleccionados por el cliente a 02_Seleccion_Cliente
+ipcMain.handle("copy-client-selection", async (_event, params = {}) => {
+  const { folderName, filenames = [] } = params
+  if (!folderName || !Array.isArray(filenames) || filenames.length === 0) {
+    return { success: false, error: "Sin carpeta o archivos especificados" }
+  }
+
+  try {
+    const projectRoot = resolveLocalProjectFolder(folderName)
+    if (!projectRoot || !fs.existsSync(projectRoot)) {
+      return { success: false, error: `No se encontró la carpeta local: ${projectRoot || folderName}` }
+    }
+
+    const destDir = path.join(projectRoot, "02_Seleccion_Cliente")
+    if (!fs.existsSync(destDir)) {
+      fs.mkdirSync(destDir, { recursive: true })
+    }
+
+    // Construir conjunto de nombres base (sin extensión) y nombres exactos en minúscula
+    const targetStems = new Set()
+    const targetExact = new Set()
+    for (const rawName of filenames) {
+      if (!rawName || typeof rawName !== "string") continue
+      const base = path.basename(rawName).toLowerCase()
+      const stem = path.basename(base, path.extname(base)).toLowerCase()
+      targetExact.add(base)
+      if (stem) targetStems.add(stem)
+    }
+
+    // Buscar en 01_RAW y subcarpetas (excepto 02_Seleccion_Cliente)
+    const matchedFiles = []
+    function findMatches(dir) {
+      let entries = []
+      try {
+        entries = fs.readdirSync(dir, { withFileTypes: true })
+      } catch {
+        return
+      }
+      for (const entry of entries) {
+        if (entry.name.startsWith(".")) continue
+        const full = path.join(dir, entry.name)
+        if (entry.isDirectory()) {
+          if (entry.name.toLowerCase() === "02_seleccion_cliente") continue
+          findMatches(full)
+        } else if (entry.isFile()) {
+          const lowerName = entry.name.toLowerCase()
+          const stem = path.basename(lowerName, path.extname(lowerName))
+          if (targetExact.has(lowerName) || targetStems.has(stem)) {
+            matchedFiles.push(full)
+          }
+        }
+      }
+    }
+
+    findMatches(projectRoot)
+
+    let copiedCount = 0
+    for (const srcFile of matchedFiles) {
+      try {
+        const destFile = path.join(destDir, path.basename(srcFile))
+        if (!fs.existsSync(destFile)) {
+          fs.copyFileSync(srcFile, destFile)
+          copiedCount++
+        } else {
+          copiedCount++
+        }
+      } catch {}
+    }
+
+    // Abrir la carpeta 02_Seleccion_Cliente en el Explorador de Windows
+    await shell.openPath(destDir)
+    return {
+      success: true,
+      copiedCount,
+      destDir,
+    }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
 ipcMain.on("retry-connect", () => {
   if (mainWindow) {
     mainWindow.loadURL(STUDIO_PANEL_URL).catch(() => {
@@ -527,19 +623,6 @@ if (!gotTheLock) {
 
   app.whenReady().then(createWindow)
 }
-
-app.on("before-quit", () => {
-  if (engineChild && engineChild.pid) {
-    try {
-      if (process.platform === "win32") {
-        exec(`taskkill /pid ${engineChild.pid} /T /F`)
-      } else {
-        engineChild.kill()
-      }
-    } catch {}
-    engineChild = null
-  }
-})
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {

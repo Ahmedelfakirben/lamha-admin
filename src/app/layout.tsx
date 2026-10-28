@@ -14,6 +14,7 @@ import { UploadProvider } from "@/context/upload-context"
 import { WorkerProgressWidget } from "@/components/worker-progress-widget"
 import { GlobalUploadWidget } from "@/components/global-upload-widget"
 import { NavigationProgress, HeaderRefreshButton } from "@/components/navigation-progress"
+import { GlobalCommandPalette, HeaderSearchTrigger } from "@/components/global-command-palette"
 
 const outfit = Outfit({ subsets: ["latin"] })
 
@@ -78,6 +79,7 @@ export default function RootLayout({
             <span className="text-[#c69f68]/80 text-[11px] font-sans tracking-wide">Studio Atelier</span>
           </div>
           <div className="flex items-center h-full gap-2">
+            <HeaderSearchTrigger />
             <HeaderRefreshButton />
             {/* Reserved space for native Windows title bar controls (Minimize, Maximize, Close) */}
             <div className="w-36 h-full" style={{ WebkitAppRegion: "drag" } as React.CSSProperties} />
@@ -88,6 +90,7 @@ export default function RootLayout({
           <LanguageProvider>
             <UploadProvider>
               <NavigationProgress />
+              <GlobalCommandPalette />
               {isAuthPage ? (
                 <div className="w-full flex-1 overflow-y-auto bg-[#0b0a09]">
                   {children}
