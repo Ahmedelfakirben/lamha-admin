@@ -556,6 +556,46 @@
       </div>
     </div>
 
+    <!-- Paso 4: Sincronización Unidireccional Automática (Local SSD ➔ NAS) -->
+    <div class="card" id="nas-sync-card">
+      <div class="card-title">
+        <span id="txt-step4-title">4. Synchronisation Automatique Unidirectionnelle (Local SSD ➔ NAS)</span>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="auth-badge" id="nas-sync-badge" style="cursor: default;">
+            <span class="status-dot connected" id="nas-sync-dot"></span>
+            <span id="txt-nas-sync-status">Activée (En direct)</span>
+          </span>
+        </div>
+      </div>
+      <div class="card-content">
+        <p id="txt-step4-desc" style="font-size: 12px; color: var(--text-muted); line-height: 1.5;">
+          Synchronise automatiquement tous les dossiers, documents, photos et vidéos de <strong>C:\Lamha-Storage</strong> vers le <strong>NAS</strong> (01_RAW, 02_Seleccion_Cliente, 03_Edicion_Master, 04_Entregas_Finales) de manière strictement unidirectionnelle.
+        </p>
+
+        <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; background: var(--input-bg); border: 1px solid var(--card-border); border-radius: 12px;">
+          <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px;">
+            <button id="btn-nas-toggle" class="select-input" style="width: auto; cursor: pointer; font-weight: 700; border-color: var(--gold); color: var(--gold); padding: 8px 14px;">
+              Désactiver Auto-Sync
+            </button>
+            <button id="btn-nas-resume" class="select-input" style="width: auto; cursor: pointer; font-weight: 700; border-color: #10b981; color: #10b981; padding: 8px 14px; display: none;">
+              ▶ Reprendre maintenant
+            </button>
+            <button id="btn-nas-scan" class="select-input" style="width: auto; cursor: pointer; padding: 8px 14px;">
+              🔍 <span id="txt-btn-nas-scan">Vérifier fichiers non synchronisés</span>
+            </button>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+            <span id="txt-pause-label" style="font-size: 11px; color: var(--text-muted); font-weight: 600; margin-right: 4px;">Mettre en pause :</span>
+            <button class="btn-icon btn-pause-nas" data-hours="2" style="width: auto; padding: 0 10px; height: 30px; font-size: 11px; font-weight: 700;">2h</button>
+            <button class="btn-icon btn-pause-nas" data-hours="4" style="width: auto; padding: 0 10px; height: 30px; font-size: 11px; font-weight: 700;">4h</button>
+            <button class="btn-icon btn-pause-nas" data-hours="8" style="width: auto; padding: 0 10px; height: 30px; font-size: 11px; font-weight: 700;">8h</button>
+            <button class="btn-icon btn-pause-nas" data-hours="24" style="width: auto; padding: 0 10px; height: 30px; font-size: 11px; font-weight: 700;">24h</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Sección de Progreso Ultra-Llamativa -->
     <div id="progress-section" class="progress-section">
       <div class="progress-head">
@@ -634,6 +674,57 @@
     </div>
   </div>
 
+  <!-- Modal de Confirmación de Archivos Pendientes de Sincronizar (Local SSD ➔ NAS) -->
+  <div id="modal-nas-pending" class="modal-backdrop">
+    <div class="modal-card" style="max-width: 520px;">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 20px;">⚠️</span>
+          <h3 id="txt-pending-modal-title" style="color: var(--gold); font-size: 15px;">Fichiers non synchronisés détectés</h3>
+        </div>
+        <button class="btn-icon" id="btn-close-pending" style="border:none;">✕</button>
+      </div>
+
+      <p id="txt-pending-modal-desc" style="font-size: 12.5px; color: var(--text-muted); line-height: 1.5;">
+        Nous avons détecté des fichiers et dossiers locaux dans <strong>C:\Lamha-Storage</strong> qui ne sont pas encore archivés sur le NAS. Souhaitez-vous démarrer la synchronisation unidirectionnelle (Local ➔ NAS) maintenant ?
+      </p>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <div class="metric-card">
+          <span id="txt-pending-files-label">Fichiers en attente</span>
+          <strong id="txt-pending-count" style="font-size: 16px; color: var(--gold);">0</strong>
+        </div>
+        <div class="metric-card">
+          <span id="txt-pending-size-label">Volume total</span>
+          <strong id="txt-pending-size" style="font-size: 16px; color: var(--text-main);">0 MB</strong>
+        </div>
+      </div>
+
+      <div id="pending-projects-list" style="max-height: 150px; overflow-y: auto; background: var(--input-bg); border: 1px solid var(--card-border); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; font-size: 12px;">
+        <!-- Lista de proyectos/carpetas con pendientes -->
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 4px;">
+        <button id="btn-accept-pending" class="btn-primary" style="width: 100%; padding: 12px 18px; font-size: 13px;">
+          ✓ <span id="txt-btn-accept-pending">Accepter et Synchroniser maintenant (Local ➔ NAS)</span>
+        </button>
+
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span id="txt-modal-pause-label" style="font-size: 11px; color: var(--text-muted);">Ou mettre en pause :</span>
+            <button class="btn-icon btn-modal-pause" data-hours="2" style="width: auto; padding: 0 9px; height: 28px; font-size: 11px; font-weight: 700;">2h</button>
+            <button class="btn-icon btn-modal-pause" data-hours="4" style="width: auto; padding: 0 9px; height: 28px; font-size: 11px; font-weight: 700;">4h</button>
+            <button class="btn-icon btn-modal-pause" data-hours="8" style="width: auto; padding: 0 9px; height: 28px; font-size: 11px; font-weight: 700;">8h</button>
+            <button class="btn-icon btn-modal-pause" data-hours="24" style="width: auto; padding: 0 9px; height: 28px; font-size: 11px; font-weight: 700;">24h</button>
+          </div>
+          <button id="btn-dismiss-pending" class="select-input" style="width: auto; padding: 6px 14px; font-size: 12px; cursor: pointer;">
+            Plus tard
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>
     const I18N = {
       fr: {
@@ -642,6 +733,8 @@
         step1Title: "1. Source Mémoire (SD / USB)",
         step2Title: "2. Projet / Session Réelle",
         step3Title: "3. Pipeline d'Ingestion Complet",
+        step4Title: "4. Synchronisation Automatique Unidirectionnelle (Local SSD ➔ NAS)",
+        step4Desc: "Synchronise automatiquement tous les dossiers, documents, photos et vidéos de C:\\Lamha-Storage vers le NAS (01_RAW, 02_Seleccion_Cliente, 03_Edicion_Master, 04_Entregas_Finales) de manière strictement unidirectionnelle.",
         selectSessionLabel: "Associer à la séance :",
         pipeLocal: "1. Copie Ultra-Rapide vers SSD Local",
         pipeLocalDesc: "Stockage de travail haute vitesse pour le montage immédiat",
@@ -655,6 +748,22 @@
         browseOther: "Choisir un autre dossier manuellement...",
         loginOk: "Connecté :",
         loginNeed: "Connexion Supabase requise",
+        nasStatusActive: "Activée (En direct)",
+        nasStatusPaused: "En pause jusqu'à",
+        nasStatusDisabled: "Désactivée",
+        btnDisableSync: "Désactiver Auto-Sync",
+        btnEnableSync: "Activer Auto-Sync",
+        btnResumeNow: "▶ Reprendre maintenant",
+        btnScanPending: "Vérifier fichiers non synchronisés",
+        pauseLabel: "Mettre en pause :",
+        pendingModalTitle: "Fichiers non synchronisés détectés",
+        pendingModalDesc: "Nous avons détecté des fichiers et dossiers locaux dans C:\\Lamha-Storage qui ne sont pas encore archivés sur le NAS. Souhaitez-vous démarrer la synchronisation unidirectionnelle (Local ➔ NAS) maintenant ?",
+        pendingFilesLabel: "Fichiers en attente",
+        pendingSizeLabel: "Volume total",
+        btnAcceptPending: "Accepter et Synchroniser maintenant (Local ➔ NAS)",
+        modalPauseLabel: "Ou mettre en pause :",
+        btnDismissPending: "Plus tard",
+        allSyncedMsg: "Tous les dossiers et fichiers locaux sont déjà synchronisés sur le NAS ✓",
       },
       es: {
         appTitle: "LAM7A STUDIOS ATELIER",
@@ -662,6 +771,8 @@
         step1Title: "1. Origen de Memoria (SD / USB)",
         step2Title: "2. Proyecto / Sesión Real",
         step3Title: "3. Pipeline de Ingesta Completo",
+        step4Title: "4. Sincronización Automática Unidireccional (Local SSD ➔ NAS)",
+        step4Desc: "Sincroniza automáticamente todas las carpetas, documentos, fotos y vídeos de C:\\Lamha-Storage hacia el NAS (01_RAW, 02_Seleccion_Cliente, 03_Edicion_Master, 04_Entregas_Finales) de forma estrictamente unidireccional.",
         selectSessionLabel: "Vincular a la sesión:",
         pipeLocal: "1. Copia Ultra-Rápida a SSD Local",
         pipeLocalDesc: "Disco de trabajo de alta velocidad para montaje inmediato",
@@ -675,6 +786,22 @@
         browseOther: "Seleccionar otra carpeta manualmente...",
         loginOk: "Conectado:",
         loginNeed: "Iniciar sesión en Supabase",
+        nasStatusActive: "Activada (En vivo)",
+        nasStatusPaused: "Pausada hasta las",
+        nasStatusDisabled: "Desactivada",
+        btnDisableSync: "Desactivar Auto-Sync",
+        btnEnableSync: "Activar Auto-Sync",
+        btnResumeNow: "▶ Reanudar ahora",
+        btnScanPending: "Buscar archivos sin sincronizar",
+        pauseLabel: "Pausar por:",
+        pendingModalTitle: "Archivos sin sincronizar detectados",
+        pendingModalDesc: "Hemos detectado carpetas y archivos locales en C:\\Lamha-Storage que aún no están respaldados en el NAS. ¿Deseas iniciar la sincronización unidireccional (Local ➔ NAS) ahora?",
+        pendingFilesLabel: "Archivos pendientes",
+        pendingSizeLabel: "Tamaño total",
+        btnAcceptPending: "Aceptar y Sincronizar ahora (Local ➔ NAS)",
+        modalPauseLabel: "O pausar por:",
+        btnDismissPending: "Más tarde",
+        allSyncedMsg: "Todas las carpetas y archivos locales ya están sincronizados con el NAS ✓",
       },
       en: {
         appTitle: "LAM7A STUDIOS ATELIER",
@@ -682,6 +809,8 @@
         step1Title: "1. Storage Source (SD / USB)",
         step2Title: "2. Real Project / Session",
         step3Title: "3. Full Ingestion Pipeline",
+        step4Title: "4. Unidirectional Automatic Sync (Local SSD ➔ NAS)",
+        step4Desc: "Automatically synchronizes all folders, documents, photos, and videos from C:\\Lamha-Storage to the NAS (01_RAW, 02_Seleccion_Cliente, 03_Edicion_Master, 04_Entregas_Finales) strictly one-way.",
         selectSessionLabel: "Link to session:",
         pipeLocal: "1. Ultra-Fast Copy to Local SSD",
         pipeLocalDesc: "High-speed working drive for immediate editing",
@@ -695,6 +824,22 @@
         browseOther: "Choose another folder manually...",
         loginOk: "Connected:",
         loginNeed: "Supabase Login Required",
+        nasStatusActive: "Enabled (Live)",
+        nasStatusPaused: "Paused until",
+        nasStatusDisabled: "Disabled",
+        btnDisableSync: "Disable Auto-Sync",
+        btnEnableSync: "Enable Auto-Sync",
+        btnResumeNow: "▶ Resume Now",
+        btnScanPending: "Scan unsynced files",
+        pauseLabel: "Pause for:",
+        pendingModalTitle: "Unsynced local files detected",
+        pendingModalDesc: "We detected local folders and files in C:\\Lamha-Storage that are not yet backed up on the NAS. Do you want to start unidirectional synchronization (Local ➔ NAS) now?",
+        pendingFilesLabel: "Pending files",
+        pendingSizeLabel: "Total size",
+        btnAcceptPending: "Accept & Synchronize Now (Local ➔ NAS)",
+        modalPauseLabel: "Or pause for:",
+        btnDismissPending: "Later",
+        allSyncedMsg: "All local folders and files are already synchronized with the NAS ✓",
       },
       ar: {
         appTitle: "استوديو لمحة - أتيلييه",
@@ -702,6 +847,8 @@
         step1Title: "١. مصدر الذاكرة (SD / USB)",
         step2Title: "٢. المشروع / الجلسة الحقيقية",
         step3Title: "٣. مسار التفريغ التلقائي الكامل",
+        step4Title: "٤. المزامنة التلقائية أحادية الاتجاه (القرص المحلي ➔ NAS)",
+        step4Desc: "مزامنة جميع المجلدات والمستندات والصور والفيديوهات تلقائياً من C:\\Lamha-Storage إلى خادم NAS باتجاه واحد فقط.",
         selectSessionLabel: "ربط الصور بالجلسة:",
         pipeLocal: "١. نسخ فائق السرعة إلى قرص SSD المحلي",
         pipeLocalDesc: "قرص عمل عالي السرعة للبدء الفوري في المونتاج",
@@ -715,6 +862,22 @@
         browseOther: "اختيار مجلد آخر يدويًا...",
         loginOk: "متصل:",
         loginNeed: "تسجيل الدخول إلى Supabase",
+        nasStatusActive: "مفعّلة (مباشر)",
+        nasStatusPaused: "متوقفة مؤقتاً حتى",
+        nasStatusDisabled: "معطّلة",
+        btnDisableSync: "إيقاف المزامنة التلقائية",
+        btnEnableSync: "تفعيل المزامنة التلقائية",
+        btnResumeNow: "▶ استئناف الآن",
+        btnScanPending: "فحص الملفات غير المتزامنة",
+        pauseLabel: "إيقاف مؤقت لمدة:",
+        pendingModalTitle: "تم اكتشاف ملفات غير متزامنة",
+        pendingModalDesc: "تم العثور على مجلدات وملفات محلية في C:\\Lamha-Storage غير موجودة بعد على خادم NAS. هل ترغب في بدء المزامنة الآن؟",
+        pendingFilesLabel: "الملفات بالانتظار",
+        pendingSizeLabel: "الحجم الإجمالي",
+        btnAcceptPending: "موافقة وبدء المزامنة الآن (Local ➔ NAS)",
+        modalPauseLabel: "أو إيقاف مؤقت:",
+        btnDismissPending: "لاحقاً",
+        allSyncedMsg: "جميع المجلدات والملفات المحلية متزامنة بالفعل مع خادم NAS ✓",
       }
     };
 
@@ -722,16 +885,85 @@
     let currentTheme = "dark";
     let selectedDrive = "D:\\";
     let sessionsCache = [];
+    let currentNasState = { enabled: true, pausedUntil: null, isPaused: false };
+
+    function renderNasSyncState(st) {
+      if (st) currentNasState = st;
+      const t = I18N[currentLang] || I18N.fr;
+      const dot = document.getElementById("nas-sync-dot");
+      const statusTxt = document.getElementById("txt-nas-sync-status");
+      const btnToggle = document.getElementById("btn-nas-toggle");
+      const btnResume = document.getElementById("btn-nas-resume");
+
+      if (!currentNasState.enabled) {
+        dot.className = "status-dot";
+        dot.style.background = "#ef4444";
+        dot.style.boxShadow = "none";
+        statusTxt.textContent = t.nasStatusDisabled;
+        btnToggle.textContent = t.btnEnableSync;
+        btnToggle.style.borderColor = "#10b981";
+        btnToggle.style.color = "#10b981";
+        btnResume.style.display = "none";
+      } else if (currentNasState.isPaused && currentNasState.pausedUntil) {
+        const untilTime = new Date(currentNasState.pausedUntil).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        dot.className = "status-dot";
+        dot.style.background = "#f59e0b";
+        dot.style.boxShadow = "0 0 8px #f59e0b";
+        statusTxt.textContent = `${t.nasStatusPaused} ${untilTime}`;
+        btnToggle.textContent = t.btnDisableSync;
+        btnToggle.style.borderColor = "var(--gold)";
+        btnToggle.style.color = "var(--gold)";
+        btnResume.style.display = "inline-block";
+        btnResume.textContent = t.btnResumeNow;
+      } else {
+        dot.className = "status-dot connected";
+        dot.style.background = "#10b981";
+        dot.style.boxShadow = "0 0 8px #10b981";
+        statusTxt.textContent = t.nasStatusActive;
+        btnToggle.textContent = t.btnDisableSync;
+        btnToggle.style.borderColor = "var(--gold)";
+        btnToggle.style.color = "var(--gold)";
+        btnResume.style.display = "none";
+      }
+    }
+
+    function openPendingModal(summary) {
+      if (!summary || !summary.totalFiles) return;
+      const modal = document.getElementById("modal-nas-pending");
+      document.getElementById("txt-pending-count").textContent = `${summary.totalFiles}`;
+      const sizeStr = Number(summary.totalGb) >= 1 ? `${summary.totalGb} GB` : `${summary.totalMb} MB`;
+      document.getElementById("txt-pending-size").textContent = sizeStr;
+
+      const listEl = document.getElementById("pending-projects-list");
+      listEl.innerHTML = "";
+      if (Array.isArray(summary.projects)) {
+        summary.projects.forEach((p) => {
+          const row = document.createElement("div");
+          row.style.display = "flex";
+          row.style.justifyContent = "space-between";
+          row.style.alignItems = "center";
+          row.style.padding = "4px 6px";
+          row.style.borderBottom = "1px solid var(--card-border)";
+          const mb = (p.bytes / (1024 * 1024)).toFixed(1);
+          row.innerHTML = `<span style="color: var(--text-main); font-weight: 600;">📁 ${p.name}</span><span style="color: var(--gold); font-family: monospace;">${p.count} (${mb} MB)</span>`;
+          listEl.appendChild(row);
+        });
+      }
+      modal.classList.add("open");
+    }
 
     function setLanguage(l) {
       currentLang = l;
       const t = I18N[l] || I18N.fr;
+      document.getElementById("lang-select").value = l;
       document.documentElement.setAttribute("dir", l === "ar" ? "rtl" : "ltr");
       document.getElementById("txt-app-title").textContent = t.appTitle;
       document.getElementById("txt-app-subtitle").textContent = t.appSubtitle;
       document.getElementById("txt-step1-title").textContent = t.step1Title;
       document.getElementById("txt-step2-title").textContent = t.step2Title;
       document.getElementById("txt-step3-title").textContent = t.step3Title;
+      document.getElementById("txt-step4-title").textContent = t.step4Title;
+      document.getElementById("txt-step4-desc").textContent = t.step4Desc;
       document.getElementById("txt-select-session-label").textContent = t.selectSessionLabel;
       document.getElementById("txt-pipe-local").textContent = t.pipeLocal;
       document.getElementById("txt-pipe-local-desc").textContent = t.pipeLocalDesc;
@@ -742,6 +974,16 @@
       document.getElementById("txt-btn-start").textContent = t.btnStart;
       document.getElementById("txt-btn-cancel").textContent = t.btnCancel;
       document.getElementById("btn-browse-folder").textContent = t.browseOther;
+      document.getElementById("txt-btn-nas-scan").textContent = t.btnScanPending;
+      document.getElementById("txt-pause-label").textContent = t.pauseLabel;
+      document.getElementById("txt-pending-modal-title").textContent = t.pendingModalTitle;
+      document.getElementById("txt-pending-modal-desc").textContent = t.pendingModalDesc;
+      document.getElementById("txt-pending-files-label").textContent = t.pendingFilesLabel;
+      document.getElementById("txt-pending-size-label").textContent = t.pendingSizeLabel;
+      document.getElementById("txt-btn-accept-pending").textContent = t.btnAcceptPending;
+      document.getElementById("txt-modal-pause-label").textContent = t.modalPauseLabel;
+      document.getElementById("btn-dismiss-pending").textContent = t.btnDismissPending;
+      renderNasSyncState();
     }
 
     // Toggle Theme
@@ -882,10 +1124,80 @@
       });
     };
 
+    // Controles de Sincronización Unidireccional NAS
+    const modalPending = document.getElementById("modal-nas-pending");
+    document.getElementById("btn-nas-toggle").onclick = async () => {
+      if (!window.electronAPI) return;
+      const nextEnabled = !currentNasState.enabled;
+      const st = await window.electronAPI.setNasSyncEnabled(nextEnabled);
+      renderNasSyncState(st);
+    };
+
+    document.getElementById("btn-nas-resume").onclick = async () => {
+      if (!window.electronAPI) return;
+      const st = await window.electronAPI.resumeNasSync();
+      renderNasSyncState(st);
+    };
+
+    document.getElementById("btn-nas-scan").onclick = async () => {
+      if (!window.electronAPI) return;
+      const btn = document.getElementById("btn-nas-scan");
+      btn.disabled = true;
+      try {
+        const summary = await window.electronAPI.scanNasPending();
+        if (summary && summary.totalFiles > 0) {
+          openPendingModal(summary);
+        } else {
+          const t = I18N[currentLang] || I18N.fr;
+          alert(t.allSyncedMsg);
+        }
+      } finally {
+        btn.disabled = false;
+      }
+    };
+
+    document.querySelectorAll(".btn-pause-nas").forEach((btn) => {
+      btn.onclick = async () => {
+        if (!window.electronAPI) return;
+        const hrs = Number(btn.getAttribute("data-hours") || 2);
+        const st = await window.electronAPI.pauseNasSync(hrs);
+        renderNasSyncState(st);
+      };
+    });
+
+    document.getElementById("btn-accept-pending").onclick = async () => {
+      modalPending.classList.remove("open");
+      if (window.electronAPI) {
+        progressSection.classList.add("visible");
+        await window.electronAPI.acceptNasPending();
+      }
+    };
+
+    document.querySelectorAll(".btn-modal-pause").forEach((btn) => {
+      btn.onclick = async () => {
+        modalPending.classList.remove("open");
+        if (window.electronAPI) {
+          const hrs = Number(btn.getAttribute("data-hours") || 2);
+          const st = await window.electronAPI.pauseNasSync(hrs);
+          renderNasSyncState(st);
+        }
+      };
+    });
+
+    document.getElementById("btn-dismiss-pending").onclick = async () => {
+      modalPending.classList.remove("open");
+      if (window.electronAPI) await window.electronAPI.dismissNasPending();
+    };
+    document.getElementById("btn-close-pending").onclick = async () => {
+      modalPending.classList.remove("open");
+      if (window.electronAPI) await window.electronAPI.dismissNasPending();
+    };
+
     if (window.electronAPI) {
       window.electronAPI.onIngestEvent((ev) => {
         if (ev.type === "progress") {
-          btnCancel.style.display = "inline-block";
+          progressSection.classList.add("visible");
+          btnCancel.style.display = ev.isNasMirror ? "none" : "inline-block";
           const p = ev.percent || 0;
           barFill.style.width = p + "%";
           txtPct.textContent = Math.round(p) + "%";
@@ -894,7 +1206,9 @@
           mSpeed.textContent = (ev.speed || 0) + " MB/s";
           mEta.textContent = ev.eta !== null && ev.eta !== undefined ? `${ev.eta}s` : "Calcul...";
           mPhase.textContent =
-            ev.phase === "copy"
+            ev.isNasMirror
+              ? "Local ➔ NAS"
+              : ev.phase === "copy"
               ? "Copie SSD"
               : ev.phase === "cloud+nas"
               ? "Cloud + NAS"
@@ -904,7 +1218,9 @@
         } else if (ev.type === "done") {
           barFill.style.width = "100%";
           txtPct.textContent = "100%";
-          document.getElementById("txt-ingest-status").textContent = "Ingestion terminée avec succès !";
+          document.getElementById("txt-ingest-status").textContent = ev.isNasMirror
+            ? "Synchronisation NAS terminée avec succès !"
+            : "Ingestion terminée avec succès !";
           btnCancel.style.display = "none";
           btnStart.disabled = false;
         } else if (ev.type === "cancelled") {
@@ -916,6 +1232,29 @@
           document.getElementById("txt-ingest-status").textContent = `Erreur : ${ev.message}`;
           btnCancel.style.display = "none";
           btnStart.disabled = false;
+        }
+      });
+
+      if (window.electronAPI.onNasSyncState) {
+        window.electronAPI.onNasSyncState((st) => renderNasSyncState(st));
+      }
+      if (window.electronAPI.onNasPendingPrompt) {
+        window.electronAPI.onNasPendingPrompt((summary) => openPendingModal(summary));
+      }
+      if (window.electronAPI.onLanguageChanged) {
+        window.electronAPI.onLanguageChanged((l) => setLanguage(l));
+      }
+      if (window.electronAPI.getNasSyncState) {
+        window.electronAPI.getNasSyncState().then((st) => {
+          if (st) renderNasSyncState(st);
+        });
+      }
+      window.electronAPI.getSettings().then((cfg) => {
+        if (cfg && cfg.language) setLanguage(cfg.language);
+        if (cfg && cfg.theme) {
+          currentTheme = cfg.theme;
+          document.documentElement.setAttribute("data-theme", currentTheme);
+          document.getElementById("btn-theme").textContent = currentTheme === "dark" ? "☀️" : "🌙";
         }
       });
 

@@ -1041,7 +1041,8 @@ async function processSingleMasterItem(item, ftpClient, ensuredDirs, batchState,
 
   const nasTask = async () => {
     const cfg = getConfig()
-    if (!cfg.nasPassword || !cfg.nasHost || !ftpClient) return
+    const isNasAllowed = cfg.nasAutoSyncEnabled && (!cfg.nasSyncPausedUntil || Date.now() >= cfg.nasSyncPausedUntil)
+    if (!isNasAllowed || !cfg.nasPassword || !cfg.nasHost || !ftpClient) return
     try {
       const remoteDir = `${cfg.nasBaseDir}/${item.projectFolder}/${item.masterSubfolder}`
       if (!ensuredDirs.has(remoteDir)) {

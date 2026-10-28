@@ -64,6 +64,8 @@ function getConfig() {
     nasBaseDir: user.nasBaseDir || env.LAMHA_FTP_BASE_DIR || "/usb1_1/Lamha-Storage",
     language: user.language || "fr",
     theme: user.theme || "dark",
+    nasAutoSyncEnabled: user.nasAutoSyncEnabled !== undefined ? Boolean(user.nasAutoSyncEnabled) : true,
+    nasSyncPausedUntil: user.nasSyncPausedUntil || null,
   }
 }
 
@@ -81,12 +83,26 @@ function getPublicSettings() {
     theme: c.theme,
     hasNasPassword: !!c.nasPassword,
     hasSupabaseKey: !!c.supabaseAnonKey,
+    nasAutoSyncEnabled: c.nasAutoSyncEnabled,
+    nasSyncPausedUntil: c.nasSyncPausedUntil,
   }
 }
 
 function updateSettings(patch) {
   const current = loadUserSettings()
-  const allowed = ["supabaseUrl", "dashboardUrl", "ssdPath", "nasHost", "nasUser", "nasPassword", "nasBaseDir", "language", "theme"]
+  const allowed = [
+    "supabaseUrl",
+    "dashboardUrl",
+    "ssdPath",
+    "nasHost",
+    "nasUser",
+    "nasPassword",
+    "nasBaseDir",
+    "language",
+    "theme",
+    "nasAutoSyncEnabled",
+    "nasSyncPausedUntil",
+  ]
   for (const k of allowed) {
     if (patch[k] !== undefined && patch[k] !== "") current[k] = patch[k]
   }

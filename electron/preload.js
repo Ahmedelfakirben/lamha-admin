@@ -15,6 +15,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   onLanguageChanged: on("language-changed"),
   onIngestEvent: on("ingest-event"),
   onPrefillSession: on("prefill-session"),
+  onNasSyncState: on("nas-sync-state"),
+  onNasPendingPrompt: on("nas-pending-prompt"),
 
   // Idioma / sistema / tema
   notifyLanguageChange: (lang) => ipcRenderer.send("language-changed", lang),
@@ -38,6 +40,15 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // Ingesta
   startIngest: (params) => ipcRenderer.invoke("start-ingest", params),
   cancelIngest: () => ipcRenderer.invoke("cancel-ingest"),
+
+  // Sincronización Unidireccional Automática Local -> NAS
+  getNasSyncState: () => ipcRenderer.invoke("nas-sync-get-state"),
+  setNasSyncEnabled: (enabled) => ipcRenderer.invoke("nas-sync-set-enabled", enabled),
+  pauseNasSync: (hours) => ipcRenderer.invoke("nas-sync-pause", hours),
+  resumeNasSync: () => ipcRenderer.invoke("nas-sync-resume"),
+  scanNasPending: () => ipcRenderer.invoke("nas-sync-scan"),
+  acceptNasPending: () => ipcRenderer.invoke("nas-sync-accept"),
+  dismissNasPending: () => ipcRenderer.invoke("nas-sync-dismiss"),
 
   // Mini ventana
   miniExpand: () => ipcRenderer.send("mini-expand"),

@@ -3,13 +3,15 @@ const path = require("path")
 const { getTrayText } = require("./i18n")
 
 class LamhaSystemTray {
-  constructor({ onOpenDashboard, onStartIngest, onLanguageChange, currentLanguage = "fr" }) {
+  constructor({ onOpenDashboard, onStartIngest, onLanguageChange, onNasSyncAction, currentLanguage = "fr" }) {
     this.tray = null
     this.currentLanguage = currentLanguage
     this.activeCards = []
+    this.nasSyncState = { enabled: true, isPaused: false, pausedUntil: null }
     this.onOpenDashboard = onOpenDashboard
     this.onStartIngest = onStartIngest
     this.onLanguageChange = onLanguageChange
+    this.onNasSyncAction = onNasSyncAction
   }
 
   init() {
@@ -49,6 +51,11 @@ class LamhaSystemTray {
 
   setActiveCards(cards = []) {
     this.activeCards = cards
+    this.updateMenu()
+  }
+
+  setNasSyncState(st = {}) {
+    this.nasSyncState = { ...this.nasSyncState, ...st }
     this.updateMenu()
   }
 
@@ -146,6 +153,73 @@ class LamhaSystemTray {
         click: () => {
           shell.openExternal("http://192.168.11.1")
         },
+      },
+      { type: "separator" },
+      {
+        label: t.nasSyncMenu,
+        submenu: [
+          {
+            label: this.nasSyncState.isPaused && this.nasSyncState.pausedUntil
+              ? t.nasSyncPausedUntil(new Date(this.nasSyncState.pausedUntil).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }))
+              : t.nasSyncEnabled,
+            type: "radio",
+            checked: Boolean(this.nasSyncState.enabled && !this.nasSyncState.isPaused),
+            click: () => {
+              if (this.onNasSyncAction) this.onNasSyncAction({ action: "enable" })
+            },
+          },
+          {
+            label: t.nasSyncDisabled,
+            type: "radio",
+            checked: !this.nasSyncState.enabled,
+            click: () => {
+              if (this.onNasSyncAction) this.onNasSyncAction({ action: "disable" })
+            },
+          },
+          { type: "separator" },
+          ...(this.nasSyncState.isPaused
+            ? [
+                {
+                  label: t.nasSyncResumeNow,
+                  click: () => {
+                    if (this.onNasSyncAction) this.onNasSyncAction({ action: "resume" })
+                  },
+                },
+                { type: "separator" },
+              ]
+            : []),
+          {
+            label: t.nasSyncPause2h,
+            click: () => {
+              if (this.onNasSyncAction) this.onNasSyncAction({ action: "pause", hours: 2 })
+            },
+          },
+          {
+            label: t.nasSyncPause4h,
+            click: () => {
+              if (this.onNasSyncAction) this.onNasSyncAction({ action: "pause", hours: 4 })
+            },
+          },
+          {
+            label: t.nasSyncPause8h,
+            click: () => {
+              if (this.onNasSyncAction) this.onNasSyncAction({ action: "pause", hours: 8 })
+            },
+          },
+          {
+            label: t.nasSyncPause24h,
+            click: () => {
+              if (this.onNasSyncAction) this.onNasSyncAction({ action: "pause", hours: 24 })
+            },
+          },
+          { type: "separator" },
+          {
+            label: t.nasSyncScanNow,
+            click: () => {
+              if (this.onNasSyncAction) this.onNasSyncAction({ action: "scan" })
+            },
+          },
+        ],
       },
       { type: "separator" },
       {

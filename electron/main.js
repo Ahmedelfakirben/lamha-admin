@@ -24,6 +24,7 @@ const { LamhaSystemTray } = require("./tray")
 const { WindowsDriveWatcher, MasterFolderWatcher } = require("./watcher")
 const { getConfig, getPublicSettings, updateSettings } = require("./config")
 const { LamhaBridgeServer } = require("./bridge-server")
+const { NasSyncManager } = require("./nas-sync-manager")
 const engine = require("./ingest-engine")
 
 let mainWindow = null
@@ -32,6 +33,7 @@ let miniCloseTimer = null
 let systemTray = null
 let driveWatcher = null
 let masterWatcher = null
+let nasSyncManager = null
 let bridgeServer = null
 let currentLanguage = "fr"
 let hasShownMinimizeBalloon = false
@@ -298,6 +300,20 @@ const MASTER_NOTIFY_TEXT = {
   ar: (f, p) => ["اكتملت مزامنة نسخة ماستر", `تمت مزامنة ${f} مع Supabase و NAS (${p}).`],
 }
 
+const NAS_PENDING_NOTIFY = {
+  fr: (n, gb) => ["Fichiers non synchronisés détectés", `${n} fichiers (${gb} Go) en attente de synchronisation vers le NAS. Cliquez pour confirmer.`],
+  es: (n, gb) => ["Archivos pendientes de sincronizar", `Se detectaron ${n} archivos (${gb} GB) sin sincronizar en el NAS. Haz clic para confirmar.`],
+  en: (n, gb) => ["Unsynced Files Detected", `${n} files (${gb} GB) are waiting to be synced to the NAS. Click to confirm.`],
+  ar: (n, gb) => ["تم اكتشاف ملفات غير متزامنة", `يوجد ${n} ملفًا (${gb} غيغابايت) بانتظار المزامنة مع NAS. اضغط للتأكيد.`],
+}
+
+const NAS_SYNC_DONE_NOTIFY = {
+  fr: (n, mb) => ["Synchronisation NAS terminée", `${n} fichiers (${mb} Mo) ont été copiés vers le NAS de l'Atelier.`],
+  es: (n, mb) => ["Sincronización con NAS completada", `${n} archivos (${mb} MB) se han copiado al NAS del Estudio.`],
+  en: (n, mb) => ["NAS Synchronization Complete", `${n} files (${mb} MB) have been copied to the Studio NAS.`],
+  ar: (n, mb) => ["اكتملت مزامنة NAS", `تم نسخ ${n} ملفًا (${mb} ميغابايت) إلى خادم NAS.`],
+}
+
 // ---------------------------------------------------------------------------
 // Arranque
 // ---------------------------------------------------------------------------
@@ -311,6 +327,8 @@ app.whenReady().then(() => {
 
   currentLanguage = getConfig().language || "fr"
   createWindow()
+
+  nasSyncManager = new NasSyncManager()
 
   systemTray = new LamhaSystemTray({
     currentLanguage,
@@ -326,8 +344,54 @@ app.whenReady().then(() => {
         if (win && !win.isDestroyed()) win.webContents.send("language-changed", lang)
       }
     },
+    onNasSyncAction: (act) => {
+      if (!nasSyncManager || !act) return
+      if (act.action === "enable") nasSyncManager.setEnabled(true)
+      else if (act.action === "disable") nasSyncManager.setEnabled(false)
+      else if (act.action === "pause") nasSyncManager.pauseForHours(act.hours || 2)
+      else if (act.action === "resume") nasSyncManager.resume()
+      else if (act.action === "scan") {
+        showMain()
+        nasSyncManager.scanForPending({ triggerPrompt: true }).catch(() => {})
+      }
+    },
   })
   systemTray.init()
+  systemTray.setNasSyncState(nasSyncManager.getState())
+
+  nasSyncManager.on("state-changed", (st) => {
+    if (systemTray) systemTray.setNasSyncState(st)
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("nas-sync-state", st)
+    }
+  })
+
+  nasSyncManager.on("pending-detected", (summary) => {
+    logToFile("[NAS_SYNC] Archivos pendientes detectados:", summary.totalFiles, "peso GB:", summary.totalGb)
+    showMain()
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("nas-pending-prompt", summary)
+    }
+    const lang = getConfig().language || currentLanguage || "fr"
+    const fn = NAS_PENDING_NOTIFY[lang] || NAS_PENDING_NOTIFY.fr
+    const [title, body] = fn(summary.totalFiles, summary.totalGb)
+    notify(title, body)
+  })
+
+  nasSyncManager.on("sync-progress", (ev) => {
+    showMini()
+    broadcastIngest(ev)
+  })
+
+  nasSyncManager.on("sync-completed", (summary) => {
+    const lang = getConfig().language || currentLanguage || "fr"
+    const fn = NAS_SYNC_DONE_NOTIFY[lang] || NAS_SYNC_DONE_NOTIFY.fr
+    const [title, body] = fn(summary.files || 0, summary.mb || 0)
+    notify(title, body)
+    miniCloseTimer = setTimeout(closeMini, 15000)
+  })
+
+  nasSyncManager.start()
 
   driveWatcher = new WindowsDriveWatcher(2500)
   driveWatcher.on("card-inserted", (cardInfo) => {
@@ -346,6 +410,11 @@ app.whenReady().then(() => {
   // Observador de archivos en 03_Edicion_Master con cola inteligente por lotes
   masterWatcher = new MasterFolderWatcher()
   masterWatcher.on("master-file-added", (item) => {
+    // Si la sincronización automática está desactivada o en pausa, posponer hasta reanudación
+    if (nasSyncManager && !nasSyncManager.isActive()) {
+      logToFile("[MASTER_WATCHER] Sincronización en pausa/desactivada, omitiendo auto-sync inmediato:", item.filePath)
+      return
+    }
     logToFile("[MASTER_WATCHER] Archivo detectado en 03_Edicion_Master:", item.filePath)
     showMini()
     engine.enqueueMasterFile(
@@ -452,7 +521,24 @@ app.whenReady().then(() => {
   ipcMain.handle("start-ingest", async (_e, params) => {
     return triggerIngestWorkflow(params)
   })
-  ipcMain.handle("cancel-ingest", () => engine.cancelIngest())
+  ipcMain.handle("cancel-ingest", () => {
+    if (nasSyncManager) nasSyncManager.cancelCurrentSync()
+    return engine.cancelIngest()
+  })
+
+  // --- IPC: sincronización automática unidireccional Local -> NAS -----------
+  ipcMain.handle("nas-sync-get-state", () => (nasSyncManager ? nasSyncManager.getState() : {}))
+  ipcMain.handle("nas-sync-set-enabled", (_e, enabled) => (nasSyncManager ? nasSyncManager.setEnabled(enabled) : {}))
+  ipcMain.handle("nas-sync-pause", (_e, hours) => (nasSyncManager ? nasSyncManager.pauseForHours(hours) : {}))
+  ipcMain.handle("nas-sync-resume", () => (nasSyncManager ? nasSyncManager.resume() : {}))
+  ipcMain.handle("nas-sync-scan", async () => (nasSyncManager ? nasSyncManager.scanForPending({ triggerPrompt: true }) : null))
+  ipcMain.handle("nas-sync-accept", async () => {
+    if (!nasSyncManager) return { ok: false }
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.minimize()
+    showMini()
+    return nasSyncManager.acceptPendingSync()
+  })
+  ipcMain.handle("nas-sync-dismiss", () => (nasSyncManager ? nasSyncManager.dismissPendingPrompt() : { ok: true }))
 
   // --- IPC: mini ventana ----------------------------------------------------
   ipcMain.handle("mini-get-state", () => ({ lang: currentLanguage, theme: getConfig().theme, last: lastIngestState }))
@@ -500,6 +586,7 @@ app.on("before-quit", () => {
   if (bridgeServer) bridgeServer.stop()
   if (driveWatcher) driveWatcher.stop()
   if (masterWatcher) masterWatcher.stop()
+  if (nasSyncManager) nasSyncManager.stop()
   if (systemTray) systemTray.destroy()
 })
 

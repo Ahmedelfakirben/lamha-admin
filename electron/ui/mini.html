@@ -228,10 +228,42 @@
     const tagNas = document.getElementById("tag-nas");
 
     const I18N = {
-      fr: { title: "Ingestion en cours", masterTitle: "Synchronisation Master", done: "Terminé !", masterDone: "Master Synchronisé !", cancelled: "Annulé" },
-      es: { title: "Ingesta en curso", masterTitle: "Sincronización Master", done: "¡Completado!", masterDone: "¡Master Sincronizado!", cancelled: "Cancelado" },
-      en: { title: "Ingestion running", masterTitle: "Master Syncing", done: "Finished!", masterDone: "Master Synced!", cancelled: "Cancelled" },
-      ar: { title: "جارٍ التفريغ...", masterTitle: "مزامنة ماستر...", done: "تم بنجاح!", masterDone: "تمت مزامنة ماستر!", cancelled: "تم الإلغاء" }
+      fr: {
+        title: "Ingestion en cours",
+        masterTitle: "Synchronisation Master",
+        nasMirrorTitle: "Sync Local ➔ NAS",
+        done: "Terminé !",
+        masterDone: "Master Synchronisé !",
+        nasMirrorDone: "NAS Synchronisé !",
+        cancelled: "Annulé",
+      },
+      es: {
+        title: "Ingesta en curso",
+        masterTitle: "Sincronización Master",
+        nasMirrorTitle: "Sync Local ➔ NAS",
+        done: "¡Completado!",
+        masterDone: "¡Master Sincronizado!",
+        nasMirrorDone: "¡NAS Sincronizado!",
+        cancelled: "Cancelado",
+      },
+      en: {
+        title: "Ingestion running",
+        masterTitle: "Master Syncing",
+        nasMirrorTitle: "Local ➔ NAS Sync",
+        done: "Finished!",
+        masterDone: "Master Synced!",
+        nasMirrorDone: "NAS Synced!",
+        cancelled: "Cancelled",
+      },
+      ar: {
+        title: "جارٍ التفريغ...",
+        masterTitle: "مزامنة ماستر...",
+        nasMirrorTitle: "مزامنة NAS...",
+        done: "تم بنجاح!",
+        masterDone: "تمت مزامنة ماستر!",
+        nasMirrorDone: "تمت مزامنة NAS!",
+        cancelled: "تم الإلغاء",
+      }
     };
 
     let lang = "fr";
@@ -242,13 +274,19 @@
         const p = ev.percent || 0;
         bar.style.width = p + "%";
         txtPct.textContent = Math.round(p) + "%";
-        if (ev.isMasterSync) {
-          txtTitle.textContent = (I18N[lang] || I18N.fr).masterTitle;
+        const dict = I18N[lang] || I18N.fr;
+        if (ev.isNasMirror) {
+          txtTitle.textContent = dict.nasMirrorTitle;
+          document.getElementById("btn-cancel").style.display = "none";
+        } else if (ev.isMasterSync) {
+          txtTitle.textContent = dict.masterTitle;
         } else {
-          txtTitle.textContent = (I18N[lang] || I18N.fr).title;
+          txtTitle.textContent = dict.title;
         }
         if (ev.currentFile) txtFile.textContent = ev.currentFile;
-        txtCount.textContent = ev.isMasterSync
+        txtCount.textContent = ev.isNasMirror
+          ? `NAS • ${ev.processed || 0}/${ev.total || 0}`
+          : ev.isMasterSync
           ? ev.total && ev.total > 1
             ? `03_Master • ${ev.processed || 1}/${ev.total}`
             : "03_Édition_Master"
@@ -261,14 +299,19 @@
           updateTag(tagNas, ev.stages.nas);
         }
       } else if (ev.type === "done") {
+        const dict = I18N[lang] || I18N.fr;
         bar.style.width = "100%";
         txtPct.textContent = "100%";
-        txtTitle.textContent = ev.isMasterSync ? (I18N[lang] || I18N.fr).masterDone : (I18N[lang] || I18N.fr).done;
+        txtTitle.textContent = ev.isNasMirror
+          ? dict.nasMirrorDone
+          : ev.isMasterSync
+          ? dict.masterDone
+          : dict.done;
         txtFile.textContent = ev.fileName || (ev.summary ? `Client: ${ev.summary.client || "OK"}` : "Prêt");
         document.getElementById("dot").style.background = "#10b981";
         document.getElementById("dot").style.boxShadow = "0 0 8px #10b981";
         document.getElementById("btn-cancel").style.display = "none";
-        if (ev.isMasterSync) {
+        if (ev.isMasterSync || ev.isNasMirror) {
           tagCopy.className = "stage-tag done";
           tagCloud.className = "stage-tag done";
           tagNas.className = "stage-tag done";
