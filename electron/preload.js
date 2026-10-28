@@ -66,7 +66,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   // Reciclaje Inteligente de Carpetas Locales (Verificado por NAS)
   scanRecycleProjects: (checkLive = false) => ipcRenderer.invoke("recycle-scan-projects", checkLive),
-  recycleProjects: (folders) => ipcRenderer.invoke("recycle-projects", folders),
+  recycleProjects: (folders, forceLocalTrash = false) =>
+    ipcRenderer.invoke("recycle-projects", folders, Boolean(forceLocalTrash)),
 
   // Mini ventana
   miniExpand: () => ipcRenderer.send("mini-expand"),

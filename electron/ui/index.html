@@ -1826,18 +1826,39 @@
 
       try {
         const folderNames = pendingRecycleTargets.map((p) => p.folderName);
-        const res = await window.electronAPI.recycleProjects(folderNames);
+        let res = await window.electronAPI.recycleProjects(folderNames, false);
+
+        if (
+          res &&
+          !res.ok &&
+          (res.error === "NAS_UNREACHABLE" || res.error === "NAS_SYNC_INCOMPLETE" || res.error === "NAS_NOT_CONFIGURED")
+        ) {
+          progressSection.classList.remove("visible");
+          const offlinePrompts = {
+            fr: `⚠️ Le serveur NAS (${res.host || "192.168.11.1"}) est hors ligne ou injoignable.\n\nLa synchronisation automatique vers le NAS n'a pas pu être effectuée.\n\nVoulez-vous quand même envoyer ce dossier vers la Corbeille de Windows sur ce PC ?\n(Cliquez sur "Annuler" pour conserver le dossier intact jusqu'à ce que le NAS soit connecté)`,
+            es: `⚠️ El servidor NAS (${res.host || "192.168.11.1"}) no está conectado o no responde.\n\nNo se ha podido sincronizar con el NAS.\n\n¿Deseas enviar igualmente la carpeta a la Papelera de Reciclaje de Windows en este PC?\n(Pulsa "Cancelar" para conservar la carpeta intacta hasta conectar el NAS)`,
+            en: `⚠️ The NAS server (${res.host || "192.168.11.1"}) is offline or unreachable.\n\nAutomatic NAS sync could not be completed.\n\nDo you still want to move this folder to the Windows Recycle Bin on this PC?\n(Click "Cancel" to keep the folder until the NAS is connected)`,
+            ar: `⚠️ خادم NAS (${res.host || "192.168.11.1"}) غير متصل حالياً.\n\nتعذرت المزامنة التلقائية مع NAS.\n\nهل تريد نقل هذا المجلد إلى سلة محذوفات Windows على هذا الكمبيوتر على أي حال؟`,
+          };
+          const proceedWithoutNas = confirm(offlinePrompts[currentLang] || offlinePrompts.fr);
+          if (proceedWithoutNas) {
+            res = await window.electronAPI.recycleProjects(folderNames, true);
+          } else {
+            return;
+          }
+        }
+
+        progressSection.classList.remove("visible");
         if (res && res.ok) {
           alert(t.recycleSuccessMsg(res.recycledCount, res.freedGb, res.syncedBeforeRecycle));
           await loadRecycleProjects(false);
           await loadHistory();
           await refreshSystemHealth();
-        } else if (res && res.error === "NAS_UNREACHABLE") {
-          alert(t.recycleErrNas);
-        } else {
+        } else if (res && res.error !== "CANCELLED") {
           alert(t.recycleErrIncomplete);
         }
       } finally {
+        progressSection.classList.remove("visible");
         btnExec.disabled = false;
       }
     };
@@ -2691,10 +2712,14 @@
       btn.disabled = true;
       try {
         const summary = await window.electronAPI.scanNasPending();
+        const t = I18N[currentLang] || I18N.fr;
+        if (summary && summary.nasOnline === false) {
+          alert(t.recycleErrNas);
+          return;
+        }
         if (summary && summary.totalFiles > 0) {
           openPendingModal(summary);
         } else {
-          const t = I18N[currentLang] || I18N.fr;
           alert(t.allSyncedMsg);
         }
       } finally {
@@ -2715,7 +2740,14 @@
       modalPending.classList.remove("open");
       if (window.electronAPI) {
         progressSection.classList.add("visible");
-        await window.electronAPI.acceptNasPending();
+        const res = await window.electronAPI.acceptNasPending();
+        if (!res || !res.ok) {
+          progressSection.classList.remove("visible");
+          const t = I18N[currentLang] || I18N.fr;
+          if (res && res.error === "NAS_UNREACHABLE") {
+            alert(t.recycleErrNas);
+          }
+        }
       }
     };
 

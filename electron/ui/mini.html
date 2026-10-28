@@ -277,11 +277,13 @@
         const dict = I18N[lang] || I18N.fr;
         if (ev.isNasMirror) {
           txtTitle.textContent = dict.nasMirrorTitle;
-          document.getElementById("btn-cancel").style.display = "none";
+          document.getElementById("btn-cancel").style.display = "flex";
         } else if (ev.isMasterSync) {
           txtTitle.textContent = dict.masterTitle;
+          document.getElementById("btn-cancel").style.display = "flex";
         } else {
           txtTitle.textContent = dict.title;
+          document.getElementById("btn-cancel").style.display = "flex";
         }
         if (ev.currentFile) txtFile.textContent = ev.currentFile;
         txtCount.textContent = ev.isNasMirror
@@ -318,6 +320,15 @@
         }
       } else if (ev.type === "cancelled") {
         txtTitle.textContent = (I18N[lang] || I18N.fr).cancelled;
+        txtFile.textContent = (I18N[lang] || I18N.fr).cancelled;
+        document.getElementById("dot").style.background = "#f59e0b";
+        document.getElementById("dot").style.boxShadow = "0 0 8px #f59e0b";
+        document.getElementById("btn-cancel").style.display = "none";
+      } else if (ev.type === "error") {
+        txtTitle.textContent = "Erreur / NAS";
+        txtFile.textContent = ev.message || "Erreur de connexion";
+        document.getElementById("dot").style.background = "#ef4444";
+        document.getElementById("dot").style.boxShadow = "0 0 8px #ef4444";
         document.getElementById("btn-cancel").style.display = "none";
       }
     }

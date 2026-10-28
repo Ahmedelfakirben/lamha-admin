@@ -41,6 +41,32 @@ function shouldIgnoreFile(name) {
   return false
 }
 
+function checkNasTcpReachable(host, port = 21, timeoutMs = 2500) {
+  return new Promise((resolve) => {
+    if (!host) return resolve(false)
+    const net = require("net")
+    const sock = new net.Socket()
+    let settled = false
+    const done = (val) => {
+      if (settled) return
+      settled = true
+      try {
+        sock.destroy()
+      } catch {}
+      resolve(val)
+    }
+    sock.setTimeout(timeoutMs)
+    sock.once("connect", () => done(true))
+    sock.once("timeout", () => done(false))
+    sock.once("error", () => done(false))
+    try {
+      sock.connect(port, host)
+    } catch {
+      done(false)
+    }
+  })
+}
+
 class NasSyncManager extends EventEmitter {
   constructor() {
     super()
@@ -51,6 +77,7 @@ class NasSyncManager extends EventEmitter {
     this.isScanning = false
     this.isRunning = false
     this.cancelled = false
+    this.activeFtpClients = new Set()
     this.stabilizing = new Map() // fullPath -> { size, mtimeMs }
     this.knownRealtime = new Map() // fullPath -> { size, mtimeMs }
     this.pauseTimer = null
@@ -177,6 +204,13 @@ class NasSyncManager extends EventEmitter {
 
   cancelCurrentSync() {
     this.cancelled = true
+    for (const c of this.activeFtpClients) {
+      try {
+        c.close()
+      } catch {}
+    }
+    this.activeFtpClients.clear()
+    this.emit("sync-progress", { type: "cancelled", isNasMirror: true })
     return this.getState()
   }
 
@@ -335,24 +369,30 @@ class NasSyncManager extends EventEmitter {
 
       const localProjectNames = [...new Set(localFiles.map((f) => f.projectFolder))]
       let remoteMap = null
+      let nasOnline = false
 
       if (cfg.nasPassword && cfg.nasHost) {
-        const ftp = require("basic-ftp")
-        const client = new ftp.Client(12000)
-        try {
-          await client.access({
-            host: cfg.nasHost,
-            user: cfg.nasUser,
-            password: cfg.nasPassword,
-            port: 21,
-          })
-          remoteMap = await this.fetchRemoteTreeMap(client, cfg.nasBaseDir, localProjectNames)
-        } catch {
-          remoteMap = null
-        } finally {
+        nasOnline = await checkNasTcpReachable(cfg.nasHost, 21, 2500)
+        if (nasOnline) {
+          const ftp = require("basic-ftp")
+          const client = new ftp.Client(10000)
+          this.activeFtpClients.add(client)
           try {
-            client.close()
-          } catch {}
+            await client.access({
+              host: cfg.nasHost,
+              user: cfg.nasUser,
+              password: cfg.nasPassword,
+              port: 21,
+            })
+            remoteMap = await this.fetchRemoteTreeMap(client, cfg.nasBaseDir, localProjectNames)
+          } catch {
+            remoteMap = null
+          } finally {
+            this.activeFtpClients.delete(client)
+            try {
+              client.close()
+            } catch {}
+          }
         }
       }
 
@@ -393,6 +433,7 @@ class NasSyncManager extends EventEmitter {
 
       this.pendingItems = pending
       this.PendingSummary = {
+        nasOnline,
         totalFiles: pending.length,
         totalBytes,
         totalMb: Number((totalBytes / (1024 * 1024)).toFixed(1)),
@@ -400,7 +441,8 @@ class NasSyncManager extends EventEmitter {
         projects,
       }
 
-      if (pending.length > 0 && triggerPrompt) {
+      // Solo lanzar el popup automático de sincronización si el NAS está realmente alcanzable en red
+      if (pending.length > 0 && triggerPrompt && nasOnline) {
         this.emit("pending-detected", this.PendingSummary)
       }
       return this.PendingSummary
@@ -413,6 +455,11 @@ class NasSyncManager extends EventEmitter {
   async acceptPendingSync() {
     if (!this.pendingItems || this.pendingItems.length === 0) {
       return { ok: true, synced: 0 }
+    }
+    const cfg = getConfig()
+    const reachable = await checkNasTcpReachable(cfg.nasHost, 21, 2500)
+    if (!reachable) {
+      return { ok: false, error: "NAS_UNREACHABLE", host: cfg.nasHost }
     }
     const itemsToSync = [...this.pendingItems]
     this.pendingItems = []
@@ -428,6 +475,13 @@ class NasSyncManager extends EventEmitter {
       return { ok: false, error: "NAS_NOT_CONFIGURED" }
     }
 
+    const reachable = await checkNasTcpReachable(cfg.nasHost, 21, 2500)
+    if (!reachable) {
+      const msg = `NAS injoignable (${cfg.nasHost}:21)`
+      this.emit("sync-progress", { type: "error", isNasMirror: true, message: msg })
+      return { ok: false, error: "NAS_UNREACHABLE", message: msg }
+    }
+
     this.isRunning = true
     this.cancelled = false
     this.emit("state-changed", this.getState())
@@ -439,8 +493,11 @@ class NasSyncManager extends EventEmitter {
     let okCount = 0
     let failCount = 0
 
-    const emitProgress = (currentFile) => {
-      const pct = Math.min(99, Math.round((uploadedBytes / totalBytes) * 100))
+    const emitProgress = (currentFile, forcePct = null) => {
+      const pct =
+        forcePct !== null
+          ? forcePct
+          : Math.min(99, Math.round((uploadedBytes / totalBytes) * 100))
       const elapsedSec = Math.max(0.5, (Date.now() - startTime) / 1000)
       const speed = Number((uploadedBytes / (1024 * 1024) / elapsedSec).toFixed(1))
       const eta = pct > 2 ? Math.max(0, Math.round((elapsedSec * (100 - pct)) / pct)) : null
@@ -463,11 +520,15 @@ class NasSyncManager extends EventEmitter {
       })
     }
 
+    // Emitir estado inicial inmediato para que la mini ventana nunca quede en "Initialisation... 0/0"
+    emitProgress(`Connexion au NAS (${cfg.nasHost})...`, 1)
+
     const ftp = require("basic-ftp")
 
     try {
-      // 1. Asegurar todas las carpetas remotas primero con 1 cliente
-      const initClient = new ftp.Client(120000)
+      // 1. Asegurar todas las carpetas remotas primero con 1 cliente con timeout ágil
+      const initClient = new ftp.Client(15000)
+      this.activeFtpClients.add(initClient)
       try {
         await initClient.access({
           host: cfg.nasHost,
@@ -475,20 +536,29 @@ class NasSyncManager extends EventEmitter {
           password: cfg.nasPassword,
           port: 21,
         })
-        const remoteDirs = new Set(
-          items.map((it) => {
-            const subDir = path.posix.dirname(it.relPath)
-            return subDir && subDir !== "." ? `${cfg.nasBaseDir}/${subDir}` : cfg.nasBaseDir
-          })
+        const remoteDirs = Array.from(
+          new Set(
+            items.map((it) => {
+              const subDir = path.posix.dirname(it.relPath)
+              return subDir && subDir !== "." ? `${cfg.nasBaseDir}/${subDir}` : cfg.nasBaseDir
+            })
+          )
         )
-        for (const d of remoteDirs) {
+        for (let i = 0; i < remoteDirs.length; i++) {
           if (this.cancelled || (!force && !this.isActive())) break
-          await initClient.ensureDir(d)
+          emitProgress(`Préparation NAS (${i + 1}/${remoteDirs.length})...`, 2)
+          await initClient.ensureDir(remoteDirs[i])
         }
       } finally {
+        this.activeFtpClients.delete(initClient)
         try {
           initClient.close()
         } catch {}
+      }
+
+      if (this.cancelled || (!force && !this.isActive())) {
+        this.emit("sync-progress", { type: "cancelled", isNasMirror: true })
+        return { ok: false, cancelled: true }
       }
 
       // 2. Subir archivos con pool de 2 conexiones FTP concurrentes
@@ -496,12 +566,15 @@ class NasSyncManager extends EventEmitter {
       const poolSize = Math.min(2, items.length)
 
       const worker = async () => {
-        let client = new ftp.Client(120000)
+        let client = new ftp.Client(30000)
+        this.activeFtpClients.add(client)
         const connect = async () => {
+          this.activeFtpClients.delete(client)
           try {
             client.close()
           } catch {}
-          client = new ftp.Client(120000)
+          client = new ftp.Client(30000)
+          this.activeFtpClients.add(client)
           await client.access({
             host: cfg.nasHost,
             user: cfg.nasUser,
@@ -519,11 +592,13 @@ class NasSyncManager extends EventEmitter {
             const remotePath = `${cfg.nasBaseDir}/${it.relPath}`
             let sent = false
 
-            for (let attempt = 0; attempt < 2 && !sent; attempt++) {
+            emitProgress(it.fileName)
+
+            for (let attempt = 0; attempt < 2 && !sent && !this.cancelled; attempt++) {
+              let last = 0
               try {
-                let last = 0
                 client.trackProgress((info) => {
-                  const delta = info.bytes - last
+                  const delta = Math.max(0, info.bytes - last)
                   last = info.bytes
                   uploadedBytes += delta
                   emitProgress(it.fileName)
@@ -532,8 +607,9 @@ class NasSyncManager extends EventEmitter {
                 client.trackProgress()
                 sent = true
               } catch {
+                uploadedBytes = Math.max(0, uploadedBytes - last)
                 client.trackProgress()
-                if (attempt === 0) {
+                if (attempt === 0 && !this.cancelled) {
                   try {
                     await connect()
                   } catch {}
@@ -552,6 +628,7 @@ class NasSyncManager extends EventEmitter {
             emitProgress(it.fileName)
           }
         } finally {
+          this.activeFtpClients.delete(client)
           try {
             client.close()
           } catch {}
@@ -564,6 +641,12 @@ class NasSyncManager extends EventEmitter {
       if (this.cancelled || (!force && !this.isActive())) {
         this.emit("sync-progress", { type: "cancelled", isNasMirror: true })
         return { ok: false, cancelled: true }
+      }
+
+      if (okCount === 0 && failCount > 0) {
+        const errMsg = `Échec du transfert FTP vers le NAS (${failCount} fichiers)`
+        this.emit("sync-progress", { type: "error", isNasMirror: true, message: errMsg })
+        return { ok: false, error: "NAS_TRANSFER_FAILED", message: errMsg }
       }
 
       const summary = {
@@ -582,7 +665,11 @@ class NasSyncManager extends EventEmitter {
       this.emit("sync-completed", summary)
       return { ok: true, summary }
     } catch (err) {
-      this.emit("sync-progress", { type: "error", message: err.message || String(err) })
+      this.emit("sync-progress", {
+        type: "error",
+        isNasMirror: true,
+        message: err.message || String(err),
+      })
       return { ok: false, error: err.message || String(err) }
     } finally {
       this.isRunning = false
@@ -630,23 +717,28 @@ class NasSyncManager extends EventEmitter {
     let remoteMap = null
     let nasReachable = false
     if (checkRemoteLive && cfg.nasPassword && cfg.nasHost && folderDirs.length > 0) {
-      const ftp = require("basic-ftp")
-      const client = new ftp.Client(10000)
-      try {
-        await client.access({
-          host: cfg.nasHost,
-          user: cfg.nasUser,
-          password: cfg.nasPassword,
-          port: 21,
-        })
-        nasReachable = true
-        remoteMap = await this.fetchRemoteTreeMap(client, cfg.nasBaseDir, folderDirs)
-      } catch {
-        remoteMap = null
-      } finally {
+      const tcpOk = await checkNasTcpReachable(cfg.nasHost, 21, 2500)
+      if (tcpOk) {
+        const ftp = require("basic-ftp")
+        const client = new ftp.Client(8000)
+        this.activeFtpClients.add(client)
         try {
-          client.close()
-        } catch {}
+          await client.access({
+            host: cfg.nasHost,
+            user: cfg.nasUser,
+            password: cfg.nasPassword,
+            port: 21,
+          })
+          nasReachable = true
+          remoteMap = await this.fetchRemoteTreeMap(client, cfg.nasBaseDir, folderDirs)
+        } catch {
+          remoteMap = null
+        } finally {
+          this.activeFtpClients.delete(client)
+          try {
+            client.close()
+          } catch {}
+        }
       }
     }
 
@@ -768,22 +860,19 @@ class NasSyncManager extends EventEmitter {
   }
 
   /**
-   * Reciclaje Seguro con Verificación NAS obligatoria:
-   * 1. Conecta al NAS en vivo y verifica que cada foto/vídeo/documento de la carpeta exista con idéntico peso.
+   * Reciclaje Seguro con Verificación NAS obligatoria (y modo forceLocalTrash opcional si el usuario lo confirma):
+   * 1. Conecta al NAS en vivo (chequeo TCP rápido 2.5s) y verifica que cada foto/vídeo/documento exista con idéntico peso.
    * 2. Si faltan archivos en el NAS, los sube primero automáticamente al NAS con barra de progreso.
-   * 3. Si falla la conexión al NAS o falla aunque sea 1 archivo, ABORTA el reciclaje sin borrar nada en local.
-   * 4. Una vez 100% respaldado en el NAS, mueve la carpeta local a la Papelera de Reciclaje de Windows.
+   * 3. Si falla la conexión al NAS o falla algún archivo (y no se pidió forceLocalTrash), ABORTA sin borrar nada en local.
+   * 4. Una vez respaldado en el NAS (o con forceLocalTrash confirmado por el usuario), mueve la carpeta a la Papelera de Reciclaje de Windows.
    */
-  async verifyAndRecycleProjects(projectFolders = []) {
+  async verifyAndRecycleProjects(projectFolders = [], options = {}) {
+    const forceLocalTrash = Boolean(options && options.forceLocalTrash)
     const folders = Array.isArray(projectFolders) ? projectFolders.filter(Boolean) : [projectFolders].filter(Boolean)
     if (folders.length === 0) return { ok: false, error: "NO_PROJECTS_SELECTED" }
-    if (this.isRunning || this.isScanning) return { ok: false, error: "BUSY" }
+    if (this.isRunning) return { ok: false, error: "BUSY" }
 
     const cfg = getConfig()
-    if (!cfg.nasPassword || !cfg.nasHost) {
-      return { ok: false, error: "NAS_NOT_CONFIGURED" }
-    }
-
     const baseRoot = cfg.ssdPath
     if (!baseRoot || !fs.existsSync(baseRoot)) {
       return { ok: false, error: "SSD_PATH_NOT_FOUND" }
@@ -794,61 +883,82 @@ class NasSyncManager extends EventEmitter {
     const targetSet = new Set(folders)
     const targetFiles = allLocal.filter((f) => targetSet.has(f.projectFolder))
 
-    // 2. Conectar al NAS por FTP para auditoría real en vivo (Fail-Safe estricto)
-    const ftp = require("basic-ftp")
-    let remoteMap = null
-    const auditClient = new ftp.Client(15000)
-    try {
-      await auditClient.access({
-        host: cfg.nasHost,
-        user: cfg.nasUser,
-        password: cfg.nasPassword,
-        port: 21,
-      })
-      remoteMap = await this.fetchRemoteTreeMap(auditClient, cfg.nasBaseDir, folders)
-    } catch (err) {
-      return {
-        ok: false,
-        error: "NAS_UNREACHABLE",
-        message: err.message || String(err),
-      }
-    } finally {
-      try {
-        auditClient.close()
-      } catch {}
-    }
-
-    if (remoteMap === null) {
-      return { ok: false, error: "NAS_UNREACHABLE" }
-    }
-
-    // 3. Detectar cualquier archivo que aún no esté sincronizado en el NAS
-    const missingFiles = []
-    for (const f of targetFiles) {
-      const rSize = remoteMap.get(f.relPath)
-      if (rSize === undefined || rSize !== f.size) {
-        missingFiles.push(f)
-      } else {
-        this.cache[f.relPath] = { size: f.size, mtimeMs: f.mtimeMs }
-      }
-    }
-    this.saveCache()
-
-    // 4. Si hay archivos sin sincronizar en el NAS, sincronizarlos automáticamente antes de reciclar
     let syncedBeforeRecycle = 0
-    if (missingFiles.length > 0) {
-      const syncResult = await this.syncFilesList(missingFiles, { force: true })
-      if (!syncResult || !syncResult.ok || (syncResult.summary && syncResult.summary.failed > 0)) {
+
+    // Si hay archivos dentro de la carpeta y NO estamos en modo forzado sin NAS, verificar y sincronizar con NAS primero
+    if (targetFiles.length > 0 && !forceLocalTrash) {
+      if (!cfg.nasPassword || !cfg.nasHost) {
+        return { ok: false, error: "NAS_NOT_CONFIGURED" }
+      }
+
+      const tcpOk = await checkNasTcpReachable(cfg.nasHost, 21, 2500)
+      if (!tcpOk) {
         return {
           ok: false,
-          error: "NAS_SYNC_INCOMPLETE",
-          failedCount: syncResult?.summary?.failed || missingFiles.length,
+          error: "NAS_UNREACHABLE",
+          host: cfg.nasHost,
+          message: `NAS (${cfg.nasHost}:21) non connecté ou hors ligne`,
         }
       }
-      syncedBeforeRecycle = syncResult.summary?.files || missingFiles.length
+
+      // 2. Conectar al NAS por FTP para auditoría real en vivo
+      const ftp = require("basic-ftp")
+      let remoteMap = null
+      const auditClient = new ftp.Client(10000)
+      this.activeFtpClients.add(auditClient)
+      try {
+        await auditClient.access({
+          host: cfg.nasHost,
+          user: cfg.nasUser,
+          password: cfg.nasPassword,
+          port: 21,
+        })
+        remoteMap = await this.fetchRemoteTreeMap(auditClient, cfg.nasBaseDir, folders)
+      } catch (err) {
+        return {
+          ok: false,
+          error: "NAS_UNREACHABLE",
+          host: cfg.nasHost,
+          message: err.message || String(err),
+        }
+      } finally {
+        this.activeFtpClients.delete(auditClient)
+        try {
+          auditClient.close()
+        } catch {}
+      }
+
+      if (remoteMap === null) {
+        return { ok: false, error: "NAS_UNREACHABLE", host: cfg.nasHost }
+      }
+
+      // 3. Detectar cualquier archivo que aún no esté sincronizado en el NAS
+      const missingFiles = []
+      for (const f of targetFiles) {
+        const rSize = remoteMap.get(f.relPath)
+        if (rSize === undefined || rSize !== f.size) {
+          missingFiles.push(f)
+        } else {
+          this.cache[f.relPath] = { size: f.size, mtimeMs: f.mtimeMs }
+        }
+      }
+      this.saveCache()
+
+      // 4. Si hay archivos sin sincronizar en el NAS, sincronizarlos automáticamente antes de reciclar
+      if (missingFiles.length > 0) {
+        const syncResult = await this.syncFilesList(missingFiles, { force: true })
+        if (!syncResult || !syncResult.ok || (syncResult.summary && syncResult.summary.failed > 0)) {
+          return {
+            ok: false,
+            error: syncResult?.cancelled ? "CANCELLED" : "NAS_SYNC_INCOMPLETE",
+            failedCount: syncResult?.summary?.failed || missingFiles.length,
+          }
+        }
+        syncedBeforeRecycle = syncResult.summary?.files || missingFiles.length
+      }
     }
 
-    // 5. Enviar las carpetas locales verificadas a la Papelera de Reciclaje de Windows
+    // 5. Enviar las carpetas locales a la Papelera de Reciclaje de Windows
     let freedBytes = 0
     const recycledProjects = []
     const failedRecycle = []

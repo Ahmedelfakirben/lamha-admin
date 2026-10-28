@@ -380,8 +380,13 @@ app.whenReady().then(() => {
   })
 
   nasSyncManager.on("sync-progress", (ev) => {
-    showMini()
     broadcastIngest(ev)
+    if (ev.type === "progress") {
+      showMini()
+    } else if (ev.type === "error" || ev.type === "cancelled") {
+      showMain()
+      miniCloseTimer = setTimeout(closeMini, 3500)
+    }
   })
 
   nasSyncManager.on("sync-completed", (summary) => {
@@ -617,9 +622,11 @@ app.whenReady().then(() => {
     return nasSyncManager.scanLocalProjectsForRecycle(sessions, Boolean(checkLive))
   })
 
-  ipcMain.handle("recycle-projects", async (_e, folders) => {
+  ipcMain.handle("recycle-projects", async (_e, folders, forceLocalTrash = false) => {
     if (!nasSyncManager) return { ok: false, error: "NO_SYNC_MANAGER" }
-    const res = await nasSyncManager.verifyAndRecycleProjects(folders)
+    const res = await nasSyncManager.verifyAndRecycleProjects(folders, {
+      forceLocalTrash: Boolean(forceLocalTrash),
+    })
     if (res && res.ok && res.recycledCount > 0) {
       engine.addHistoryEntry({
         type: "recycle",
@@ -658,6 +665,7 @@ app.whenReady().then(() => {
   })
   ipcMain.handle("cancel-ingest", () => {
     if (nasSyncManager) nasSyncManager.cancelCurrentSync()
+    closeMini()
     return engine.cancelIngest()
   })
 
@@ -669,8 +677,6 @@ app.whenReady().then(() => {
   ipcMain.handle("nas-sync-scan", async () => (nasSyncManager ? nasSyncManager.scanForPending({ triggerPrompt: true }) : null))
   ipcMain.handle("nas-sync-accept", async () => {
     if (!nasSyncManager) return { ok: false }
-    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.minimize()
-    showMini()
     return nasSyncManager.acceptPendingSync()
   })
   ipcMain.handle("nas-sync-dismiss", () => (nasSyncManager ? nasSyncManager.dismissPendingPrompt() : { ok: true }))
