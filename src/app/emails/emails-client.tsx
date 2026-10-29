@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useMemo } from "react"
+import React, { useState, useMemo, useEffect } from "react"
 import {
   Mail,
   Send,
@@ -42,7 +42,8 @@ import {
   sendCustomClientEmailAction,
   sendTestAutomatedEmailAction,
 } from "@/app/actions"
-import { useLanguage } from "@/context/language-context"
+import { useLanguage, Language } from "@/context/language-context"
+import { EMAIL_UI_I18N } from "@/lib/email-ui-i18n"
 
 interface EmailsClientProps {
   initialSettings: EmailAutomationSettings
@@ -54,19 +55,19 @@ interface EmailsClientProps {
 
 const TEMPLATE_META: {
   key: EmailTemplateKey
-  badge: string
+  badgeKey: "badgeCreationIngest" | "badgePlannerShared" | "badgePortalSelection" | "badgePlannerReady"
   triggerLabel: Record<string, string>
   title: Record<string, string>
   desc: Record<string, string>
 }[] = [
   {
     key: "welcome",
-    badge: "Creación / Ingesta",
+    badgeKey: "badgeCreationIngest",
     triggerLabel: {
       es: "Al crear sesión (Admin o Ingesta)",
-      fr: "À la création de séance (Admin ou Ingest)",
+      fr: "À la création de séance (Admin ou Ingestion)",
       en: "On session creation (Admin or Ingest)",
-      ar: "عند إنشاء جلسة (الإدارة أو أداة التفريغ)",
+      ar: "عند تسجيل الجلسة (الإدارة أو أداة الاستيراد)",
     },
     title: {
       es: "1. Bienvenida y Confirmación de Reserva",
@@ -76,14 +77,14 @@ const TEMPLATE_META: {
     },
     desc: {
       es: "Se envía automáticamente cuando registras una nueva sesión con email del cliente.",
-      fr: "Envoyé automatiquement lors de l'enregistrement d'une nouvelle séance avec email.",
-      en: "Automatically sent when a new session is created with a client email.",
-      ar: "يُرسل تلقائياً عند تسجيل جلسة جديدة مع بريد العميل.",
+      fr: "Envoyé automatiquement lors de l'enregistrement d'une nouvelle séance avec email du client.",
+      en: "Automatically sent when a new session is created with a client email address.",
+      ar: "يُرسل تلقائياً عند تسجيل جلسة جديدة تحتوي على بريد إلكتروني للعميل.",
     },
   },
   {
     key: "photos_ready",
-    badge: "Planner ➔ Compartido",
+    badgeKey: "badgePlannerShared",
     triggerLabel: {
       es: "Planner: Fase 'Compartido / Selección'",
       fr: "Planner : Étape 'Partagé / Sélection'",
@@ -98,17 +99,17 @@ const TEMPLATE_META: {
     },
     desc: {
       es: "Se envía al pasar un proyecto a 'Compartido' en el Planner o pulsar Enviar Acceso.",
-      fr: "Envoyé lors du passage à 'Partagé' dans le Planner ou via Envoyer Accès.",
+      fr: "Envoyé lors du passage à 'Partagé' dans le Planner ou via le bouton Envoyer Accès.",
       en: "Sent when moving a project to 'Shared' in the Planner or clicking Send Access.",
-      ar: "يُرسل عند نقل المشروع إلى 'تمت المشاركة' في المخطط.",
+      ar: "يُرسل عند نقل المشروع إلى 'تمت المشاركة' في المخطط أو النقر على إرسال بيانات الدخول.",
     },
   },
   {
     key: "selection_confirmed",
-    badge: "Portal ➔ Selección",
+    badgeKey: "badgePortalSelection",
     triggerLabel: {
       es: "Portal: Cliente confirma su selección",
-      fr: "Portail : Client valide sa sélection",
+      fr: "Portail : Le client valide sa sélection",
       en: "Portal: Client submits photo selection",
       ar: "البوابة: العميل يؤكد اختيار الصور",
     },
@@ -127,7 +128,7 @@ const TEMPLATE_META: {
   },
   {
     key: "ready_delivery",
-    badge: "Planner ➔ Listo Entrega",
+    badgeKey: "badgePlannerReady",
     triggerLabel: {
       es: "Planner: Fase 'Listo para Entrega'",
       fr: "Planner : Étape 'Prêt pour Livraison'",
@@ -261,21 +262,29 @@ export function EmailsClient({
   smtpReady,
   smtpFromEmail,
 }: EmailsClientProps) {
-  const { language: uiLang } = useLanguage()
-  const activeUiLang = uiLang === "ar" || uiLang === "en" || uiLang === "es" || uiLang === "fr" ? uiLang : "es"
+  const { language: uiLang, dir } = useLanguage()
+  const activeUiLang: Language =
+    uiLang === "ar" || uiLang === "en" || uiLang === "es" || uiLang === "fr" ? uiLang : "fr"
+  const dict = EMAIL_UI_I18N[activeUiLang] || EMAIL_UI_I18N.fr
 
-  // Pestaña activa: "composer" (Enviar correo a placer) vs "automations" (Correos automáticos del Planner)
+  // Pestaña activa: "automations" (Correos automáticos) vs "composer" (Enviar correo libre)
   const [activeTab, setActiveTab] = useState<"automations" | "composer">("automations")
 
   // --- Estado de Automatizaciones y Plantillas ---
   const [settings, setSettings] = useState<EmailAutomationSettings>(initialSettings)
   const [selectedTemplateKey, setSelectedTemplateKey] = useState<EmailTemplateKey>("welcome")
-  const [selectedEditLang, setSelectedEditLang] = useState<EmailLanguage>("fr")
+  const [selectedEditLang, setSelectedEditLang] = useState<EmailLanguage>(activeUiLang)
   const [previewViewport, setPreviewViewport] = useState<"desktop" | "mobile">("desktop")
   const [isSavingSettings, setIsSavingSettings] = useState(false)
   const [saveFeedback, setSaveFeedback] = useState<{ type: "ok" | "err"; msg: string } | null>(null)
   const [testEmailTarget, setTestEmailTarget] = useState("")
   const [isSendingTest, setIsSendingTest] = useState(false)
+
+  // Sincronizar el idioma de edición con el idioma del panel cuando el usuario cambia de idioma
+  useEffect(() => {
+    setSelectedEditLang(activeUiLang)
+    setComposerLang(activeUiLang)
+  }, [activeUiLang])
 
   // --- Estado del Redactor de Correos a Placer (Composer) ---
   const [clientSearch, setClientSearch] = useState("")
@@ -283,8 +292,8 @@ export function EmailsClient({
   const [composerClientName, setComposerClientName] = useState("")
   const [composerClientEmail, setComposerClientEmail] = useState("")
   const [composerSessionId, setComposerSessionId] = useState("")
-  const [composerLang, setComposerLang] = useState<EmailLanguage>("fr")
-  const [composerTag, setComposerTag] = useState("COMMUNICATION ATELIER")
+  const [composerLang, setComposerLang] = useState<EmailLanguage>(activeUiLang)
+  const [composerTag, setComposerTag] = useState("ATELIER PHOTOGRAPHIQUE")
   const [composerSubject, setComposerSubject] = useState("")
   const [composerBody, setComposerBody] = useState("")
   const [composerIncludePortal, setComposerIncludePortal] = useState(true)
@@ -341,9 +350,7 @@ export function EmailsClient({
       if (res.success) {
         setSaveFeedback({
           type: "ok",
-          msg: nextEnabled
-            ? "Correo automático ACTIVADO y guardado."
-            : "Correo automático DESACTIVADO y guardado.",
+          msg: nextEnabled ? dict.msgToggledOn : dict.msgToggledOff,
         })
       }
     } finally {
@@ -358,9 +365,9 @@ export function EmailsClient({
     try {
       const res = await saveEmailAutomationSettingsAction(settings)
       if (res.success) {
-        setSaveFeedback({ type: "ok", msg: "Plantillas y configuración guardadas correctamente en Supabase." })
+        setSaveFeedback({ type: "ok", msg: dict.msgSettingsSaved })
       } else {
-        setSaveFeedback({ type: "err", msg: res.error || "Error al guardar la configuración." })
+        setSaveFeedback({ type: "err", msg: res.error || dict.msgSettingsSaveError })
       }
     } finally {
       setIsSavingSettings(false)
@@ -385,7 +392,7 @@ export function EmailsClient({
     }))
     setSaveFeedback({
       type: "ok",
-      msg: `Texto en ${selectedEditLang.toUpperCase()} restaurado al original. Pulsa "Guardar Cambios" para confirmar.`,
+      msg: dict.msgResetDone(selectedEditLang.toUpperCase()),
     })
   }
 
@@ -402,9 +409,9 @@ export function EmailsClient({
         language: selectedEditLang,
       })
       if (res.success) {
-        setSaveFeedback({ type: "ok", msg: `Correo de prueba enviado a ${testEmailTarget.trim()}` })
+        setSaveFeedback({ type: "ok", msg: dict.msgTestSent(testEmailTarget.trim()) })
       } else {
-        setSaveFeedback({ type: "err", msg: res.error || "Error al enviar correo de prueba" })
+        setSaveFeedback({ type: "err", msg: res.error || dict.msgTestError })
       }
     } finally {
       setIsSendingTest(false)
@@ -567,11 +574,11 @@ export function EmailsClient({
 
   const handleSendCustomEmail = async () => {
     if (!composerClientEmail.trim()) {
-      setComposerFeedback({ type: "err", msg: "Indica el correo electrónico del cliente." })
+      setComposerFeedback({ type: "err", msg: dict.msgRequireEmail })
       return
     }
     if (!composerBody.trim()) {
-      setComposerFeedback({ type: "err", msg: "Escribe el cuerpo del mensaje antes de enviar." })
+      setComposerFeedback({ type: "err", msg: dict.msgRequireBody })
       return
     }
     setIsSendingCustom(true)
@@ -596,12 +603,12 @@ export function EmailsClient({
       if (res.success) {
         setComposerFeedback({
           type: "ok",
-          msg: `Correo enviado con éxito a ${composerClientEmail.trim()}`,
+          msg: dict.msgCustomSent(composerClientEmail.trim()),
         })
       } else {
         setComposerFeedback({
           type: "err",
-          msg: res.error || "No se pudo enviar el correo.",
+          msg: res.error || dict.msgCustomError,
         })
       }
     } finally {
@@ -610,20 +617,25 @@ export function EmailsClient({
   }
 
   return (
-    <div className="min-h-screen bg-[#0b0a09] text-[#f5f2eb] p-4 md:p-8 space-y-6">
+    <div
+      dir={dir}
+      className={`min-h-screen bg-[#0b0a09] text-[#f5f2eb] p-4 md:p-8 space-y-6 ${
+        dir === "rtl" ? "font-arabic" : ""
+      }`}
+    >
       {/* Cabecera Principal */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#26211c] pb-5">
         <div>
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-[#c69f68]/15 border border-[#c69f68]/30 flex items-center justify-center text-[#c69f68]">
+            <div className="w-9 h-9 rounded-xl bg-[#c69f68]/15 border border-[#c69f68]/30 flex items-center justify-center text-[#c69f68] shrink-0">
               <Mail className="w-5 h-5" />
             </div>
             <div>
               <h1 className="text-xl md:text-2xl font-serif tracking-wide text-[#f5f2eb]">
-                Centro de Correos, Automatizaciones y Plantillas HTML
+                {dict.pageTitle}
               </h1>
-              <p className="text-xs text-[#9c8e7f]">
-                Gestiona los correos automáticos del Planner/Ingesta, edita sus textos o envía un correo HTML a cualquier cliente.
+              <p className="text-xs text-[#9c8e7f] mt-0.5">
+                {dict.pageSubtitle}
               </p>
             </div>
           </div>
@@ -639,7 +651,7 @@ export function EmailsClient({
             }`}
           >
             <span className={`w-2 h-2 rounded-full ${smtpReady ? "bg-emerald-400" : "bg-amber-400"}`} />
-            <span>Exchange: {smtpFromEmail}</span>
+            <span>{dict.exchangeLabel} {smtpFromEmail}</span>
           </div>
 
           <div className="flex bg-[#151210] p-1 rounded-xl border border-[#2b241d]">
@@ -653,7 +665,7 @@ export function EmailsClient({
               }`}
             >
               <Sliders className="w-3.5 h-3.5" />
-              <span>Correos Automáticos (Planner & Ingesta)</span>
+              <span>{dict.tabAutomations}</span>
             </button>
             <button
               type="button"
@@ -665,7 +677,7 @@ export function EmailsClient({
               }`}
             >
               <PenSquare className="w-3.5 h-3.5" />
-              <span>Enviar Correo a Placer (Preset HTML)</span>
+              <span>{dict.tabComposer}</span>
             </button>
           </div>
         </div>
@@ -694,7 +706,7 @@ export function EmailsClient({
                   <div className="space-y-2">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-[10px] uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-[#c69f68]/15 text-[#c69f68] border border-[#c69f68]/30 font-semibold">
-                        {item.badge}
+                        {dict[item.badgeKey]}
                       </span>
 
                       <button
@@ -705,24 +717,24 @@ export function EmailsClient({
                             ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/40 hover:bg-emerald-500/25"
                             : "bg-zinc-800/70 text-zinc-400 border-zinc-700 hover:bg-zinc-800"
                         }`}
-                        title="Activar o desactivar este correo automático"
+                        title={dict.toggleTooltip}
                       >
                         <Power className="w-3 h-3" />
-                        <span>{isEnabled ? "ACTIVO" : "DESACTIVADO"}</span>
+                        <span>{isEnabled ? dict.statusActive : dict.statusDisabled}</span>
                       </button>
                     </div>
 
                     <h3 className="text-sm font-bold text-[#f5f2eb] leading-snug">
-                      {item.title[activeUiLang] || item.title.es}
+                      {item.title[activeUiLang] || item.title.fr || item.title.es}
                     </h3>
                     <p className="text-xs text-[#9c8e7f] leading-relaxed">
-                      {item.desc[activeUiLang] || item.desc.es}
+                      {item.desc[activeUiLang] || item.desc.fr || item.desc.es}
                     </p>
                   </div>
 
                   <div className="pt-2 border-t border-[#241f1a] flex items-center justify-between text-[11px] text-[#8c7a6b]">
-                    <span>⚡ {item.triggerLabel[activeUiLang] || item.triggerLabel.es}</span>
-                    {isSelected && <span className="text-[#c69f68] font-bold">Editando ●</span>}
+                    <span>⚡ {item.triggerLabel[activeUiLang] || item.triggerLabel.fr || item.triggerLabel.es}</span>
+                    {isSelected && <span className="text-[#c69f68] font-bold">{dict.editingLabel}</span>}
                   </div>
                 </div>
               )
@@ -753,14 +765,14 @@ export function EmailsClient({
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#241f1a] pb-3.5">
                 <div>
                   <h2 className="text-sm font-bold text-[#c69f68] uppercase tracking-wider">
-                    Editar Contenido de la Plantilla
+                    {dict.editTitle}
                   </h2>
                   <p className="text-xs text-[#8c7a6b]">
-                    Selecciona el idioma del correo y personaliza cualquier texto.
+                    {dict.editSubtitle}
                   </p>
                 </div>
 
-                {/* Selector de idioma de la plantilla */}
+                {/* Selector de idioma del contenido de la plantilla */}
                 <div className="flex bg-[#1a1613] p-1 rounded-xl border border-[#2d261f]">
                   {LANG_TABS.map((lt) => (
                     <button
@@ -782,26 +794,26 @@ export function EmailsClient({
               {/* Variables disponibles */}
               <div className="bg-[#171411] border border-[#2a231c] rounded-xl p-3 space-y-1.5">
                 <div className="text-[11px] font-semibold text-[#c69f68]">
-                  Variables dinámicas disponibles (puedes usarlas en el asunto o textos):
+                  {dict.dynamicVarsTitle}
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {[
-                    { v: "{{clientName}}", desc: "Nombre cliente" },
-                    { v: "{{sessionDate}}", desc: "Fecha sesión" },
-                    { v: "{{category}}", desc: "Categoría" },
-                    { v: "{{portalPin}}", desc: "PIN 4 dígitos" },
-                    { v: "{{photosCount}}", desc: "Nº fotos" },
+                    { v: "{{clientName}}", desc: dict.varDescClientName },
+                    { v: "{{sessionDate}}", desc: dict.varDescSessionDate },
+                    { v: "{{category}}", desc: dict.varDescCategory },
+                    { v: "{{portalPin}}", desc: dict.varDescPortalPin },
+                    { v: "{{photosCount}}", desc: dict.varDescPhotosCount },
                   ].map((item) => (
                     <button
                       key={item.v}
                       type="button"
                       onClick={() => {
                         navigator.clipboard?.writeText(item.v)
-                        setSaveFeedback({ type: "ok", msg: `Variable ${item.v} copiada al portapapeles` })
+                        setSaveFeedback({ type: "ok", msg: dict.varCopiedFeedback(item.v) })
                         setTimeout(() => setSaveFeedback(null), 2000)
                       }}
                       className="text-[11px] font-mono px-2 py-0.5 rounded bg-[#221d18] hover:bg-[#2e2720] text-[#e5d5bc] border border-[#382f26]"
-                      title={`Clic para copiar (${item.desc})`}
+                      title={`${item.v} (${item.desc})`}
                     >
                       {item.v} <span className="text-[#8c7a6b] font-sans">({item.desc})</span>
                     </button>
@@ -812,7 +824,7 @@ export function EmailsClient({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs text-[#9c8e7f] mb-1 font-medium">
-                    Etiqueta Superior (Badge Dorado)
+                    {dict.fieldAtelierTag}
                   </label>
                   <input
                     type="text"
@@ -823,7 +835,7 @@ export function EmailsClient({
                 </div>
                 <div>
                   <label className="block text-xs text-[#9c8e7f] mb-1 font-medium">
-                    Subtítulo Bajo el Logo (Tagline)
+                    {dict.fieldTagline}
                   </label>
                   <input
                     type="text"
@@ -836,7 +848,7 @@ export function EmailsClient({
 
               <div>
                 <label className="block text-xs text-[#9c8e7f] mb-1 font-medium">
-                  Asunto del Correo (Subject)
+                  {dict.fieldSubject}
                 </label>
                 <input
                   type="text"
@@ -849,7 +861,7 @@ export function EmailsClient({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs text-[#9c8e7f] mb-1 font-medium">
-                    Saludo Inicial
+                    {dict.fieldGreeting}
                   </label>
                   <input
                     type="text"
@@ -860,7 +872,7 @@ export function EmailsClient({
                 </div>
                 <div>
                   <label className="block text-xs text-[#9c8e7f] mb-1 font-medium">
-                    Texto del Botón Principal (CTA)
+                    {dict.fieldCtaBtn}
                   </label>
                   <input
                     type="text"
@@ -873,7 +885,7 @@ export function EmailsClient({
 
               <div>
                 <label className="block text-xs text-[#9c8e7f] mb-1 font-medium">
-                  Párrafo Principal de Introducción
+                  {dict.fieldIntro}
                 </label>
                 <textarea
                   rows={3}
@@ -885,7 +897,7 @@ export function EmailsClient({
 
               <div>
                 <label className="block text-xs text-[#9c8e7f] mb-1 font-medium">
-                  Cuerpo del Mensaje / Instrucciones
+                  {dict.fieldBodyText}
                 </label>
                 <textarea
                   rows={3}
@@ -897,7 +909,7 @@ export function EmailsClient({
 
               <div>
                 <label className="block text-xs text-[#9c8e7f] mb-1 font-medium">
-                  Frase de Cierre / Despedida
+                  {dict.fieldClosing}
                 </label>
                 <textarea
                   rows={2}
@@ -915,7 +927,7 @@ export function EmailsClient({
                   className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium bg-[#1a1613] hover:bg-[#231e19] text-[#a89f91] border border-[#2e261f]"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Restaurar por defecto ({selectedEditLang.toUpperCase()})</span>
+                  <span>{dict.btnResetDefault(selectedEditLang.toUpperCase())}</span>
                 </button>
 
                 <button
@@ -925,7 +937,7 @@ export function EmailsClient({
                   className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-gradient-to-r from-[#c69f68] to-[#9e753b] text-[#0f0d0b] hover:opacity-95 disabled:opacity-50 shadow-md"
                 >
                   {isSavingSettings ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  <span>Guardar Cambios</span>
+                  <span>{dict.btnSaveChanges}</span>
                 </button>
               </div>
 
@@ -935,7 +947,7 @@ export function EmailsClient({
                   type="email"
                   value={testEmailTarget}
                   onChange={(e) => setTestEmailTarget(e.target.value)}
-                  placeholder="Tu email para recibir una prueba de esta plantilla..."
+                  placeholder={dict.placeholderTestEmail}
                   className="flex-1 bg-[#181512] border border-[#2e261f] rounded-xl px-3 py-2 text-xs text-[#f5f2eb] focus:border-[#c69f68] outline-none"
                 />
                 <button
@@ -945,7 +957,7 @@ export function EmailsClient({
                   className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-[#1e1915] hover:bg-[#2a231d] text-[#c69f68] border border-[#c69f68]/40 disabled:opacity-40"
                 >
                   {isSendingTest ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                  <span>Enviar Prueba</span>
+                  <span>{dict.btnSendTest}</span>
                 </button>
               </div>
             </div>
@@ -956,10 +968,10 @@ export function EmailsClient({
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 text-xs font-bold text-[#c69f68]">
                     <Eye className="w-4 h-4" />
-                    <span>VISTA PREVIA HTML EN VIVO ({selectedEditLang.toUpperCase()})</span>
+                    <span>{dict.previewTitleAutomated(selectedEditLang.toUpperCase())}</span>
                   </div>
                   <p className="text-[11px] text-[#9c8e7f] truncate mt-0.5">
-                    Asunto: <strong className="text-[#f5f2eb]">{automatedPreview.subject}</strong>
+                    {dict.previewSubjectLabel} <strong className="text-[#f5f2eb]">{automatedPreview.subject}</strong>
                   </p>
                 </div>
 
@@ -970,7 +982,7 @@ export function EmailsClient({
                     className={`p-1.5 rounded-lg ${
                       previewViewport === "desktop" ? "bg-[#c69f68] text-[#0f0d0b]" : "text-[#9c8e7f]"
                     }`}
-                    title="Vista Escritorio"
+                    title={dict.previewDesktopTooltip}
                   >
                     <Monitor className="w-3.5 h-3.5" />
                   </button>
@@ -980,7 +992,7 @@ export function EmailsClient({
                     className={`p-1.5 rounded-lg ${
                       previewViewport === "mobile" ? "bg-[#c69f68] text-[#0f0d0b]" : "text-[#9c8e7f]"
                     }`}
-                    title="Vista Móvil"
+                    title={dict.previewMobileTooltip}
                   >
                     <Smartphone className="w-3.5 h-3.5" />
                   </button>
@@ -1014,14 +1026,14 @@ export function EmailsClient({
               <div>
                 <h2 className="text-sm font-bold text-[#c69f68] uppercase tracking-wider flex items-center gap-2">
                   <Sparkles className="w-4 h-4" />
-                  <span>Redactar Correo a Cliente (Preset HTML Oficial)</span>
+                  <span>{dict.composerTitle}</span>
                 </h2>
                 <p className="text-xs text-[#8c7a6b]">
-                  Elige el cliente y escribe únicamente el mensaje; el diseño de lujo de Lam7a Studios se aplica solo.
+                  {dict.composerSubtitle}
                 </p>
               </div>
 
-              {/* Idioma del correo */}
+              {/* Idioma del correo que se enviará al cliente */}
               <div className="flex bg-[#1a1613] p-1 rounded-xl border border-[#2d261f]">
                 {LANG_TABS.map((lt) => (
                   <button
@@ -1061,7 +1073,7 @@ export function EmailsClient({
             <div className="space-y-3 bg-[#171411] border border-[#2a231c] rounded-xl p-3.5">
               <div className="relative">
                 <label className="block text-xs font-semibold text-[#c69f68] mb-1">
-                  1. Buscar y Seleccionar Cliente (o rellenar manualmente debajo)
+                  {dict.composerStep1}
                 </label>
                 <div className="relative">
                   <Search className="w-3.5 h-3.5 text-[#8c7a6b] absolute left-3 top-2.5" />
@@ -1073,7 +1085,7 @@ export function EmailsClient({
                       setClientSearch(e.target.value)
                       setShowClientDropdown(true)
                     }}
-                    placeholder="Buscar cliente por nombre, correo o teléfono..."
+                    placeholder={dict.composerSearchPlaceholder}
                     className="w-full bg-[#12100e] border border-[#2e261f] rounded-xl pl-9 pr-3 py-2 text-xs text-[#f5f2eb] focus:border-[#c69f68] outline-none"
                   />
                 </div>
@@ -1089,11 +1101,11 @@ export function EmailsClient({
                         <div>
                           <div className="font-bold text-[#f5f2eb]">{c.name}</div>
                           <div className="text-[11px] text-[#9c8e7f]">
-                            {c.email || "Sin email registrado"} {c.phone ? `• ${c.phone}` : ""}
+                            {c.email || dict.composerNoEmail} {c.phone ? `• ${c.phone}` : ""}
                           </div>
                         </div>
                         <span className="text-[10px] px-2 py-0.5 rounded bg-[#c69f68]/15 text-[#c69f68]">
-                          {c.sessionCount} ses.
+                          {c.sessionCount} {dict.composerSessionsSuffix}
                         </span>
                       </div>
                     ))}
@@ -1103,22 +1115,22 @@ export function EmailsClient({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] text-[#9c8e7f] mb-1">Nombre del Cliente *</label>
+                  <label className="block text-[11px] text-[#9c8e7f] mb-1">{dict.composerClientNameLabel}</label>
                   <input
                     type="text"
                     value={composerClientName}
                     onChange={(e) => setComposerClientName(e.target.value)}
-                    placeholder="Ej: Sarah Benali"
+                    placeholder={dict.composerClientNamePlaceholder}
                     className="w-full bg-[#12100e] border border-[#2e261f] rounded-xl px-3 py-2 text-xs text-[#f5f2eb] focus:border-[#c69f68] outline-none"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] text-[#9c8e7f] mb-1">Correo Electrónico Destino *</label>
+                  <label className="block text-[11px] text-[#9c8e7f] mb-1">{dict.composerClientEmailLabel}</label>
                   <input
                     type="email"
                     value={composerClientEmail}
                     onChange={(e) => setComposerClientEmail(e.target.value)}
-                    placeholder="cliente@ejemplo.com"
+                    placeholder={dict.composerClientEmailPlaceholder}
                     className="w-full bg-[#12100e] border border-[#2e261f] rounded-xl px-3 py-2 text-xs text-[#f5f2eb] focus:border-[#c69f68] outline-none"
                   />
                 </div>
@@ -1127,14 +1139,14 @@ export function EmailsClient({
               {/* Vincular sesión opcional para autocompletar PIN y Drive */}
               <div>
                 <label className="block text-[11px] text-[#9c8e7f] mb-1">
-                  Vincular Proyecto / Sesión (opcional, autocompleta su PIN y Google Drive)
+                  {dict.composerLinkSessionLabel}
                 </label>
                 <select
                   value={composerSessionId}
                   onChange={(e) => handleSelectComposerSession(e.target.value)}
                   className="w-full bg-[#12100e] border border-[#2e261f] rounded-xl px-3 py-2 text-xs text-[#f5f2eb] focus:border-[#c69f68] outline-none"
                 >
-                  <option value="">-- Sin sesión específica / Correo general --</option>
+                  <option value="">{dict.composerNoSessionOption}</option>
                   {clientSessions.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.client_name} — {s.category} ({s.session_date}) {s.portal_pin ? `[PIN: ${s.portal_pin}]` : ""}
@@ -1147,7 +1159,7 @@ export function EmailsClient({
             {/* 2. Plantillas Rápidas de Texto (1 Clic) */}
             <div>
               <label className="block text-xs text-[#9c8e7f] mb-1.5 font-medium">
-                2. Textos Rápidos de Punto de Partida (opcional, o escribe libremente debajo):
+                {dict.composerStep2}
               </label>
               <div className="flex flex-wrap gap-2">
                 {(QUICK_MESSAGE_PRESETS[composerLang] || QUICK_MESSAGE_PRESETS.fr).map((p) => (
@@ -1166,7 +1178,7 @@ export function EmailsClient({
             {/* 3. Asunto y Cuerpo del Mensaje */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="sm:col-span-1">
-                <label className="block text-xs text-[#9c8e7f] mb-1 font-medium">Etiqueta Cabecera</label>
+                <label className="block text-xs text-[#9c8e7f] mb-1 font-medium">{dict.composerHeaderTagLabel}</label>
                 <input
                   type="text"
                   value={composerTag}
@@ -1176,12 +1188,12 @@ export function EmailsClient({
                 />
               </div>
               <div className="sm:col-span-2">
-                <label className="block text-xs text-[#9c8e7f] mb-1 font-medium">Asunto del Correo *</label>
+                <label className="block text-xs text-[#9c8e7f] mb-1 font-medium">{dict.composerSubjectLabel}</label>
                 <input
                   type="text"
                   value={composerSubject}
                   onChange={(e) => setComposerSubject(e.target.value)}
-                  placeholder="✦ Información de Lam7a Studios..."
+                  placeholder={dict.composerSubjectPlaceholder}
                   className="w-full bg-[#181512] border border-[#2e261f] rounded-xl px-3 py-2 text-xs text-[#f5f2eb] focus:border-[#c69f68] outline-none"
                 />
               </div>
@@ -1189,13 +1201,13 @@ export function EmailsClient({
 
             <div>
               <label className="block text-xs text-[#9c8e7f] mb-1 font-medium">
-                Cuerpo del Mensaje * (Separa párrafos con Enter; el saludo y la firma ya están en el Preset HTML)
+                {dict.composerBodyLabel}
               </label>
               <textarea
                 rows={6}
                 value={composerBody}
                 onChange={(e) => setComposerBody(e.target.value)}
-                placeholder="Escribe aquí el mensaje para el cliente..."
+                placeholder={dict.composerBodyPlaceholder}
                 className="w-full bg-[#181512] border border-[#2e261f] rounded-xl px-3.5 py-2.5 text-xs text-[#f5f2eb] focus:border-[#c69f68] outline-none leading-relaxed"
               />
             </div>
@@ -1209,12 +1221,12 @@ export function EmailsClient({
                   onChange={(e) => setComposerIncludePortal(e.target.checked)}
                   className="rounded accent-[#c69f68]"
                 />
-                <span>Incluir bloque dorado con Credenciales del Portal (si hay PIN)</span>
+                <span>{dict.composerIncludePortalLabel}</span>
               </label>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] text-[#9c8e7f] mb-1">Código PIN Portal (opcional)</label>
+                  <label className="block text-[11px] text-[#9c8e7f] mb-1">{dict.composerPinLabel}</label>
                   <input
                     type="text"
                     value={composerPortalPin}
@@ -1224,7 +1236,7 @@ export function EmailsClient({
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] text-[#9c8e7f] mb-1">Enlace Google Drive (opcional)</label>
+                  <label className="block text-[11px] text-[#9c8e7f] mb-1">{dict.composerDriveLabel}</label>
                   <input
                     type="text"
                     value={composerDriveUrl}
@@ -1244,7 +1256,7 @@ export function EmailsClient({
                 className="flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-bold bg-gradient-to-r from-[#c69f68] to-[#9e753b] text-[#0f0d0b] hover:opacity-95 disabled:opacity-50 shadow-lg"
               >
                 {isSendingCustom ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                <span>Enviar Correo HTML Ahora</span>
+                <span>{dict.composerBtnSend}</span>
               </button>
             </div>
           </div>
@@ -1255,10 +1267,10 @@ export function EmailsClient({
               <div className="min-w-0">
                 <div className="flex items-center gap-2 text-xs font-bold text-[#c69f68]">
                   <Eye className="w-4 h-4" />
-                  <span>VISTA PREVIA DEL CORREO A ENVIAR ({composerLang.toUpperCase()})</span>
+                  <span>{dict.composerPreviewTitle(composerLang.toUpperCase())}</span>
                 </div>
                 <p className="text-[11px] text-[#9c8e7f] truncate mt-0.5">
-                  Para: <strong className="text-[#f5f2eb]">{composerClientEmail || "cliente@ejemplo.com"}</strong> • Asunto:{" "}
+                  {dict.composerPreviewTo} <strong className="text-[#f5f2eb]">{composerClientEmail || "client@exemple.com"}</strong> • {dict.previewSubjectLabel}{" "}
                   <strong className="text-[#f5f2eb]">{composerPreview.subject}</strong>
                 </p>
               </div>
@@ -1278,4 +1290,3 @@ export function EmailsClient({
     </div>
   )
 }
-
