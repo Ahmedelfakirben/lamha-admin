@@ -821,29 +821,16 @@ export function EmailsClient({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs text-[#9c8e7f] mb-1 font-medium">
-                    {dict.fieldAtelierTag}
-                  </label>
-                  <input
-                    type="text"
-                    value={currentLangCopy.atelierTag}
-                    onChange={(e) => updateTemplateField("atelierTag", e.target.value)}
-                    className="w-full bg-[#181512] border border-[#2e261f] rounded-xl px-3 py-2 text-xs text-[#f5f2eb] focus:border-[#c69f68] outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-[#9c8e7f] mb-1 font-medium">
-                    {dict.fieldTagline}
-                  </label>
-                  <input
-                    type="text"
-                    value={currentLangCopy.tagline}
-                    onChange={(e) => updateTemplateField("tagline", e.target.value)}
-                    className="w-full bg-[#181512] border border-[#2e261f] rounded-xl px-3 py-2 text-xs text-[#f5f2eb] focus:border-[#c69f68] outline-none"
-                  />
-                </div>
+              <div>
+                <label className="block text-xs text-[#9c8e7f] mb-1 font-medium">
+                  {dict.fieldTagline}
+                </label>
+                <input
+                  type="text"
+                  value={currentLangCopy.tagline}
+                  onChange={(e) => updateTemplateField("tagline", e.target.value)}
+                  className="w-full bg-[#181512] border border-[#2e261f] rounded-xl px-3 py-2 text-xs text-[#f5f2eb] focus:border-[#c69f68] outline-none"
+                />
               </div>
 
               <div>
@@ -1176,27 +1163,15 @@ export function EmailsClient({
             </div>
 
             {/* 3. Asunto y Cuerpo del Mensaje */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="sm:col-span-1">
-                <label className="block text-xs text-[#9c8e7f] mb-1 font-medium">{dict.composerHeaderTagLabel}</label>
-                <input
-                  type="text"
-                  value={composerTag}
-                  onChange={(e) => setComposerTag(e.target.value)}
-                  placeholder="ATELIER PHOTOGRAPHIQUE"
-                  className="w-full bg-[#181512] border border-[#2e261f] rounded-xl px-3 py-2 text-xs text-[#f5f2eb] focus:border-[#c69f68] outline-none"
-                />
-              </div>
-              <div className="sm:col-span-2">
-                <label className="block text-xs text-[#9c8e7f] mb-1 font-medium">{dict.composerSubjectLabel}</label>
-                <input
-                  type="text"
-                  value={composerSubject}
-                  onChange={(e) => setComposerSubject(e.target.value)}
-                  placeholder={dict.composerSubjectPlaceholder}
-                  className="w-full bg-[#181512] border border-[#2e261f] rounded-xl px-3 py-2 text-xs text-[#f5f2eb] focus:border-[#c69f68] outline-none"
-                />
-              </div>
+            <div>
+              <label className="block text-xs text-[#9c8e7f] mb-1 font-medium">{dict.composerSubjectLabel}</label>
+              <input
+                type="text"
+                value={composerSubject}
+                onChange={(e) => setComposerSubject(e.target.value)}
+                placeholder={dict.composerSubjectPlaceholder}
+                className="w-full bg-[#181512] border border-[#2e261f] rounded-xl px-3 py-2 text-xs text-[#f5f2eb] focus:border-[#c69f68] outline-none"
+              />
             </div>
 
             <div>

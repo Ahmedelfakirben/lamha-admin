@@ -25,7 +25,7 @@ export interface EmailTemplateLangCopy {
   footerText: string
 }
 
-const LOGO_URL = "https://lam7a.ma/assets/logo/logo-white-clean.png"
+const LOGO_URL = "https://admin.lam7a.ma/assets/logo/lamha-logo-email.png"
 const PORTAL_URL = "https://lam7a.ma/portal"
 
 export function resolveLang(lang?: string | null): EmailLanguage {
@@ -437,22 +437,18 @@ const STATIC_LABELS = {
 // ---------------------------------------------------------------------------
 // RENDERIZADOR: CABECERA CON LOGO OFICIAL
 // ---------------------------------------------------------------------------
-function renderHeader(tag: string, tagline: string) {
+function renderHeader(_tag?: string, tagline?: string) {
   return `
     <tr>
-      <td align="center" style="padding: 40px 30px 25px; border-bottom: 1px solid #231e19; background: linear-gradient(180deg, #181512 0%, #12100e 100%);">
+      <td align="center" style="padding: 38px 30px 22px; border-bottom: 1px solid #231e19; background: linear-gradient(180deg, #181512 0%, #12100e 100%);">
         <a href="https://lam7a.ma" target="_blank" style="text-decoration: none; display: inline-block;">
-          <img src="${LOGO_URL}" alt="Lam7a Studios" width="60" height="60" style="display: block; margin: 0 auto 16px; border: 0; outline: none; width: 60px; height: 60px;" />
+          <img src="${LOGO_URL}" alt="Lam7a Studios" width="165" style="display: block; margin: 0 auto; border: 0; outline: none; width: 165px; max-width: 100%; height: auto;" />
         </a>
-        <span style="display: inline-block; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: #c69f68; border: 1px solid rgba(198, 159, 104, 0.4); padding: 5px 14px; border-radius: 20px; font-weight: 600; margin-bottom: 14px;">
-          ${tag}
-        </span>
-        <h1 style="margin: 0; font-family: Georgia, serif; font-size: 26px; font-weight: normal; color: #f5f2eb; letter-spacing: 2px;">
-          LAM7A STUDIOS
-        </h1>
-        <p style="margin: 8px 0 0; font-size: 13px; color: #9c8e7f; font-style: italic;">
-          ${tagline}
-        </p>
+        ${
+          tagline
+            ? `<p style="margin: 8px 0 0; font-size: 12px; color: #9c8e7f; font-style: italic; letter-spacing: 0.5px;">${tagline}</p>`
+            : ""
+        }
       </td>
     </tr>
   `
@@ -461,28 +457,42 @@ function renderHeader(tag: string, tagline: string) {
 // ---------------------------------------------------------------------------
 // RENDERIZADOR: PIE CON CONMUTADOR DE IDIOMAS Y DATOS OFICIALES
 // ---------------------------------------------------------------------------
-function renderFooter(portalUrl: string, studioEmail: string, studioPhone: string, footerText: string) {
+function renderFooter(portalUrl: string, _studioEmail: string, _studioPhone: string, footerText: string) {
   const portalWithLang = (l: string) => {
     return portalUrl.includes("?") ? `${portalUrl}&lang=${l}` : `${portalUrl}?lang=${l}`
   }
 
   return `
     <tr>
-      <td style="padding: 25px 35px 35px; background-color: #0b0a09; border-top: 1px solid #231e19; text-align: center;">
-        <div style="margin-bottom: 18px; font-size: 11px; color: #8e8071;">
+      <td style="padding: 26px 30px 32px; background-color: #0b0a09; border-top: 1px solid #231e19; text-align: center;">
+        <div style="margin-bottom: 20px; font-size: 11px; color: #8e8071;">
           <span style="color: #63584c; margin-right: 6px;">Langue / Language / اللغة:</span>
           <a href="${portalWithLang("fr")}" style="color: #c69f68; text-decoration: none; margin: 0 4px; font-weight: 600;">Français</a> •
           <a href="${portalWithLang("ar")}" style="color: #c69f68; text-decoration: none; margin: 0 4px; font-weight: 600;">العربية</a> •
           <a href="${portalWithLang("en")}" style="color: #c69f68; text-decoration: none; margin: 0 4px; font-weight: 600;">English</a> •
           <a href="${portalWithLang("es")}" style="color: #c69f68; text-decoration: none; margin: 0 4px; font-weight: 600;">Español</a>
         </div>
-        <p style="margin: 0 0 8px; font-size: 13px; font-weight: 600; color: #c69f68; font-family: Georgia, serif;">
-          Lam7a Studios Atelier • Haute Photographie
-        </p>
-        <p style="margin: 0 0 14px; font-size: 12px; color: #7a6e61;">
-          ✉ ${studioEmail} &nbsp;|&nbsp; ☎ ${studioPhone} &nbsp;|&nbsp; 🌐 <a href="https://lam7a.ma" style="color: #c69f68; text-decoration: none;">www.lam7a.ma</a>
-        </p>
-        <p style="margin: 0; font-size: 11px; color: #52483d;">
+
+        <table align="center" border="0" cellpadding="0" cellspacing="0" style="margin: 0 auto; max-width: 440px; width: 100%; background-color: #14110e; border: 1px solid #28221b; border-radius: 12px;">
+          <tr>
+            <td align="center" style="padding: 16px 20px; text-align: center;">
+              <p style="margin: 0 0 4px; font-size: 12px; font-weight: 700; color: #c69f68; letter-spacing: 1.5px; text-transform: uppercase;">
+                Atelier &amp; Studio
+              </p>
+              <p style="margin: 0 0 12px; font-size: 12px; color: #d6d0c7; line-height: 1.5;">
+                Bojarah, Yedi Mavi, Tetouan, Morocco
+              </p>
+              <p style="margin: 0 0 4px; font-size: 11px; font-weight: 600; color: #9c8e7f; letter-spacing: 1px; text-transform: uppercase;">
+                Téléphones Officiels
+              </p>
+              <p style="margin: 0; font-size: 13px; color: #f5f2eb; font-weight: 600; letter-spacing: 0.5px;">
+                <a href="tel:+212539702927" style="color: #c69f68; text-decoration: none;">0539702927</a> &nbsp;/&nbsp; <a href="tel:+212762517478" style="color: #c69f68; text-decoration: none;">0762517478</a>
+              </p>
+            </td>
+          </tr>
+        </table>
+
+        <p style="margin: 18px 0 0; font-size: 11px; color: #63584c;">
           © ${new Date().getFullYear()} ${footerText}
         </p>
       </td>
@@ -609,7 +619,7 @@ export function renderWelcomeEmail(params: WelcomeEmailParams): { subject: strin
 `
 
   const text = `
-${copy.atelierTag} — LAM7A STUDIOS
+LAM7A STUDIOS
 ${interpolateEmailVars(copy.greeting, vars).replace(/<[^>]+>/g, "")}
 
 ${introHtml.replace(/<[^>]+>/g, "")}
@@ -621,7 +631,10 @@ ${interpolateEmailVars(copy.bodyText, vars).replace(/<[^>]+>/g, "")}
 
 ${closingHtml.replace(/<[^>]+>/g, "")}
 
-✉ ${studioEmail} | ☎ ${studioPhone} | https://lam7a.ma
+---
+Atelier & Studio : Bojarah, Yedi Mavi, Tetouan, Morocco
+Téléphones Officiels : 0539702927 / 0762517478
+https://lam7a.ma
 `
 
   return { subject, html, text }
@@ -747,7 +760,7 @@ export function renderPhotosReadyEmail(params: PhotosReadyEmailParams): { subjec
 `
 
   const text = `
-${copy.atelierTag} — LAM7A STUDIOS
+LAM7A STUDIOS
 ${interpolateEmailVars(copy.greeting, vars).replace(/<[^>]+>/g, "")}
 
 ${introHtml.replace(/<[^>]+>/g, "")}
@@ -761,7 +774,10 @@ ${interpolateEmailVars(copy.bodyText, vars).replace(/<[^>]+>/g, "")}
 ${driveFolderUrl ? `\nGoogle Drive: ${driveFolderUrl}\n` : ""}
 ${closingHtml.replace(/<[^>]+>/g, "")}
 
-✉ ${studioEmail} | ☎ ${studioPhone} | https://lam7a.ma
+---
+Atelier & Studio : Bojarah, Yedi Mavi, Tetouan, Morocco
+Téléphones Officiels : 0539702927 / 0762517478
+https://lam7a.ma
 `
 
   return { subject, html, text }
@@ -888,7 +904,7 @@ export function renderReadyForDeliveryEmail(params: ReadyForDeliveryEmailParams)
 `
 
   const text = `
-${copy.atelierTag} — LAM7A STUDIOS
+LAM7A STUDIOS
 ${interpolateEmailVars(copy.greeting, vars).replace(/<[^>]+>/g, "")}
 
 ${introHtml.replace(/<[^>]+>/g, "")}
@@ -902,7 +918,10 @@ ${driveFolderUrl ? `- Google Drive Master: ${driveFolderUrl}\n` : ""}
 
 ${closingHtml.replace(/<[^>]+>/g, "")}
 
-✉ ${studioEmail} | ☎ ${studioPhone} | https://lam7a.ma
+---
+Atelier & Studio : Bojarah, Yedi Mavi, Tetouan, Morocco
+Téléphones Officiels : 0539702927 / 0762517478
+https://lam7a.ma
 `
 
   return { subject, html, text }
@@ -1008,7 +1027,7 @@ export function renderSelectionConfirmedEmail(params: SelectionConfirmedEmailPar
 `
 
   const text = `
-${copy.atelierTag} — LAM7A STUDIOS
+LAM7A STUDIOS
 ${interpolateEmailVars(copy.greeting, vars).replace(/<[^>]+>/g, "")}
 
 ${introHtml.replace(/<[^>]+>/g, "")}
@@ -1017,7 +1036,10 @@ ${interpolateEmailVars(copy.bodyText, vars).replace(/<[^>]+>/g, "")}
 
 Portal: ${targetPortalUrl}
 
-✉ ${studioEmail} | ☎ ${studioPhone} | https://lam7a.ma
+---
+Atelier & Studio : Bojarah, Yedi Mavi, Tetouan, Morocco
+Téléphones Officiels : 0539702927 / 0762517478
+https://lam7a.ma
 `
 
   return { subject, html, text }
@@ -1174,7 +1196,7 @@ export function renderCustomAtelierEmail(params: CustomAtelierEmailParams): { su
 `
 
   const text = `
-${atelierTag} — LAM7A STUDIOS
+LAM7A STUDIOS
 ${interpolateEmailVars(defaultWelcome.greeting, vars).replace(/<[^>]+>/g, "")}
 
 ${interpolateEmailVars(bodyMessage || "", vars)}
@@ -1182,7 +1204,10 @@ ${includePortalBox && portalPin ? `\nPortal: ${targetPortalUrl}\nPIN: ${portalPi
 ${driveFolderUrl ? `\nGoogle Drive: ${driveFolderUrl}\n` : ""}
 ${finalClosing ? `\n${finalClosing}\n` : ""}
 
-✉ ${studioEmail} | ☎ ${studioPhone} | https://lam7a.ma
+---
+Atelier & Studio : Bojarah, Yedi Mavi, Tetouan, Morocco
+Téléphones Officiels : 0539702927 / 0762517478
+https://lam7a.ma
 `
 
   return { subject: finalSubject, html, text }

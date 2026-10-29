@@ -293,7 +293,7 @@ function interpolateTemplateVars(str, vars) {
 
 function buildDirectWelcomeEmailHtml({ clientName, clientEmail, sessionDate, category, portalPin, language = "fr", customCopy = null }) {
   const portalUrl = "https://client.lam7a.ma"
-  const logoUrl = "https://admin.lam7a.ma/logo_lam7a_white.png"
+  const logoUrl = "https://admin.lam7a.ma/assets/logo/lamha-logo-email.png"
   const defaults = {
     fr: {
       subject: `✨ Bienvenue chez Lam7a Studios — Votre séance du ${sessionDate}`,
@@ -360,8 +360,7 @@ function buildDirectWelcomeEmailHtml({ clientName, clientEmail, sessionDate, cat
       <tr><td align="center">
         <table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background-color:#141210;border:1px solid #292524;border-radius:16px;overflow:hidden;">
           <tr><td style="padding:36px 32px 24px 32px;text-align:center;border-bottom:1px solid #292524;background:linear-gradient(180deg,#1c1917 0%,#141210 100%);">
-            <img src="${logoUrl}" alt="Lam7a Studios" width="130" style="display:block;margin:0 auto 14px auto;max-width:130px;height:auto;" />
-            <span style="display:inline-block;padding:4px 12px;border-radius:999px;background-color:rgba(214,179,106,0.15);border:1px solid rgba(214,179,106,0.4);color:#d6b36a;font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;">${t.badge}</span>
+            <img src="${logoUrl}" alt="Lam7a Studios" width="165" style="display:block;margin:0 auto;max-width:165px;height:auto;" />
           </td></tr>
           <tr><td style="padding:32px;text-align:${align};direction:${dir};">
             <h1 style="margin:0 0 16px 0;font-size:24px;font-weight:600;color:#fafaf9;">${t.title}</h1>
@@ -372,8 +371,22 @@ function buildDirectWelcomeEmailHtml({ clientName, clientEmail, sessionDate, cat
               <a href="${portalUrl}" target="_blank" style="display:inline-block;padding:14px 32px;background:linear-gradient(135deg,#d6b36a 0%,#b89146 100%);color:#0c0a09;font-weight:700;font-size:14px;text-decoration:none;border-radius:10px;letter-spacing:0.5px;">${t.cta}</a>
             </div>
           </td></tr>
-          <tr><td style="padding:20px 32px;background-color:#0c0a09;border-top:1px solid #292524;text-align:center;">
-            <p style="margin:0;font-size:12px;color:#78716c;">${t.footer}</p>
+          <tr><td style="padding:24px 30px 28px;background-color:#0c0a09;border-top:1px solid #292524;text-align:center;">
+            <div style="margin: 0 auto; max-width: 440px; padding: 14px 18px; background: rgba(26, 22, 19, 0.6); border: 1px solid #28221b; border-radius: 12px; text-align: center;">
+              <p style="margin: 0 0 4px; font-size: 12px; font-weight: 700; color: #c69f68; letter-spacing: 1.5px; text-transform: uppercase;">
+                Atelier &amp; Studio
+              </p>
+              <p style="margin: 0 0 10px; font-size: 12px; color: #d6d0c7; line-height: 1.5;">
+                Bojarah, Yedi Mavi, Tetouan, Morocco
+              </p>
+              <p style="margin: 0 0 4px; font-size: 11px; font-weight: 600; color: #9c8e7f; letter-spacing: 1px; text-transform: uppercase;">
+                Téléphones Officiels
+              </p>
+              <p style="margin: 0; font-size: 13px; color: #f5f2eb; font-weight: 600; letter-spacing: 0.5px;">
+                <a href="tel:+212539702927" style="color: #c69f68; text-decoration: none;">0539702927</a> &nbsp;/&nbsp; <a href="tel:+212762517478" style="color: #c69f68; text-decoration: none;">0762517478</a>
+              </p>
+            </div>
+            <p style="margin:16px 0 0;font-size:11px;color:#63584c;">© ${new Date().getFullYear()} Lam7a Studios • Haute Photographie</p>
           </td></tr>
         </table>
       </td></tr>

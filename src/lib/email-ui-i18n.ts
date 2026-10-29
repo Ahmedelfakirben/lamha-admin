@@ -28,7 +28,6 @@ export interface EmailUiDictionary {
   varDescPhotosCount: string
   varCopiedFeedback: (variable: string) => string
 
-  fieldAtelierTag: string
   fieldTagline: string
   fieldSubject: string
   fieldGreeting: string
@@ -62,7 +61,6 @@ export interface EmailUiDictionary {
   composerLinkSessionLabel: string
   composerNoSessionOption: string
   composerStep2: string
-  composerHeaderTagLabel: string
   composerSubjectLabel: string
   composerSubjectPlaceholder: string
   composerBodyLabel: string
@@ -115,7 +113,6 @@ export const EMAIL_UI_I18N: Record<Language, EmailUiDictionary> = {
     varDescPhotosCount: "Nb photos",
     varCopiedFeedback: (v) => `Variable ${v} copiée dans le presse-papiers`,
 
-    fieldAtelierTag: "Badge Supérieur (Doré)",
     fieldTagline: "Sous-titre sous le Logo (Tagline)",
     fieldSubject: "Objet de l'Email (Subject)",
     fieldGreeting: "Salutation Initiale",
@@ -147,7 +144,6 @@ export const EMAIL_UI_I18N: Record<Language, EmailUiDictionary> = {
     composerLinkSessionLabel: "Lier à un Projet / Séance (optionnel, renseigne le PIN et Google Drive)",
     composerNoSessionOption: "-- Sans séance spécifique / Email général --",
     composerStep2: "2. Modèles de Textes Rapides (optionnel, ou rédigez librement ci-dessous) :",
-    composerHeaderTagLabel: "Badge d'En-tête",
     composerSubjectLabel: "Objet de l'Email *",
     composerSubjectPlaceholder: "✦ Information de Lam7a Studios...",
     composerBodyLabel: "Corps du Message * (Séparez les paragraphes avec Entrée ; la salutation et la signature sont incluses)",
@@ -198,7 +194,6 @@ export const EMAIL_UI_I18N: Record<Language, EmailUiDictionary> = {
     varDescPhotosCount: "عدد الصور",
     varCopiedFeedback: (v) => `تم نسخ المتغير ${v} إلى الحافظة`,
 
-    fieldAtelierTag: "الشارة العلوية الذهبية",
     fieldTagline: "العنوان الفرعي أسفل الشعار",
     fieldSubject: "موضوع البريد الإلكتروني",
     fieldGreeting: "التحية الافتتاحية",
@@ -230,7 +225,6 @@ export const EMAIL_UI_I18N: Record<Language, EmailUiDictionary> = {
     composerLinkSessionLabel: "ربط بمشروع / جلسة (اختياري، يملأ رمز PIN ورابط Drive تلقائياً)",
     composerNoSessionOption: "-- بدون جلسة محددة / بريد عام --",
     composerStep2: "2. نصوص جاهزة سريعة (اختياري، أو اكتب رسالتك بحرية أدناه):",
-    composerHeaderTagLabel: "شارة الترويسة",
     composerSubjectLabel: "موضوع الرسالة *",
     composerSubjectPlaceholder: "✦ إشعار من استوديو لمحة...",
     composerBodyLabel: "نص الرسالة * (افصل الفقرات بزر Enter؛ التحية والتوقيع مدمجان مسبقاً في القالب)",
@@ -281,7 +275,6 @@ export const EMAIL_UI_I18N: Record<Language, EmailUiDictionary> = {
     varDescPhotosCount: "Nº fotos",
     varCopiedFeedback: (v) => `Variable ${v} copiada al portapapeles`,
 
-    fieldAtelierTag: "Etiqueta Superior (Badge Dorado)",
     fieldTagline: "Subtítulo Bajo el Logo (Tagline)",
     fieldSubject: "Asunto del Correo (Subject)",
     fieldGreeting: "Saludo Inicial",
@@ -313,7 +306,6 @@ export const EMAIL_UI_I18N: Record<Language, EmailUiDictionary> = {
     composerLinkSessionLabel: "Vincular Proyecto / Sesión (opcional, autocompleta su PIN y Google Drive)",
     composerNoSessionOption: "-- Sin sesión específica / Correo general --",
     composerStep2: "2. Textos Rápidos de Punto de Partida (opcional, o escribe libremente debajo):",
-    composerHeaderTagLabel: "Etiqueta Cabecera",
     composerSubjectLabel: "Asunto del Correo *",
     composerSubjectPlaceholder: "✦ Información de Lam7a Studios...",
     composerBodyLabel: "Cuerpo del Mensaje * (Separa párrafos con Enter; el saludo y la firma ya están en el Preset HTML)",
@@ -364,7 +356,6 @@ export const EMAIL_UI_I18N: Record<Language, EmailUiDictionary> = {
     varDescPhotosCount: "Photos count",
     varCopiedFeedback: (v) => `Variable ${v} copied to clipboard`,
 
-    fieldAtelierTag: "Top Badge (Gold Header)",
     fieldTagline: "Subtitle under Logo (Tagline)",
     fieldSubject: "Email Subject",
     fieldGreeting: "Initial Greeting",
@@ -396,7 +387,6 @@ export const EMAIL_UI_I18N: Record<Language, EmailUiDictionary> = {
     composerLinkSessionLabel: "Link Project / Session (optional, autofills PIN & Google Drive)",
     composerNoSessionOption: "-- No specific session / General email --",
     composerStep2: "2. Quick Text Presets (optional, or type freely below):",
-    composerHeaderTagLabel: "Header Tag",
     composerSubjectLabel: "Email Subject *",
     composerSubjectPlaceholder: "✦ Update from Lam7a Studios...",
     composerBodyLabel: "Message Body * (Separate paragraphs with Enter; greeting and signature are built into HTML Preset)",
