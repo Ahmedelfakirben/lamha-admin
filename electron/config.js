@@ -5,13 +5,15 @@ const { app } = require("electron")
 /** Lee variables desde lamha-admin/.env.local (solo existe en desarrollo / instalación del estudio). */
 function readEnvFile() {
   const out = {}
+  const appPath = app && typeof app.getAppPath === "function" ? app.getAppPath() : ""
+  const userDataPath = app && typeof app.getPath === "function" ? app.getPath("userData") : ""
   const candidates = [
     path.join(__dirname, "..", ".env.local"),
     path.join(__dirname, "..", "..", ".env.local"),
     path.join(process.cwd(), ".env.local"),
-    path.join(app.getAppPath ? app.getAppPath() : "", ".env.local"),
-    path.join(app.getPath ? app.getPath("userData") : "", ".env.local"),
-  ]
+    appPath ? path.join(appPath, ".env.local") : "",
+    userDataPath ? path.join(userDataPath, ".env.local") : "",
+  ].filter(Boolean)
   for (const file of candidates) {
     try {
       if (!fs.existsSync(file)) continue
@@ -31,7 +33,10 @@ function readEnvFile() {
   return out
 }
 
-const settingsFile = () => path.join(app.getPath("userData"), "lamha-settings.json")
+const settingsFile = () => {
+  const base = app && typeof app.getPath === "function" ? app.getPath("userData") : (process.env.APPDATA ? path.join(process.env.APPDATA, "lamha-admin") : process.cwd())
+  return path.join(base, "lamha-settings.json")
+}
 
 function loadUserSettings() {
   try {

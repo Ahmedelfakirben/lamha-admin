@@ -61,8 +61,12 @@ let lastIngestState = null // último evento relevante, para pintar la mini vent
 
 logToFile("--- INICIANDO PROCESO ELECTRON (PID:", process.pid, ") ---")
 
-// Asigna AppUserModelId único para que Windows registre el icono oficial en la barra de tareas
-app.setAppUserModelId("ma.lam7a.studios.ingest")
+// Asigna AppUserModelId en Windows vinculando directamente al ejecutable para que la barra de tareas muestre el icono oficial de Lamha
+if (process.platform === "win32") {
+  app.setAppUserModelId(process.execPath || "ma.lam7a.studios.ingest")
+} else {
+  app.setAppUserModelId("ma.lam7a.studios.ingest")
+}
 
 // Registrar protocolo lamha:// para permitir lanzamientos directos desde la web
 if (process.defaultApp) {
@@ -165,7 +169,6 @@ function createWindow() {
   if (!fs.existsSync(iconPath)) {
     iconPath = path.join(__dirname, "assets", "icon.png")
   }
-  const appIcon = nativeImage.createFromPath(iconPath)
 
   mainWindow = new BrowserWindow({
     width: 1140,
@@ -174,7 +177,7 @@ function createWindow() {
     minHeight: 680,
     title: "Lam7a Studios Atelier - Ingest Companion",
     backgroundColor: isLight ? "#faf8f5" : "#12100e",
-    icon: !appIcon.isEmpty() ? appIcon : iconPath,
+    icon: fs.existsSync(iconPath) ? iconPath : undefined,
     titleBarStyle: "hidden",
     titleBarOverlay: {
       color: isLight ? "#f4ede4" : "#171411",
@@ -189,8 +192,8 @@ function createWindow() {
     autoHideMenuBar: true,
     show: true,
   })
-  if (!appIcon.isEmpty()) {
-    mainWindow.setIcon(appIcon)
+  if (fs.existsSync(iconPath)) {
+    mainWindow.setIcon(iconPath)
   }
 
   mainWindow.webContents.on("console-message", (_event, _level, message, line, sourceId) => {

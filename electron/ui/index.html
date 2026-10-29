@@ -2974,6 +2974,8 @@
         used: (u, c) => `QNAP : ${u} TB utilisés / ${c} TB`, ok: "✅ Espace OK", over: "🔴 Seuil dépassé",
         waiting: "En préavis", requested: "Copie demandée (bloqués)", ready: "Prêts à recycler", plan: "Lot prévu",
         daysLeft: (d) => `${d} j restants`, none: "Aucun projet pour le moment.", noNas: "QNAP injoignable ou non configuré.",
+        detected: (n, h) => `🟢 QNAP connecté (${h}) — ${n} dossier(s) mesuré(s) :`,
+        belowThreshold: (trig) => `Espace bien en dessous du seuil (${trig} TB) — Fichiers protégés, aucun recyclage nécessaire.`,
         saved: "✅ Paramètres enregistrés", warnTrigger: "Le seuil doit être inférieur à la capacité.", warnRelease: "Le volume à libérer doit être inférieur au seuil.",
         confirmNotice: (n, tb) => `Envoyer maintenant l'avis de ${n} projet(s) (≈ ${tb} TB) ? Rien ne sera supprimé avant la fin du délai.`,
         confirmPurge: "Supprimer DÉFINITIVEMENT du QNAP les projets dont le délai est échu et sans demande client ?",
@@ -2989,6 +2991,8 @@
         used: (u, c) => `QNAP: ${u} TB usados / ${c} TB`, ok: "✅ Espacio OK", over: "🔴 Umbral superado",
         waiting: "En preaviso", requested: "Copia solicitada (bloqueados)", ready: "Listos para reciclar", plan: "Lote previsto",
         daysLeft: (d) => `${d} d restantes`, none: "Ningún proyecto por ahora.", noNas: "QNAP inaccesible o sin configurar.",
+        detected: (n, h) => `🟢 QNAP conectado (${h}) — ${n} carpeta(s) medida(s):`,
+        belowThreshold: (trig) => `Espacio muy por debajo del umbral (${trig} TB) — Archivos protegidos, no requiere reciclaje.`,
         saved: "✅ Ajustes guardados", warnTrigger: "El umbral debe ser menor que la capacidad.", warnRelease: "El volumen a liberar debe ser menor que el umbral.",
         confirmNotice: (n, tb) => `¿Enviar ahora el aviso a ${n} proyecto(s) (≈ ${tb} TB)? No se borrará nada hasta que termine el plazo.`,
         confirmPurge: "¿Borrar DEFINITIVAMENTE del QNAP los proyectos con plazo vencido y sin solicitud del cliente?",
@@ -3004,6 +3008,8 @@
         used: (u, c) => `QNAP: ${u} TB used / ${c} TB`, ok: "✅ Space OK", over: "🔴 Threshold exceeded",
         waiting: "In notice period", requested: "Copy requested (locked)", ready: "Ready to recycle", plan: "Planned batch",
         daysLeft: (d) => `${d} d left`, none: "No projects right now.", noNas: "QNAP unreachable or not configured.",
+        detected: (n, h) => `🟢 QNAP connected (${h}) — ${n} measured folder(s):`,
+        belowThreshold: (trig) => `Space well below threshold (${trig} TB) — Files safe, no recycling needed.`,
         saved: "✅ Settings saved", warnTrigger: "Threshold must be lower than capacity.", warnRelease: "Volume to free must be lower than the threshold.",
         confirmNotice: (n, tb) => `Send notices now for ${n} project(s) (≈ ${tb} TB)? Nothing is deleted until the grace period ends.`,
         confirmPurge: "PERMANENTLY delete from the QNAP the projects whose grace period expired and with no client request?",
@@ -3019,6 +3025,8 @@
         used: (u, c) => `QNAP: ${u} TB مستخدم من ${c} TB`, ok: "✅ المساحة جيدة", over: "🔴 تم تجاوز الحد",
         waiting: "في مهلة الإشعار", requested: "طلب نسخة (محمية)", ready: "جاهزة لإعادة التدوير", plan: "الدفعة المقترحة",
         daysLeft: (d) => `متبقي ${d} يوم`, none: "لا توجد مشاريع حالياً.", noNas: "QNAP غير متاح أو غير مُهيّأ.",
+        detected: (n, h) => `🟢 QNAP متصل (${h}) — ${n} مجلدات تم قياسها:`,
+        belowThreshold: (trig) => `المساحة أقل بكثير من الحد (${trig} TB) — الملفات محمية، لا داعي لإعادة التدوير.`,
         saved: "✅ تم حفظ الإعدادات", warnTrigger: "يجب أن يكون الحد أقل من السعة.", warnRelease: "يجب أن يكون الحجم المراد تحريره أقل من الحد.",
         confirmNotice: (n, tb) => `إرسال الإشعار الآن لـ ${n} مشروع (≈ ${tb} TB)؟ لن يُحذف شيء قبل انتهاء المهلة.`,
         confirmPurge: "حذف نهائي من QNAP للمشاريع المنتهية مهلتها والتي لم يطلب العميل نسخة منها؟",
@@ -3055,16 +3063,37 @@
         return;
       }
       const cap = s.settings.capacityTb, trig = s.settings.triggerTb;
-      const pct = Math.min(100, (s.usedTb / cap) * 100);
+      const usedBytes = s.usedBytes || (s.usedTb * 1024 ** 4) || 0;
+      const usedGb = s.usedGb || Number((usedBytes / 1024 ** 3).toFixed(2));
+      const usedTb = s.usedTb || Number((usedBytes / (1024 ** 4)).toFixed(3));
+
+      let usageFormatted = "";
+      let badgeFormatted = "";
+      if (usedTb >= 0.05) {
+        usageFormatted = `QNAP : ${usedTb.toFixed(2)} TB (${usedGb.toFixed(1)} GB) / ${cap} TB`;
+        badgeFormatted = `${usedTb.toFixed(2)} / ${cap} TB`;
+      } else if (usedGb >= 0.01) {
+        usageFormatted = `QNAP : ${usedGb.toFixed(2)} GB (${usedTb.toFixed(3)} TB) / ${cap} TB`;
+        badgeFormatted = `${usedGb.toFixed(2)} GB / ${cap} TB`;
+      } else if (usedBytes > 0) {
+        const mb = (usedBytes / (1024 * 1024)).toFixed(1);
+        usageFormatted = `QNAP : ${mb} MB / ${cap} TB`;
+        badgeFormatted = `${mb} MB / ${cap} TB`;
+      } else {
+        usageFormatted = `QNAP : 0.00 TB / ${cap} TB`;
+        badgeFormatted = `0.00 / ${cap} TB`;
+      }
+
+      const pct = Math.min(100, (usedTb / cap) * 100);
       const bar = rtEl("rt-bar");
-      bar.style.width = pct + "%";
-      bar.style.background = s.overThreshold ? "#ef4444" : (s.usedTb >= trig * 0.85 ? "#f59e0b" : "#10b981");
+      bar.style.width = (usedBytes > 0 ? Math.max(1.5, pct) : 0) + "%";
+      bar.style.background = s.overThreshold ? "#ef4444" : (usedTb >= trig * 0.85 ? "#f59e0b" : "#10b981");
       rtEl("rt-marker").style.left = Math.min(100, (trig / cap) * 100) + "%";
-      rtEl("rt-usage-text").textContent = r.used(s.usedTb.toFixed(2), cap);
+      rtEl("rt-usage-text").textContent = usageFormatted;
       const st = rtEl("rt-usage-state");
       st.textContent = s.overThreshold ? r.over : r.ok;
       st.style.color = s.overThreshold ? "#ef4444" : "#10b981";
-      badge.textContent = `${s.usedTb.toFixed(2)} / ${cap} TB`;
+      badge.textContent = badgeFormatted;
 
       const pill = (txt, color) => `<span style="padding:3px 9px;border-radius:999px;border:1px solid ${color};color:${color};">${txt}</span>`;
       rtEl("rt-summary").innerHTML =
@@ -3074,13 +3103,32 @@
         pill(`📦 ${r.plan}: ${s.plan.items.length} (${s.plan.totalTb} TB)`, "var(--gold)");
 
       const row = (icon, name, extra) =>
-        `<div style="display:flex;justify-content:space-between;gap:8px;padding:6px 10px;background:var(--input-bg);border:1px solid var(--card-border);border-radius:8px;"><span>${icon} ${name}</span><span style="color:var(--text-muted);">${extra}</span></div>`;
+        `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 10px;background:var(--input-bg);border:1px solid var(--card-border);border-radius:8px;font-size:12px;"><span>${icon} ${escapeHtml(name)}</span><span style="color:var(--text-muted);font-size:11px;font-family:monospace;">${escapeHtml(extra)}</span></div>`;
       const rows = [];
       s.requested.forEach((x) => rows.push(row("🔒", x.clientName, x.sessionDate)));
       s.waiting.forEach((x) => rows.push(row("⏳", x.clientName, r.daysLeft(x.daysLeft))));
       s.expiredReady.forEach((x) => rows.push(row("♻️", x.clientName, x.sessionDate)));
-      if (!rows.length) s.plan.items.forEach((x) => rows.push(row("📦", x.clientName, `${x.sessionDate} · ${x.gb} GB`)));
-      rtEl("rt-lists").innerHTML = rows.length ? rows.join("") : `<div style="color:var(--text-muted);">${r.none}</div>`;
+      if (s.plan && s.plan.items && s.plan.items.length) {
+        s.plan.items.forEach((x) => rows.push(row("📦", x.clientName, `${x.sessionDate} · ${x.gb} GB`)));
+      }
+
+      if (rows.length) {
+        rtEl("rt-lists").innerHTML = rows.join("");
+      } else if (s.projects && s.projects.length) {
+        const projRows = s.projects.map((p) => {
+          const gb = (p.bytes / 1024 ** 3).toFixed(2);
+          const mb = (p.bytes / 1024 ** 2).toFixed(1);
+          const sizeStr = Number(gb) >= 0.1 ? `${gb} GB` : `${mb} MB`;
+          return row("📁", p.folderName, sizeStr);
+        });
+        rtEl("rt-lists").innerHTML = `
+          <div style="font-size:11px;font-weight:700;color:var(--gold);margin-bottom:6px;">${r.detected(s.projects.length, s.nasHost || "QNAP")}</div>
+          <div style="display:flex;flex-direction:column;gap:5px;">${projRows.join("")}</div>
+          <div style="font-size:10px;color:var(--text-muted);margin-top:6px;font-style:italic;">${r.belowThreshold(trig)}</div>
+        `;
+      } else {
+        rtEl("rt-lists").innerHTML = `<div style="color:var(--text-muted);">${r.none}</div>`;
+      }
     }
 
     async function refreshRetention(force) {

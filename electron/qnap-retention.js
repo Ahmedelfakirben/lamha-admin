@@ -277,7 +277,12 @@ class QnapRetentionManager extends EventEmitter {
         mode: cfg.retentionMode,
       },
       scannedAt: scan && scan.at ? scan.at : null,
+      usedBytes: 0,
+      usedGb: 0,
       usedTb: 0,
+      nasHost: cfg.nasHost || "192.168.11.1",
+      nasBaseDir: cfg.nasBaseDir || "/usb1_1/Lamha-Storage",
+      projects: [],
       overThreshold: false,
       waiting: [],
       requested: [],
@@ -298,7 +303,10 @@ class QnapRetentionManager extends EventEmitter {
       else out.waiting.push(row)
     }
     if (scan && scan.ok) {
+      out.usedBytes = scan.usedBytes || 0
+      out.usedGb = Number((scan.usedBytes / 1024 ** 3).toFixed(2))
       out.usedTb = Number((scan.usedBytes / TB).toFixed(3))
+      out.projects = scan.projects || []
       out.overThreshold = scan.usedBytes >= cfg.retentionTriggerTb * TB
       out.plan = this.buildPlan(scan, sessions)
     }
@@ -511,3 +519,4 @@ class QnapRetentionManager extends EventEmitter {
 }
 
 module.exports = { QnapRetentionManager }
+
