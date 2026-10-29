@@ -293,7 +293,7 @@ function interpolateTemplateVars(str, vars) {
 
 function buildDirectWelcomeEmailHtml({ clientName, clientEmail, sessionDate, category, portalPin, language = "fr", customCopy = null }) {
   const portalUrl = "https://client.lam7a.ma"
-  const logoUrl = "https://admin.lam7a.ma/assets/logo/lamha-logo-email.png"
+  const logoUrl = "https://admin.lam7a.ma/assets/logo/admin-brand-logo.png"
   const defaults = {
     fr: {
       subject: `✨ Bienvenue chez Lam7a Studios — Votre séance du ${sessionDate}`,

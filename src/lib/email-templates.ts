@@ -25,7 +25,7 @@ export interface EmailTemplateLangCopy {
   footerText: string
 }
 
-const LOGO_URL = "https://admin.lam7a.ma/assets/logo/lamha-logo-email.png"
+const LOGO_URL = "https://admin.lam7a.ma/assets/logo/admin-brand-logo.png"
 const PORTAL_URL = "https://lam7a.ma/portal"
 
 export function resolveLang(lang?: string | null): EmailLanguage {
@@ -442,7 +442,7 @@ function renderHeader(_tag?: string, tagline?: string) {
     <tr>
       <td align="center" style="padding: 38px 30px 22px; border-bottom: 1px solid #231e19; background: linear-gradient(180deg, #181512 0%, #12100e 100%);">
         <a href="https://lam7a.ma" target="_blank" style="text-decoration: none; display: inline-block;">
-          <img src="${LOGO_URL}" alt="Lam7a Studios" width="165" style="display: block; margin: 0 auto; border: 0; outline: none; width: 165px; max-width: 100%; height: auto;" />
+          <img src="${LOGO_URL}" alt="Lam7a Studios" width="170" style="display: block; margin: 0 auto; border: 0; outline: none; width: 170px; max-width: 100%; height: auto;" />
         </a>
         ${
           tagline
