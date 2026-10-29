@@ -650,6 +650,29 @@ async function createQuickSession(payload = {}) {
 
     if (error) return { ok: false, error: error.message }
 
+    // Registrar en audit_logs de Supabase la creación desde Ingest Companion
+    try {
+      await supabase.from("audit_logs").insert({
+        action: "SESSION_CREATED",
+        entity_type: "session",
+        entity_id: data.id,
+        entity_title: data.client_name,
+        user_name: "Ingest Companion (PC3)",
+        user_email: "ingest@lamha.ma",
+        user_role: "ingest_station",
+        details: {
+          source: "ingest_companion",
+          station: "Poste Local Studio PC3",
+          category: data.category || "mariage",
+          shooting_type: data.shooting_type || sessionRow.shooting_type || null,
+          session_date: data.session_date,
+          portal_pin: data.portal_pin,
+        },
+      })
+    } catch (auditErr) {
+      console.warn("[INGEST_AUDIT_WARN] Could not record session creation audit:", auditErr?.message || auditErr)
+    }
+
     // Disparar automáticamente Email de Bienvenida + WhatsApp de Bienvenida si está habilitado
     const shouldNotify = payload.sendWelcomeNotifications !== false
     const notifyLang = payload.notifyLanguage || cfg.language || "fr"
@@ -1448,6 +1471,39 @@ async function runIngest(params, emit) {
       nasOk,
       nasFailed: nasFail,
     })
+
+    // Registrar en audit_logs de Supabase la finalización de la ingesta
+    try {
+      await supabase.from("audit_logs").insert({
+        action: "INGESTION_COMPLETED",
+        entity_type: "session",
+        entity_id: sess.id,
+        entity_title: sess.client_name,
+        user_name: "Ingest Companion (PC3)",
+        user_email: "ingest@lamha.ma",
+        user_role: "ingest_station",
+        details: {
+          source: "ingest_companion",
+          station: "Poste Local Studio PC3",
+          files_count: okItems.length,
+          total_mb: totalMb,
+          photos_count: photos,
+          videos_count: videos,
+          folder_name: folderName,
+          root_dir: rootDir,
+          source_path: params.sourcePath || "",
+          ssd_status: "done",
+          nas_status: nasState,
+          nas_ok: nasOk,
+          nas_failed: nasFail,
+          cloud_ok: cloudOk,
+          cloud_failed: cloudFail,
+          elapsed_sec: Math.round((Date.now() - tracker.startedAt()) / 1000),
+        },
+      })
+    } catch (auditErr) {
+      console.warn("[INGEST_AUDIT_WARN] Could not record ingestion completed audit:", auditErr?.message || auditErr)
+    }
     tracker.setPhase("done")
     tracker.push(true)
     emit({ type: "done", summary })

@@ -22,7 +22,8 @@ import {
   Eye,
   Activity,
   Sparkles,
-  ArrowUpDown
+  ArrowUpDown,
+  FolderDown
 } from "lucide-react"
 import { getAuditLogs, getAuditStats, AuditLogEntry } from "@/lib/audit"
 import { format } from "date-fns"
@@ -104,6 +105,13 @@ export default function AuditTrailPage() {
   }
 
   const getActionBadge = (action: string) => {
+    if (action.includes("INGESTION")) {
+      return {
+        icon: FolderDown,
+        label: "Ingest Companion",
+        color: "text-amber-400 bg-amber-500/15 border-amber-500/30",
+      }
+    }
     if (action.includes("UPLOAD")) {
       return {
         icon: Upload,
@@ -278,7 +286,9 @@ export default function AuditTrailPage() {
               className="h-10 px-3 rounded-xl bg-[#0b0a09] border border-[#26211c] text-[#d4cbbf] text-xs focus:outline-none focus:border-[#c69f68]/60 cursor-pointer"
             >
               <option value="all">{t.allActions}</option>
+              <option value="INGESTION_COMPLETED">⚡ Ingest Companion</option>
               <option value="SESSION_CREATED">{t.actionSessionCreated}</option>
+              <option value="MEDIA_SHARED_TOGGLE">{t.badgeShared}</option>
               <option value="MEDIA_BATCH_UPLOADED">{t.actionMediaUploaded}</option>
               <option value="MEDIA_DELETED">{t.actionMediaDeleted}</option>
               <option value="PLANNER_STAGE_CHANGED">{t.actionPlannerChanged}</option>

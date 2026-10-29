@@ -461,7 +461,7 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
     setAssets(prev => prev.map(a => a.id === asset.id ? { ...a, is_shared: nextState } : a))
 
     startTransition(async () => {
-      const res = await toggleAssetSharedAction(asset.id, nextState, session.id)
+      const res = await toggleAssetSharedAction(asset.id, nextState, session.id, asset.filename)
       if (res.success) {
         showNotification(nextState ? `"${asset.filename}" -> ${t.sharedStatus}` : `"${asset.filename}" -> ${t.hiddenStatus}`)
       } else {

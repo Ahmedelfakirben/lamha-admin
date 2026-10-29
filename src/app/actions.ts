@@ -687,20 +687,36 @@ export async function updateSessionNotes(sessionId: string, comments: string, us
   }
 }
 
-export async function toggleAssetSharedAction(assetId: string, isShared: boolean, sessionId: string, userContext?: UserAuditContext) {
+export async function toggleAssetSharedAction(
+  assetId: string, 
+  isShared: boolean, 
+  sessionId: string, 
+  filenameOrContext?: string | null | UserAuditContext,
+  explicitUserContext?: UserAuditContext
+) {
   try {
-    const { error } = await supabase
+    const { data: updatedAsset, error } = await supabase
       .from('media_assets')
       .update({ is_shared: isShared })
-      .eq('id', assetId);
+      .eq('id', assetId)
+      .select('id, filename')
+      .single();
 
     if (error) throw error;
+
+    const filename = typeof filenameOrContext === 'string' ? filenameOrContext : updatedAsset?.filename;
+    const userContext = typeof filenameOrContext === 'object' ? filenameOrContext : explicitUserContext;
 
     await recordAuditLog({
       action: 'MEDIA_SHARED_TOGGLE',
       entityType: 'media_asset',
       entityId: sessionId,
-      details: { asset_id: assetId, is_shared: isShared },
+      entityTitle: filename || 'Photo',
+      details: { 
+        asset_id: assetId, 
+        filename: filename || null,
+        is_shared: isShared 
+      },
       ...userContext,
     });
 

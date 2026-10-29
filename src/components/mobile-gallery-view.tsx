@@ -107,7 +107,7 @@ export function MobileGalleryView() {
     setPhotos(prev => prev.map(p => p.id === photo.id ? { ...p, is_shared: nextState } : p))
 
     try {
-      const res = await toggleAssetSharedAction(photo.id, nextState, selectedProject.id)
+      const res = await toggleAssetSharedAction(photo.id, nextState, selectedProject.id, photo.filename)
       if (res.success) {
         showToast(nextState ? "Foto visible en el portal cliente" : "Foto oculta al cliente")
       } else {

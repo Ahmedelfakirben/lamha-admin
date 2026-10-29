@@ -20,6 +20,7 @@ export type AuditAction =
   | "TEAM_MEMBER_UPDATED"
   | "EMAIL_WELCOME_SENT"
   | "EMAIL_PHOTOS_READY_SENT"
+  | "INGESTION_COMPLETED"
 
 export type AuditEntityType =
   | "session"
