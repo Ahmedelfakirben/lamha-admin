@@ -891,6 +891,19 @@
           <label id="txt-new-sess-comments">Notes / Commentaires</label>
           <input type="text" id="inp-new-comments" class="text-input" placeholder="Détails particuliers, pack choisi..." style="padding: 8px 12px; font-size: 12px;">
         </div>
+
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; background: rgba(200, 164, 90, 0.08); border: 1px solid rgba(200, 164, 90, 0.28); border-radius: 10px; padding: 8px 12px; margin-top: 2px;">
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12px; color: var(--text); font-weight: 600; margin: 0;">
+            <input type="checkbox" id="chk-new-send-welcome" checked style="width: 15px; height: 15px; accent-color: var(--gold); cursor: pointer;">
+            <span id="txt-new-sess-send-welcome">✉️ Envoyer Email & WhatsApp de bienvenue au client</span>
+          </label>
+          <select id="inp-new-notify-lang" class="select-input" style="width: auto; padding: 5px 10px; font-size: 11px;">
+            <option value="fr">🇫🇷 Français</option>
+            <option value="ar">🇲🇦 العربية</option>
+            <option value="es">🇪🇸 Español</option>
+            <option value="en">🇬🇧 English</option>
+          </select>
+        </div>
       </div>
 
       <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 2px;">
@@ -1960,6 +1973,16 @@
       document.getElementById("btn-cancel-recycle-modal").textContent = t.btnCancel;
       document.getElementById("txt-cfg-autostart").textContent = t.cfgAutostart;
       document.getElementById("txt-cfg-autostart-desc").textContent = t.cfgAutostartDesc;
+      const sendWelcomeLbl = document.getElementById("txt-new-sess-send-welcome");
+      if (sendWelcomeLbl) {
+        const welcomeLbls = {
+          fr: "✉️ Envoyer Email & WhatsApp de bienvenue au client",
+          es: "✉️ Enviar Email y WhatsApp de bienvenida al cliente",
+          en: "✉️ Send Welcome Email & WhatsApp to client",
+          ar: "✉️ إرسال بريد إلكتروني وواتساب ترحيبي للزبون",
+        };
+        sendWelcomeLbl.textContent = welcomeLbls[lang] || welcomeLbls.fr;
+      }
       populateFilterDropdowns();
       populateNewSessionCategoryDropdown();
       populateSessionSelect();
@@ -2491,6 +2514,10 @@
       document.getElementById("inp-new-pin").value = generateRandomPin();
       document.getElementById("inp-new-tags").value = "";
       document.getElementById("inp-new-comments").value = "";
+      const chkWelcome = document.getElementById("chk-new-send-welcome");
+      if (chkWelcome) chkWelcome.checked = true;
+      const selNotifyLang = document.getElementById("inp-new-notify-lang");
+      if (selNotifyLang) selNotifyLang.value = currentLang || "fr";
       modalNewSession.classList.add("open");
       setTimeout(() => document.getElementById("inp-new-client").focus(), 50);
     };
@@ -2511,6 +2538,12 @@
       const portalPin = document.getElementById("inp-new-pin").value.trim();
       const tags = document.getElementById("inp-new-tags").value.trim();
       const comments = document.getElementById("inp-new-comments").value.trim();
+      const sendWelcomeNotifications = document.getElementById("chk-new-send-welcome")
+        ? document.getElementById("chk-new-send-welcome").checked
+        : true;
+      const notifyLanguage = document.getElementById("inp-new-notify-lang")
+        ? document.getElementById("inp-new-notify-lang").value || currentLang || "fr"
+        : currentLang || "fr";
 
       if (!clientName) {
         document.getElementById("inp-new-client").focus();
@@ -2534,6 +2567,8 @@
           portalPin,
           tags,
           comments,
+          sendWelcomeNotifications,
+          notifyLanguage,
         });
         if (res && res.ok && res.session) {
           sessionsCache.unshift(res.session);

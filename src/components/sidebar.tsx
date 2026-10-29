@@ -25,7 +25,8 @@ import {
   Menu,
   X,
   ShieldCheck,
-  MessageSquare
+  MessageSquare,
+  Mail
 } from "lucide-react"
 import { BrandLogo } from "@/components/brand-logo"
 import { useLanguage, Language } from "@/context/language-context"
@@ -133,6 +134,11 @@ export function Sidebar() {
       href: "/chat", 
       label: language === "ar" ? "محادثات واتساب" : language === "es" ? "Chat WhatsApp" : language === "en" ? "WhatsApp Chat" : "Messagerie WhatsApp", 
       icon: MessageSquare 
+    },
+    {
+      href: "/emails",
+      label: language === "ar" ? "البريد والقوالب" : language === "es" ? "Correos & Plantillas" : language === "en" ? "Emails & Templates" : "Emails & Modèles",
+      icon: Mail
     },
     { href: "/categories", label: t.categoriesMenu, icon: FolderTree },
   ]

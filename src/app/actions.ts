@@ -7,8 +7,15 @@ import {
   sendWelcomeEmailNotification, 
   sendPhotosReadyNotification,
   sendReadyForDeliveryNotification,
-  sendSelectionConfirmedNotification
+  sendSelectionConfirmedNotification,
+  sendCustomAtelierEmailNotification
 } from '@/lib/email';
+import {
+  getEmailAutomationSettings,
+  saveEmailAutomationSettings,
+  EmailAutomationSettings
+} from '@/lib/email-settings';
+import type { CustomAtelierEmailParams, EmailTemplateKey } from '@/lib/email-templates';
 import { sendWhatsAppMessage } from '@/lib/whatsapp';
 import { 
   getWelcomeWhatsApp, 
@@ -1349,5 +1356,240 @@ export async function submitClientSelectionAction(params: {
   } catch (error: any) {
     console.error('Error en submitClientSelectionAction:', error);
     return { success: false, error: error?.message || 'Error inesperado' };
+  }
+}
+
+/**
+ * Obtiene la configuración actual de correos automáticos (activo/inactivo y textos en FR/AR/ES/EN)
+ */
+export async function getEmailAutomationSettingsAction() {
+  try {
+    const settings = await getEmailAutomationSettings(true);
+    return { success: true, settings };
+  } catch (error: any) {
+    return { success: false, error: error?.message || 'Error cargando ajustes de correos' };
+  }
+}
+
+/**
+ * Guarda la configuración de correos automáticos (interruptores ON/OFF y textos editados)
+ */
+export async function saveEmailAutomationSettingsAction(
+  settings: EmailAutomationSettings,
+  userContext?: UserAuditContext
+) {
+  try {
+    const res = await saveEmailAutomationSettings(settings, userContext);
+    revalidatePath('/emails');
+    return res;
+  } catch (error: any) {
+    return { success: false, error: error?.message || 'Error guardando ajustes de correos' };
+  }
+}
+
+/**
+ * Envía un correo de prueba de cualquiera de las 4 plantillas automáticas
+ */
+export async function sendTestAutomatedEmailAction(params: {
+  templateKey: EmailTemplateKey;
+  toEmail: string;
+  language?: string;
+}) {
+  try {
+    const email = (params.toEmail || '').trim();
+    if (!email) {
+      return { success: false, error: 'Introduce un correo electrónico de destino para la prueba.' };
+    }
+    const lang = params.language || 'fr';
+
+    if (params.templateKey === 'welcome') {
+      return await sendWelcomeEmailNotification({
+        clientName: 'Sarah Benali (Test)',
+        clientEmail: email,
+        sessionDate: new Date().toISOString().split('T')[0],
+        category: 'Mariage & Portrait Editorial',
+        sessionType: 'photo',
+        notes: 'Exemple de note pour prévisualisation.',
+        language: lang,
+        forceSend: true,
+      });
+    } else if (params.templateKey === 'photos_ready') {
+      return await sendPhotosReadyNotification({
+        clientName: 'Sarah Benali (Test)',
+        clientEmail: email,
+        portalPin: '4829',
+        driveFolderUrl: 'https://drive.google.com',
+        photosCount: 145,
+        language: lang,
+        forceSend: true,
+      });
+    } else if (params.templateKey === 'selection_confirmed') {
+      return await sendSelectionConfirmedNotification({
+        clientName: 'Sarah Benali (Test)',
+        clientEmail: email,
+        photosCount: 60,
+        notesCount: 4,
+        portalPin: '4829',
+        language: lang,
+        forceSend: true,
+      });
+    } else {
+      return await sendReadyForDeliveryNotification({
+        clientName: 'Sarah Benali (Test)',
+        clientEmail: email,
+        category: 'Mariage & Album Prestige',
+        portalPin: '4829',
+        driveFolderUrl: 'https://drive.google.com',
+        language: lang,
+        forceSend: true,
+      });
+    }
+  } catch (error: any) {
+    return { success: false, error: error?.message || 'Error enviando correo de prueba' };
+  }
+}
+
+/**
+ * Envía un correo electrónico a placer con el Preset HTML de lujo de Lam7a Studios
+ */
+export async function sendCustomClientEmailAction(
+  params: CustomAtelierEmailParams & { sessionId?: string | null },
+  userContext?: UserAuditContext
+) {
+  try {
+    const res = await sendCustomAtelierEmailNotification(params);
+    if (res.success) {
+      await recordAuditLog({
+        action: 'EMAIL_CUSTOM_SENT',
+        entityType: params.sessionId ? 'session' : 'client',
+        entityId: params.sessionId || params.clientEmail,
+        entityTitle: params.clientName || params.clientEmail,
+        details: {
+          email: params.clientEmail,
+          subject: params.subject,
+          language: params.language || 'fr',
+          messageId: res.messageId,
+        },
+        ...userContext,
+      });
+    }
+    return res;
+  } catch (error: any) {
+    return { success: false, error: error?.message || 'Error al enviar el correo personalizado' };
+  }
+}
+
+/**
+ * Dispara el Correo de Bienvenida y el WhatsApp de Bienvenida para una sesión recién creada
+ * (Usado tanto desde el Panel Web como desde la herramienta de escritorio Ingest Companion)
+ */
+export async function triggerWelcomeNotificationsForSessionAction(params: {
+  sessionId: string;
+  language?: string;
+  sendEmail?: boolean;
+  sendWhatsApp?: boolean;
+  userContext?: UserAuditContext;
+}) {
+  try {
+    const { data: session, error } = await supabase
+      .from('sessions')
+      .select('*')
+      .eq('id', params.sessionId)
+      .single();
+
+    if (error || !session) {
+      return { success: false, error: 'Sesión no encontrada en Supabase' };
+    }
+
+    const lang = params.language || 'fr';
+    let emailSent = false;
+    let whatsappSent = false;
+    let emailError: string | undefined;
+    let whatsappError: string | undefined;
+
+    if (session.client_email && params.sendEmail !== false) {
+      try {
+        const emailRes = await sendWelcomeEmailNotification({
+          clientName: session.client_name,
+          clientEmail: session.client_email,
+          sessionDate: session.session_date,
+          category: session.category,
+          sessionType: session.session_type,
+          notes: session.comments,
+          language: lang,
+        });
+        if (emailRes.success) {
+          emailSent = true;
+          await recordAuditLog({
+            action: 'EMAIL_WELCOME_SENT',
+            entityType: 'session',
+            entityId: session.id,
+            entityTitle: session.client_name,
+            details: {
+              email: session.client_email,
+              date: session.session_date,
+              source: 'ingest_or_admin',
+              messageId: emailRes.messageId,
+            },
+            ...(params.userContext || {}),
+          });
+        } else {
+          emailError = emailRes.error;
+        }
+      } catch (e: any) {
+        emailError = e?.message;
+      }
+    }
+
+    if (session.client_phone && params.sendWhatsApp !== false) {
+      try {
+        const text = getWelcomeWhatsApp({
+          clientName: session.client_name,
+          sessionDate: session.session_date,
+          category: session.category,
+          portalPin: session.portal_pin,
+          clientEmail: session.client_email,
+          language: lang,
+        });
+
+        const waRes = await sendWhatsAppMessage({
+          phone: session.client_phone,
+          text,
+          clientId: session.client_id || null,
+          sessionId: session.id,
+        });
+
+        if (waRes.success) {
+          whatsappSent = true;
+          await recordAuditLog({
+            action: 'WHATSAPP_WELCOME_SENT',
+            entityType: 'session',
+            entityId: session.id,
+            entityTitle: session.client_name,
+            details: {
+              phone: session.client_phone,
+              category: session.category,
+              language: lang,
+              source: 'ingest_or_admin',
+            },
+            ...(params.userContext || {}),
+          });
+        } else {
+          whatsappError = waRes.error;
+        }
+      } catch (e: any) {
+        whatsappError = e?.message;
+      }
+    }
+
+    return {
+      success: true,
+      emailSent,
+      whatsappSent,
+      emailError,
+      whatsappError,
+    };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Error enviando notificaciones de bienvenida' };
   }
 }

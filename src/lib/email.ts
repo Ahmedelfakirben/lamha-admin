@@ -1,10 +1,13 @@
 import nodemailer from "nodemailer"
-import { 
-  renderWelcomeEmail, 
-  renderPhotosReadyEmail, 
-  renderReadyForDeliveryEmail, 
-  renderSelectionConfirmedEmail 
+import {
+  CustomAtelierEmailParams,
+  renderCustomAtelierEmail,
+  renderPhotosReadyEmail,
+  renderReadyForDeliveryEmail,
+  renderSelectionConfirmedEmail,
+  renderWelcomeEmail,
 } from "./email-templates"
+import { getTemplateConfigForSend } from "./email-settings"
 
 export interface SmtpConfig {
   host: string
@@ -61,17 +64,24 @@ export async function sendWelcomeEmailNotification(params: {
   sessionType?: string | null
   notes?: string | null
   language?: string
-}): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  forceSend?: boolean
+}): Promise<{ success: boolean; skipped?: boolean; messageId?: string; error?: string }> {
   try {
     if (!params.clientEmail) {
       return { success: false, error: "El cliente no tiene correo electrónico configurado." }
     }
 
+    const tplCfg = await getTemplateConfigForSend("welcome", params.language)
+    if (!tplCfg.enabled && !params.forceSend) {
+      console.log("[EMAIL_SKIP] Correo automático de bienvenida desactivado en ajustes.")
+      return { success: false, skipped: true, error: "Correo automático de bienvenida desactivado." }
+    }
+
     if (!isEmailConfigured()) {
       console.warn("[EMAIL_WARN] Variables SMTP de Microsoft Exchange no configuradas en .env.local")
-      return { 
-        success: false, 
-        error: "Servidor de correo Microsoft Exchange no configurado. Configure SMTP_USER y SMTP_PASS en .env.local" 
+      return {
+        success: false,
+        error: "Servidor de correo Microsoft Exchange no configurado. Configure SMTP_USER y SMTP_PASS en .env.local",
       }
     }
 
@@ -84,6 +94,7 @@ export async function sendWelcomeEmailNotification(params: {
       notes: params.notes,
       studioEmail: config.fromEmail,
       language: params.language,
+      customCopy: tplCfg.copy,
     })
 
     const transporter = createTransporter()
@@ -113,7 +124,8 @@ export async function sendPhotosReadyNotification(params: {
   driveFolderUrl?: string | null
   photosCount?: number
   language?: string
-}): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  forceSend?: boolean
+}): Promise<{ success: boolean; skipped?: boolean; messageId?: string; error?: string }> {
   try {
     if (!params.clientEmail) {
       return { success: false, error: "El cliente no tiene un correo electrónico registrado." }
@@ -123,11 +135,17 @@ export async function sendPhotosReadyNotification(params: {
       return { success: false, error: "Este proyecto no tiene un Código PIN de acceso configurado." }
     }
 
+    const tplCfg = await getTemplateConfigForSend("photos_ready", params.language)
+    if (!tplCfg.enabled && !params.forceSend) {
+      console.log("[EMAIL_SKIP] Correo automático de Fotos Listas desactivado en ajustes.")
+      return { success: false, skipped: true, error: "Correo automático de Fotos Listas desactivado." }
+    }
+
     if (!isEmailConfigured()) {
       console.warn("[EMAIL_WARN] Variables SMTP de Microsoft Exchange no configuradas en .env.local")
-      return { 
-        success: false, 
-        error: "Servidor de correo Microsoft Exchange no configurado. Configure SMTP_USER y SMTP_PASS en .env.local" 
+      return {
+        success: false,
+        error: "Servidor de correo Microsoft Exchange no configurado. Configure SMTP_USER y SMTP_PASS en .env.local",
       }
     }
 
@@ -143,6 +161,7 @@ export async function sendPhotosReadyNotification(params: {
       photosCount: params.photosCount,
       studioEmail: config.fromEmail,
       language: params.language,
+      customCopy: tplCfg.copy,
     })
 
     const transporter = createTransporter()
@@ -172,17 +191,24 @@ export async function sendReadyForDeliveryNotification(params: {
   portalPin?: string | null
   driveFolderUrl?: string | null
   language?: string
-}): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  forceSend?: boolean
+}): Promise<{ success: boolean; skipped?: boolean; messageId?: string; error?: string }> {
   try {
     if (!params.clientEmail) {
       return { success: false, error: "El cliente no tiene correo electrónico configurado." }
     }
 
+    const tplCfg = await getTemplateConfigForSend("ready_delivery", params.language)
+    if (!tplCfg.enabled && !params.forceSend) {
+      console.log("[EMAIL_SKIP] Correo automático Ready for Delivery desactivado en ajustes.")
+      return { success: false, skipped: true, error: "Correo automático de Entrega Lista desactivado." }
+    }
+
     if (!isEmailConfigured()) {
       console.warn("[EMAIL_WARN] Variables SMTP de Microsoft Exchange no configuradas en .env.local")
-      return { 
-        success: false, 
-        error: "Servidor de correo Microsoft Exchange no configurado. Configure SMTP_USER y SMTP_PASS en .env.local" 
+      return {
+        success: false,
+        error: "Servidor de correo Microsoft Exchange no configurado. Configure SMTP_USER y SMTP_PASS en .env.local",
       }
     }
 
@@ -198,6 +224,7 @@ export async function sendReadyForDeliveryNotification(params: {
       driveFolderUrl: params.driveFolderUrl,
       studioEmail: config.fromEmail,
       language: params.language,
+      customCopy: tplCfg.copy,
     })
 
     const transporter = createTransporter()
@@ -227,17 +254,24 @@ export async function sendSelectionConfirmedNotification(params: {
   notesCount?: number
   portalPin?: string | null
   language?: string
-}): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  forceSend?: boolean
+}): Promise<{ success: boolean; skipped?: boolean; messageId?: string; error?: string }> {
   try {
     if (!params.clientEmail) {
       return { success: false, error: "El cliente no tiene correo electrónico configurado." }
     }
 
+    const tplCfg = await getTemplateConfigForSend("selection_confirmed", params.language)
+    if (!tplCfg.enabled && !params.forceSend) {
+      console.log("[EMAIL_SKIP] Correo automático de Selección Confirmada desactivado en ajustes.")
+      return { success: false, skipped: true, error: "Correo automático de Selección Confirmada desactivado." }
+    }
+
     if (!isEmailConfigured()) {
       console.warn("[EMAIL_WARN] Variables SMTP de Microsoft Exchange no configuradas en .env.local")
-      return { 
-        success: false, 
-        error: "Servidor de correo Microsoft Exchange no configurado. Configure SMTP_USER y SMTP_PASS en .env.local" 
+      return {
+        success: false,
+        error: "Servidor de correo Microsoft Exchange no configurado. Configure SMTP_USER y SMTP_PASS en .env.local",
       }
     }
 
@@ -253,6 +287,7 @@ export async function sendSelectionConfirmedNotification(params: {
       portalPin: params.portalPin,
       studioEmail: config.fromEmail,
       language: params.language,
+      customCopy: tplCfg.copy,
     })
 
     const transporter = createTransporter()
@@ -268,6 +303,50 @@ export async function sendSelectionConfirmedNotification(params: {
     return { success: true, messageId: info.messageId }
   } catch (err: any) {
     console.error("[EMAIL_ERROR] Error enviando correo de confirmación de selección:", err)
+    return { success: false, error: err?.message || "Error al enviar el correo con Microsoft Exchange." }
+  }
+}
+
+/**
+ * Envía un correo libre personalizado a cualquier cliente con el Preset HTML de Lujo de Lam7a Studios
+ */
+export async function sendCustomAtelierEmailNotification(
+  params: CustomAtelierEmailParams
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  try {
+    if (!params.clientEmail || !params.clientEmail.trim()) {
+      return { success: false, error: "Debes indicar el correo electrónico del destinatario." }
+    }
+    if (!params.bodyMessage || !params.bodyMessage.trim()) {
+      return { success: false, error: "El cuerpo del mensaje no puede estar vacío." }
+    }
+
+    if (!isEmailConfigured()) {
+      return {
+        success: false,
+        error: "Servidor de correo Microsoft Exchange no configurado. Configure SMTP_USER y SMTP_PASS en .env.local",
+      }
+    }
+
+    const config = getSmtpConfig()
+    const { subject, html, text } = renderCustomAtelierEmail({
+      ...params,
+      studioEmail: config.fromEmail,
+    })
+
+    const transporter = createTransporter()
+    const info = await transporter.sendMail({
+      from: `"${config.fromName}" <${config.fromEmail}>`,
+      to: params.clientEmail.trim(),
+      subject,
+      text,
+      html,
+    })
+
+    console.log(`[EMAIL_SUCCESS] Correo personalizado enviado a ${params.clientEmail}. ID: ${info.messageId}`)
+    return { success: true, messageId: info.messageId }
+  } catch (err: any) {
+    console.error("[EMAIL_ERROR] Error enviando correo personalizado:", err)
     return { success: false, error: err?.message || "Error al enviar el correo con Microsoft Exchange." }
   }
 }

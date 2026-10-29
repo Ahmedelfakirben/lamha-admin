@@ -255,24 +255,303 @@ async function listSessions() {
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+function normalizePhoneForWhatsApp(phone) {
+  if (!phone) return ""
+  let cleaned = String(phone).replace(/\D/g, "")
+  if (!cleaned || /^0+$/.test(cleaned) || cleaned.length < 8) return ""
+  if (cleaned.startsWith("0") && cleaned.length === 10) {
+    cleaned = "212" + cleaned.substring(1)
+  } else if (cleaned.length === 9 && (cleaned.startsWith("6") || cleaned.startsWith("7"))) {
+    cleaned = "212" + cleaned
+  }
+  return cleaned
+}
+
+function buildDirectWelcomeWhatsAppText({ clientName, sessionDate, category, portalPin, language = "fr" }) {
+  const portalUrl = "https://client.lam7a.ma"
+  const pinLine = portalPin ? `\n🔑 *Code PIN:* ${portalPin}` : ""
+  const pinLineAr = portalPin ? `\n🔑 *الرمز السري (PIN):* ${portalPin}` : ""
+
+  const templates = {
+    fr: `✨ *Bienvenue chez Lam7a Studios*\n\nBonjour *${clientName}*,\nVotre séance *${category}* prévue le *${sessionDate}* a bien été enregistrée dans notre Atelier.\n\n🌐 *Portail Client:* ${portalUrl}${pinLine}\n\nNous avons hâte de capturer vos plus beaux moments.\n_L'équipe Lam7a Studios_ 📸`,
+    ar: `✨ *مرحباً بكم في استوديو لمحة (Lam7a Studios)*\n\nمرحباً *${clientName}*،\nتم تسجيل جلستكم (*${category}*) المبرمجة بتاريخ *${sessionDate}* بنجاح.\n\n🌐 *بوابة الزبناء:* ${portalUrl}${pinLineAr}\n\nنسعد بمشاركتكم أجمل اللحظات.\n_فريق استوديو لمحة_ 📸`,
+    es: `✨ *Bienvenido a Lam7a Studios*\n\nHola *${clientName}*,\nTu sesión de *${category}* programada para el *${sessionDate}* ha sido registrada en nuestro estudio.\n\n🌐 *Portal de Cliente:* ${portalUrl}${pinLine}\n\nEstamos deseando capturar tus mejores momentos.\n_El equipo de Lam7a Studios_ 📸`,
+    en: `✨ *Welcome to Lam7a Studios*\n\nHello *${clientName}*,\nYour *${category}* session scheduled for *${sessionDate}* has been registered at our studio.\n\n🌐 *Client Portal:* ${portalUrl}${pinLine}\n\nWe look forward to capturing your best moments.\n_The Lam7a Studios Team_ 📸`,
+  }
+  return templates[language] || templates.fr
+}
+
+function interpolateTemplateVars(str, vars) {
+  if (!str) return ""
+  return String(str)
+    .replace(/\{\{\s*clientName\s*\}\}/gi, vars.clientName || "")
+    .replace(/\{\{\s*sessionDate\s*\}\}/gi, vars.sessionDate || "")
+    .replace(/\{\{\s*category\s*\}\}/gi, vars.category || "")
+    .replace(/\{\{\s*portalPin\s*\}\}/gi, vars.portalPin || "")
+    .replace(/\{\{\s*clientEmail\s*\}\}/gi, vars.clientEmail || "")
+}
+
+function buildDirectWelcomeEmailHtml({ clientName, clientEmail, sessionDate, category, portalPin, language = "fr", customCopy = null }) {
+  const portalUrl = "https://client.lam7a.ma"
+  const logoUrl = "https://admin.lam7a.ma/logo_lam7a_white.png"
+  const defaults = {
+    fr: {
+      subject: `✨ Bienvenue chez Lam7a Studios — Votre séance du ${sessionDate}`,
+      badge: "Confirmation de Séance",
+      title: `Bienvenue, ${clientName}`,
+      intro: `Nous avons le plaisir de vous confirmer l'enregistrement de votre séance (${category}) prévue le ${sessionDate} au sein de notre Atelier.`,
+      body: `Dès que vos clichés seront traités par notre équipe artistique, vous pourrez accéder à votre galerie privée sur notre portail client pour effectuer votre sélection.`,
+      cta: "Accéder au Portail Client",
+      footer: "Lam7a Studios — Photographie & Cinématographie d'Exception · Tanger, Maroc",
+    },
+    ar: {
+      subject: `✨ مرحباً بكم في استوديو لمحة — جلستكم ليوم ${sessionDate}`,
+      badge: "تأكيد الجلسة",
+      title: `مرحباً بك، ${clientName}`,
+      intro: `يسعدنا تأكيد تسجيل جلستكم (${category}) المبرمجة بتاريخ ${sessionDate} في استوديو لمحة.`,
+      body: `بمجرد انتهاء فريقنا الفني من معالجة صوركم، ستتمكنون من الولوج إلى معرضكم الخاص عبر بوابة الزبناء لاختيار صوركم المفضلة.`,
+      cta: "الدخول إلى بوابة الزبناء",
+      footer: "استوديو لمحة (Lam7a Studios) — التصوير الفوتوغرافي والسينمائي الاحترافي · طنجة، المغرب",
+    },
+    es: {
+      subject: `✨ Bienvenido a Lam7a Studios — Tu sesión del ${sessionDate}`,
+      badge: "Confirmación de Sesión",
+      title: `Bienvenido/a, ${clientName}`,
+      intro: `Nos complace confirmar el registro de tu sesión (${category}) programada para el ${sessionDate} en nuestro estudio.`,
+      body: `Tan pronto como nuestro equipo artístico procese tus fotografías, podrás acceder a tu galería privada en nuestro portal de clientes para realizar tu selección.`,
+      cta: "Acceder al Portal de Cliente",
+      footer: "Lam7a Studios — Fotografía y Cinematografía de Autor · Tánger, Marruecos",
+    },
+    en: {
+      subject: `✨ Welcome to Lam7a Studios — Your session on ${sessionDate}`,
+      badge: "Session Confirmation",
+      title: `Welcome, ${clientName}`,
+      intro: `We are delighted to confirm the registration of your session (${category}) scheduled for ${sessionDate} at our studio.`,
+      body: `As soon as your photographs are processed by our artistic team, you will be able to access your private gallery on our client portal to make your selection.`,
+      cta: "Open Client Portal",
+      footer: "Lam7a Studios — Fine Art Photography & Cinematography · Tangier, Morocco",
+    },
+  }
+  const base = defaults[language] || defaults.fr
+  const vars = { clientName, clientEmail, sessionDate, category, portalPin: portalPin || "" }
+  const t = {
+    subject: customCopy?.subject ? interpolateTemplateVars(customCopy.subject, vars) : base.subject,
+    badge: customCopy?.badge ? interpolateTemplateVars(customCopy.badge, vars) : base.badge,
+    title: customCopy?.title ? interpolateTemplateVars(customCopy.title, vars) : base.title,
+    intro: customCopy?.intro ? interpolateTemplateVars(customCopy.intro, vars) : base.intro,
+    body: customCopy?.body ? interpolateTemplateVars(customCopy.body, vars) : base.body,
+    cta: customCopy?.cta ? interpolateTemplateVars(customCopy.cta, vars) : base.cta,
+    footer: customCopy?.footer ? interpolateTemplateVars(customCopy.footer, vars) : base.footer,
+  }
+  const isRtl = language === "ar"
+  const dir = isRtl ? "rtl" : "ltr"
+  const align = isRtl ? "right" : "left"
+
+  const credentialsHtml = portalPin
+    ? `<div style="margin:24px 0;background-color:#1c1917;border:1px solid #44403c;border-radius:12px;padding:20px;text-align:center;">
+         <p style="margin:0 0 8px 0;font-size:11px;text-transform:uppercase;letter-spacing:2px;color:#d6b36a;">🔑 Code PIN Portail Client</p>
+         <p style="margin:0;font-size:28px;font-weight:700;letter-spacing:6px;color:#fafaf9;font-family:monospace;">${portalPin}</p>
+       </div>`
+    : ""
+
+  const html = `<!DOCTYPE html><html lang="${language}" dir="${dir}"><head><meta charset="utf-8"/></head>
+  <body style="margin:0;padding:0;background-color:#0c0a09;color:#f5f5f4;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#0c0a09;padding:40px 16px;">
+      <tr><td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background-color:#141210;border:1px solid #292524;border-radius:16px;overflow:hidden;">
+          <tr><td style="padding:36px 32px 24px 32px;text-align:center;border-bottom:1px solid #292524;background:linear-gradient(180deg,#1c1917 0%,#141210 100%);">
+            <img src="${logoUrl}" alt="Lam7a Studios" width="130" style="display:block;margin:0 auto 14px auto;max-width:130px;height:auto;" />
+            <span style="display:inline-block;padding:4px 12px;border-radius:999px;background-color:rgba(214,179,106,0.15);border:1px solid rgba(214,179,106,0.4);color:#d6b36a;font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;">${t.badge}</span>
+          </td></tr>
+          <tr><td style="padding:32px;text-align:${align};direction:${dir};">
+            <h1 style="margin:0 0 16px 0;font-size:24px;font-weight:600;color:#fafaf9;">${t.title}</h1>
+            <p style="margin:0 0 16px 0;font-size:15px;line-height:1.7;color:#d6d3d1;">${t.intro}</p>
+            <p style="margin:0 0 20px 0;font-size:15px;line-height:1.7;color:#a8a29e;">${t.body}</p>
+            ${credentialsHtml}
+            <div style="text-align:center;margin-top:28px;">
+              <a href="${portalUrl}" target="_blank" style="display:inline-block;padding:14px 32px;background:linear-gradient(135deg,#d6b36a 0%,#b89146 100%);color:#0c0a09;font-weight:700;font-size:14px;text-decoration:none;border-radius:10px;letter-spacing:0.5px;">${t.cta}</a>
+            </div>
+          </td></tr>
+          <tr><td style="padding:20px 32px;background-color:#0c0a09;border-top:1px solid #292524;text-align:center;">
+            <p style="margin:0;font-size:12px;color:#78716c;">${t.footer}</p>
+          </td></tr>
+        </table>
+      </td></tr>
+    </table>
+  </body></html>`
+
+  return { subject: t.subject, html }
+}
+
+async function triggerSessionWelcomeNotifications({
+  supabase,
+  session,
+  language = "fr",
+  sendEmail = true,
+  sendWhatsApp = true,
+}) {
+  const cfg = getConfig()
+  const result = { emailSent: false, whatsappSent: false, errors: [] }
+  if (!session || (!sendEmail && !sendWhatsApp)) return result
+
+  // 1. Intentar primero a través del endpoint del Panel Admin Web (que usa la configuración y plantillas centrales)
+  if (cfg.dashboardUrl) {
+    try {
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 6500)
+      const resp = await fetch(`${cfg.dashboardUrl.replace(/\/+$/, "")}/api/notifications/welcome`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: session.id,
+          language,
+          sendEmail,
+          sendWhatsApp,
+        }),
+        signal: controller.signal,
+      })
+      clearTimeout(timer)
+      if (resp.ok) {
+        const json = await resp.json()
+        if (json && json.success) {
+          result.emailSent = Boolean(json.emailSent)
+          result.whatsappSent = Boolean(json.whatsappSent)
+          if (result.emailSent || result.whatsappSent) {
+            return result
+          }
+        }
+      }
+    } catch {}
+  }
+
+  // 2. Fallback directo desde Electron (si el servidor web no respondió o no envió)
+  let welcomeEmailEnabled = true
+  let customWelcomeCopy = null
+  try {
+    const { data: settingsRow } = await supabase
+      .from("audit_logs")
+      .select("details")
+      .eq("entity_type", "email_settings")
+      .eq("entity_id", "global_email_config")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    const tmpl = settingsRow?.details?.templates?.welcome
+    if (tmpl) {
+      if (typeof tmpl.enabled === "boolean") welcomeEmailEnabled = tmpl.enabled
+      if (tmpl.languages && tmpl.languages[language]) {
+        customWelcomeCopy = tmpl.languages[language]
+      }
+    }
+  } catch {}
+
+  const sessionDateFormatted = session.session_date
+    ? new Date(session.session_date).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" })
+    : new Date().toLocaleDateString("fr-FR")
+
+  // Envío directo de Email de Bienvenida via Nodemailer (Exchange SMTP)
+  if (sendEmail && welcomeEmailEnabled && session.client_email && session.client_email.includes("@") && cfg.smtpUser && cfg.smtpPass) {
+    try {
+      const nodemailer = require("nodemailer")
+      const transporter = nodemailer.createTransport({
+        host: cfg.smtpHost || "smtp.office365.com",
+        port: Number(cfg.smtpPort || 587),
+        secure: Boolean(cfg.smtpSecure),
+        auth: { user: cfg.smtpUser, pass: cfg.smtpPass },
+        tls: { ciphers: "SSLv3", rejectUnauthorized: false },
+      })
+      const { subject, html } = buildDirectWelcomeEmailHtml({
+        clientName: session.client_name,
+        clientEmail: session.client_email,
+        sessionDate: sessionDateFormatted,
+        category: session.category || "Séance Photo",
+        portalPin: session.portal_pin,
+        language,
+        customCopy: customWelcomeCopy,
+      })
+      await transporter.sendMail({
+        from: `"${cfg.smtpFromName || "Lam7a Studios"}" <${cfg.smtpFromEmail || cfg.smtpUser}>`,
+        to: session.client_email.trim(),
+        subject,
+        html,
+      })
+      result.emailSent = true
+      await supabase.from("audit_logs").insert({
+        action: "EMAIL_WELCOME_SENT",
+        entity_type: "session",
+        entity_id: session.id,
+        details: { email: session.client_email, language, source: "ingest_companion" },
+      })
+    } catch (e) {
+      result.errors.push(`Email: ${e.message}`)
+    }
+  }
+
+  // Envío directo de WhatsApp de Bienvenida via Evolution API
+  const cleanPhone = normalizePhoneForWhatsApp(session.client_phone)
+  if (sendWhatsApp && cleanPhone && cfg.evolutionUrl && cfg.evolutionKey) {
+    try {
+      const text = buildDirectWelcomeWhatsAppText({
+        clientName: session.client_name,
+        sessionDate: sessionDateFormatted,
+        category: session.category || "Séance Photo",
+        portalPin: session.portal_pin,
+        language,
+      })
+      const waResp = await fetch(`${cfg.evolutionUrl}/message/sendText/${cfg.evolutionInstance || "lam7astudio"}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: cfg.evolutionKey,
+        },
+        body: JSON.stringify({
+          number: cleanPhone,
+          text,
+          delay: 1200,
+          linkPreview: true,
+        }),
+      })
+      if (waResp.ok) {
+        result.whatsappSent = true
+        await supabase.from("audit_logs").insert({
+          action: "WHATSAPP_WELCOME_SENT",
+          entity_type: "session",
+          entity_id: session.id,
+          details: { phone: cleanPhone, language, source: "ingest_companion" },
+        })
+      }
+    } catch (e) {
+      result.errors.push(`WhatsApp: ${e.message}`)
+    }
+  }
+
+  return result
+}
+
 async function createQuickSession(payload = {}) {
   try {
     const supabase = getClient()
+    const cfg = getConfig()
     const clientName = String(payload.client_name || payload.clientName || "").trim()
     if (!clientName || clientName.length < 2) {
       return { ok: false, error: "CLIENT_NAME_REQUIRED" }
     }
 
     const sessionDate = payload.session_date || payload.sessionDate || new Date().toISOString().split("T")[0]
-    const shootingType = payload.shooting_type === "party" ? "party" : "shooting"
-    const sessionType = payload.session_type === "video" ? "video" : "photo"
+    const rawShootingType = payload.shooting_type || payload.shootingType
+    const shootingType = rawShootingType === "party" ? "party" : "shooting"
+    const rawSessionType = payload.session_type || payload.sessionType
+    const sessionType = rawSessionType === "video" ? "video" : "photo"
     const category = String(payload.category || "portrait").trim()
     const subcategory = payload.subcategory ? String(payload.subcategory).trim() : null
     const validStatuses = new Set(["pending", "shooting", "editing", "edited", "delivered", "archived"])
     const status = validStatuses.has(payload.status) ? payload.status : "pending"
-    const clientPhone = payload.client_phone ? String(payload.client_phone).trim() : null
-    const clientEmail = payload.client_email ? String(payload.client_email).trim() : null
-    const portalPin = payload.portal_pin ? String(payload.portal_pin).trim() : null
+    const rawPhone = payload.client_phone ?? payload.clientPhone
+    const clientPhone = rawPhone ? String(rawPhone).trim() : null
+    const rawEmail = payload.client_email ?? payload.clientEmail
+    const clientEmail = rawEmail ? String(rawEmail).trim() : null
+    const rawPin = payload.portal_pin ?? payload.portalPin
+    const portalPin = rawPin ? String(rawPin).trim() : String(Math.floor(1000 + Math.random() * 9000))
     const comments = payload.comments ? String(payload.comments).trim() : null
 
     let rawTags = []
@@ -287,19 +566,29 @@ async function createQuickSession(payload = {}) {
     const cleanTags = rawTags.filter((t) => !t.toLowerCase().startsWith("place:"))
     cleanTags.push(`place:${shootingType}`)
 
-    let clientId = payload.client_id && UUID_REGEX.test(String(payload.client_id).trim()) ? String(payload.client_id).trim() : null
+    const rawClientId = payload.client_id || payload.clientId
+    let clientId = rawClientId && UUID_REGEX.test(String(rawClientId).trim()) ? String(rawClientId).trim() : null
 
     // Auto-vincular o registrar cliente en la tabla clients (igual que en el Panel Administrador)
     if (!clientId) {
       try {
         const { data: existingClient } = await supabase
           .from("clients")
-          .select("id")
+          .select("id, phone, email")
           .ilike("name", clientName)
           .maybeSingle()
 
         if (existingClient?.id && UUID_REGEX.test(existingClient.id)) {
           clientId = existingClient.id
+          if ((clientPhone && !existingClient.phone) || (clientEmail && !existingClient.email)) {
+            await supabase
+              .from("clients")
+              .update({
+                phone: clientPhone || existingClient.phone,
+                email: clientEmail || existingClient.email,
+              })
+              .eq("id", clientId)
+          }
         } else {
           const { data: newClient } = await supabase
             .from("clients")
@@ -347,7 +636,24 @@ async function createQuickSession(payload = {}) {
     }
 
     if (error) return { ok: false, error: error.message }
-    return { ok: true, session: data }
+
+    // Disparar automáticamente Email de Bienvenida + WhatsApp de Bienvenida si está habilitado
+    const shouldNotify = payload.sendWelcomeNotifications !== false
+    const notifyLang = payload.notifyLanguage || cfg.language || "fr"
+    let notifications = { emailSent: false, whatsappSent: false }
+    if (shouldNotify && data && (data.client_email || data.client_phone)) {
+      try {
+        notifications = await triggerSessionWelcomeNotifications({
+          supabase,
+          session: data,
+          language: notifyLang,
+          sendEmail: Boolean(data.client_email),
+          sendWhatsApp: Boolean(data.client_phone),
+        })
+      } catch {}
+    }
+
+    return { ok: true, session: data, notifications }
   } catch (e) {
     return { ok: false, error: e.code === "CONFIG_MISSING" ? "CONFIG_MISSING" : e.message }
   }

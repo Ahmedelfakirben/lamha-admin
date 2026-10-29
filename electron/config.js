@@ -67,6 +67,16 @@ function getConfig() {
     nasAutoSyncEnabled: user.nasAutoSyncEnabled !== undefined ? Boolean(user.nasAutoSyncEnabled) : true,
     nasSyncPausedUntil: user.nasSyncPausedUntil || null,
     openAtLogin: user.openAtLogin !== undefined ? Boolean(user.openAtLogin) : true,
+    smtpHost: user.smtpHost || env.SMTP_HOST || "smtp.office365.com",
+    smtpPort: Number(user.smtpPort || env.SMTP_PORT || 587),
+    smtpSecure: (user.smtpSecure || env.SMTP_SECURE) === "true",
+    smtpUser: user.smtpUser || env.SMTP_USER || "",
+    smtpPass: user.smtpPass || env.SMTP_PASS || "",
+    smtpFromName: user.smtpFromName || env.SMTP_FROM_NAME || "Lam7a Studios",
+    smtpFromEmail: user.smtpFromEmail || env.SMTP_FROM_EMAIL || env.SMTP_USER || "contact@lam7a.ma",
+    evolutionUrl: (user.evolutionUrl || env.EVOLUTION_API_URL || "https://wa-api.elfakir.com").replace(/\/+$/, ""),
+    evolutionKey: user.evolutionKey || env.EVOLUTION_API_KEY || "",
+    evolutionInstance: user.evolutionInstance || env.EVOLUTION_INSTANCE_NAME || "lam7astudio",
   }
 }
 
