@@ -77,7 +77,22 @@ function getConfig() {
     evolutionUrl: (user.evolutionUrl || env.EVOLUTION_API_URL || "https://wa-api.elfakir.com").replace(/\/+$/, ""),
     evolutionKey: user.evolutionKey || env.EVOLUTION_API_KEY || "",
     evolutionInstance: user.evolutionInstance || env.EVOLUTION_INSTANCE_NAME || "lam7astudio",
+    // Ciclo de vida QNAP (todas las cantidades son editables desde Ingest Companion)
+    retentionEnabled: user.retentionEnabled !== undefined ? Boolean(user.retentionEnabled) : false,
+    retentionAutoNotice: user.retentionAutoNotice !== undefined ? Boolean(user.retentionAutoNotice) : true,
+    retentionAutoPurge: user.retentionAutoPurge !== undefined ? Boolean(user.retentionAutoPurge) : true,
+    retentionCapacityTb: positiveNumber(user.retentionCapacityTb, 3.6),
+    retentionTriggerTb: positiveNumber(user.retentionTriggerTb, 2.6),
+    retentionReleaseTb: positiveNumber(user.retentionReleaseTb, 1.0),
+    retentionGraceDays: Math.max(1, Math.round(positiveNumber(user.retentionGraceDays, 7))),
+    retentionMode: user.retentionMode === "delete_all" ? "delete_all" : "keep_finals",
+    retentionNoticeLang: ["fr", "ar", "es", "en"].includes(user.retentionNoticeLang) ? user.retentionNoticeLang : "fr",
   }
+}
+
+function positiveNumber(v, fallback) {
+  const n = Number(v)
+  return Number.isFinite(n) && n > 0 ? n : fallback
 }
 
 /** Versión segura para enviar al renderer (sin contraseñas ni claves). */
@@ -97,6 +112,15 @@ function getPublicSettings() {
     nasAutoSyncEnabled: c.nasAutoSyncEnabled,
     nasSyncPausedUntil: c.nasSyncPausedUntil,
     openAtLogin: c.openAtLogin,
+    retentionEnabled: c.retentionEnabled,
+    retentionAutoNotice: c.retentionAutoNotice,
+    retentionAutoPurge: c.retentionAutoPurge,
+    retentionCapacityTb: c.retentionCapacityTb,
+    retentionTriggerTb: c.retentionTriggerTb,
+    retentionReleaseTb: c.retentionReleaseTb,
+    retentionGraceDays: c.retentionGraceDays,
+    retentionMode: c.retentionMode,
+    retentionNoticeLang: c.retentionNoticeLang,
   }
 }
 
@@ -115,6 +139,15 @@ function updateSettings(patch) {
     "nasAutoSyncEnabled",
     "nasSyncPausedUntil",
     "openAtLogin",
+    "retentionEnabled",
+    "retentionAutoNotice",
+    "retentionAutoPurge",
+    "retentionCapacityTb",
+    "retentionTriggerTb",
+    "retentionReleaseTb",
+    "retentionGraceDays",
+    "retentionMode",
+    "retentionNoticeLang",
   ]
   for (const k of allowed) {
     if (patch[k] !== undefined && patch[k] !== "") current[k] = patch[k]

@@ -734,6 +734,62 @@
       </div>
     </div>
 
+    <!-- Ciclo de vida QNAP (RAID 1): preaviso al cliente + reciclaje automático -->
+    <div class="card" id="retention-card">
+      <div class="card-title">
+        <span id="rt-title">♻️ Cycle de vie du QNAP</span>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span class="auth-badge" id="rt-badge" style="cursor:default;">—</span>
+          <button id="rt-btn-refresh" class="btn-icon" style="width:26px;height:26px;font-size:11px;">↺</button>
+        </div>
+      </div>
+      <div class="card-content">
+        <p id="rt-desc" style="font-size:12px;color:var(--text-muted);line-height:1.5;"></p>
+
+        <div style="background:var(--input-bg);border:1px solid var(--card-border);border-radius:12px;padding:12px 14px;">
+          <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px;">
+            <span id="rt-usage-text">—</span>
+            <span id="rt-usage-state" style="font-weight:700;">—</span>
+          </div>
+          <div style="position:relative;height:12px;background:rgba(127,127,127,.18);border-radius:8px;overflow:hidden;">
+            <div id="rt-bar" style="height:100%;width:0%;background:#10b981;transition:width .4s;"></div>
+            <div id="rt-marker" style="position:absolute;top:0;bottom:0;width:2px;background:var(--gold);left:70%;"></div>
+          </div>
+          <div id="rt-summary" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;font-size:11px;"></div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;">
+          <label style="font-size:11px;color:var(--text-muted);display:flex;flex-direction:column;gap:4px;"><span id="rt-lbl-capacity"></span>
+            <input id="rt-in-capacity" class="text-input" type="number" step="0.1" min="0.1" /></label>
+          <label style="font-size:11px;color:var(--text-muted);display:flex;flex-direction:column;gap:4px;"><span id="rt-lbl-trigger"></span>
+            <input id="rt-in-trigger" class="text-input" type="number" step="0.1" min="0.1" /></label>
+          <label style="font-size:11px;color:var(--text-muted);display:flex;flex-direction:column;gap:4px;"><span id="rt-lbl-release"></span>
+            <input id="rt-in-release" class="text-input" type="number" step="0.1" min="0.1" /></label>
+          <label style="font-size:11px;color:var(--text-muted);display:flex;flex-direction:column;gap:4px;"><span id="rt-lbl-grace"></span>
+            <input id="rt-in-grace" class="text-input" type="number" step="1" min="1" /></label>
+          <label style="font-size:11px;color:var(--text-muted);display:flex;flex-direction:column;gap:4px;"><span id="rt-lbl-mode"></span>
+            <select id="rt-in-mode" class="select-input"><option value="keep_finals"></option><option value="delete_all"></option></select></label>
+          <label style="font-size:11px;color:var(--text-muted);display:flex;flex-direction:column;gap:4px;"><span id="rt-lbl-lang"></span>
+            <select id="rt-in-lang" class="select-input"><option value="fr">Français</option><option value="es">Español</option><option value="en">English</option><option value="ar">العربية</option></select></label>
+        </div>
+
+        <div style="display:flex;flex-wrap:wrap;gap:14px;font-size:12px;">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input id="rt-chk-enabled" type="checkbox" /><span id="rt-lbl-enabled"></span></label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input id="rt-chk-notice" type="checkbox" /><span id="rt-lbl-autonotice"></span></label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input id="rt-chk-purge" type="checkbox" /><span id="rt-lbl-autopurge"></span></label>
+        </div>
+        <div id="rt-warn" style="display:none;font-size:11px;color:#ef4444;"></div>
+
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">
+          <button id="rt-btn-save" class="btn-primary" style="padding:8px 16px;font-size:12px;"><span id="rt-txt-save"></span></button>
+          <button id="rt-btn-notice" class="select-input" style="width:auto;cursor:pointer;padding:8px 14px;font-size:12px;border-color:var(--gold);color:var(--gold);"><span id="rt-txt-notice"></span></button>
+          <button id="rt-btn-purge" class="select-input" style="width:auto;cursor:pointer;padding:8px 14px;font-size:12px;border-color:#ef4444;color:#ef4444;"><span id="rt-txt-purge"></span></button>
+        </div>
+
+        <div id="rt-lists" style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;font-size:12px;"></div>
+      </div>
+    </div>
+
     <!-- Paso 6: Historial Reciente de Actividad -->
     <div class="card" id="history-card">
       <div class="card-title">
@@ -1981,8 +2037,9 @@
           en: "✉️ Send Welcome Email & WhatsApp to client",
           ar: "✉️ إرسال بريد إلكتروني وواتساب ترحيبي للزبون",
         };
-        sendWelcomeLbl.textContent = welcomeLbls[lang] || welcomeLbls.fr;
+        sendWelcomeLbl.textContent = welcomeLbls[l] || welcomeLbls.fr;
       }
+      if (window.retentionRender) window.retentionRender();
       populateFilterDropdowns();
       populateNewSessionCategoryDropdown();
       populateSessionSelect();
@@ -2893,6 +2950,195 @@
         });
       }
     }
+
+    // ---------------------------------------------------------------------
+    // Ciclo de vida QNAP (preaviso + reciclaje automático)
+    // ---------------------------------------------------------------------
+    const RT = {
+      fr: {
+        title: "♻️ Cycle de vie du QNAP (RAID 1) — Préavis & recyclage automatique",
+        desc: "Quand le QNAP dépasse le seuil, les projets LIVRÉS les plus anciens sont sélectionnés jusqu'au volume à libérer. Les clients sont prévenus par Email + WhatsApp (bouton « demander une copie »). Passé le délai, seuls les projets sans demande sont supprimés du QNAP.",
+        capacity: "Capacité du RAID (TB)", trigger: "Seuil de déclenchement (TB)", release: "Volume à libérer (TB)", grace: "Jours de préavis",
+        mode: "Mode de suppression", modeKeep: "Supprimer les originaux lourds, garder 04_Entregas_Finales", modeAll: "Supprimer le dossier complet du projet", lang: "Langue des avis",
+        enabled: "Activer la surveillance automatique", autoNotice: "Envoyer les avis automatiquement", autoPurge: "Supprimer automatiquement après le délai",
+        save: "Enregistrer", notice: "Envoyer les avis maintenant", purge: "Supprimer les projets échus maintenant",
+        used: (u, c) => `QNAP : ${u} TB utilisés / ${c} TB`, ok: "✅ Espace OK", over: "🔴 Seuil dépassé",
+        waiting: "En préavis", requested: "Copie demandée (bloqués)", ready: "Prêts à recycler", plan: "Lot prévu",
+        daysLeft: (d) => `${d} j restants`, none: "Aucun projet pour le moment.", noNas: "QNAP injoignable ou non configuré.",
+        saved: "✅ Paramètres enregistrés", warnTrigger: "Le seuil doit être inférieur à la capacité.", warnRelease: "Le volume à libérer doit être inférieur au seuil.",
+        confirmNotice: (n, tb) => `Envoyer maintenant l'avis de ${n} projet(s) (≈ ${tb} TB) ? Rien ne sera supprimé avant la fin du délai.`,
+        confirmPurge: "Supprimer DÉFINITIVEMENT du QNAP les projets dont le délai est échu et sans demande client ?",
+        noPlan: "Aucun projet livré éligible pour le moment.", done: (p, n) => `Terminé : ${n} avis envoyés, ${p} projet(s) supprimés.`,
+      },
+      es: {
+        title: "♻️ Ciclo de vida del QNAP (RAID 1) — Preaviso y reciclaje automático",
+        desc: "Cuando el QNAP supera el umbral, se seleccionan los proyectos ENTREGADOS más antiguos hasta el volumen a liberar. Se avisa a los clientes por Email + WhatsApp (botón «solicitar copia»). Pasado el plazo, solo se borran del QNAP los proyectos sin solicitud.",
+        capacity: "Capacidad del RAID (TB)", trigger: "Umbral de disparo (TB)", release: "Volumen a liberar (TB)", grace: "Días de preaviso",
+        mode: "Modo de borrado", modeKeep: "Borrar originales pesados, conservar 04_Entregas_Finales", modeAll: "Borrar la carpeta completa del proyecto", lang: "Idioma de los avisos",
+        enabled: "Activar vigilancia automática", autoNotice: "Enviar avisos automáticamente", autoPurge: "Borrar automáticamente al vencer el plazo",
+        save: "Guardar", notice: "Enviar avisos ahora", purge: "Borrar proyectos vencidos ahora",
+        used: (u, c) => `QNAP: ${u} TB usados / ${c} TB`, ok: "✅ Espacio OK", over: "🔴 Umbral superado",
+        waiting: "En preaviso", requested: "Copia solicitada (bloqueados)", ready: "Listos para reciclar", plan: "Lote previsto",
+        daysLeft: (d) => `${d} d restantes`, none: "Ningún proyecto por ahora.", noNas: "QNAP inaccesible o sin configurar.",
+        saved: "✅ Ajustes guardados", warnTrigger: "El umbral debe ser menor que la capacidad.", warnRelease: "El volumen a liberar debe ser menor que el umbral.",
+        confirmNotice: (n, tb) => `¿Enviar ahora el aviso a ${n} proyecto(s) (≈ ${tb} TB)? No se borrará nada hasta que termine el plazo.`,
+        confirmPurge: "¿Borrar DEFINITIVAMENTE del QNAP los proyectos con plazo vencido y sin solicitud del cliente?",
+        noPlan: "No hay proyectos entregados elegibles por ahora.", done: (p, n) => `Terminado: ${n} avisos enviados, ${p} proyecto(s) borrados.`,
+      },
+      en: {
+        title: "♻️ QNAP lifecycle (RAID 1) — Notice & automatic recycling",
+        desc: "When the QNAP exceeds the threshold, the oldest DELIVERED projects are selected up to the volume to free. Clients are notified by Email + WhatsApp (\"request a copy\" button). After the grace period, only projects without a request are deleted from the QNAP.",
+        capacity: "RAID capacity (TB)", trigger: "Trigger threshold (TB)", release: "Volume to free (TB)", grace: "Notice days",
+        mode: "Deletion mode", modeKeep: "Delete heavy originals, keep 04_Entregas_Finales", modeAll: "Delete the whole project folder", lang: "Notice language",
+        enabled: "Enable automatic monitoring", autoNotice: "Send notices automatically", autoPurge: "Delete automatically after the grace period",
+        save: "Save", notice: "Send notices now", purge: "Delete expired projects now",
+        used: (u, c) => `QNAP: ${u} TB used / ${c} TB`, ok: "✅ Space OK", over: "🔴 Threshold exceeded",
+        waiting: "In notice period", requested: "Copy requested (locked)", ready: "Ready to recycle", plan: "Planned batch",
+        daysLeft: (d) => `${d} d left`, none: "No projects right now.", noNas: "QNAP unreachable or not configured.",
+        saved: "✅ Settings saved", warnTrigger: "Threshold must be lower than capacity.", warnRelease: "Volume to free must be lower than the threshold.",
+        confirmNotice: (n, tb) => `Send notices now for ${n} project(s) (≈ ${tb} TB)? Nothing is deleted until the grace period ends.`,
+        confirmPurge: "PERMANENTLY delete from the QNAP the projects whose grace period expired and with no client request?",
+        noPlan: "No eligible delivered projects right now.", done: (p, n) => `Done: ${n} notices sent, ${p} project(s) deleted.`,
+      },
+      ar: {
+        title: "♻️ دورة حياة QNAP (RAID 1) — إشعار وإعادة تدوير تلقائية",
+        desc: "عندما يتجاوز QNAP الحد المحدد، يتم اختيار أقدم المشاريع المُسلَّمة حتى بلوغ الحجم المراد تحريره. يُبلَّغ العملاء عبر البريد وواتساب (زر «طلب نسخة»). بعد انتهاء المهلة تُحذف فقط المشاريع التي لم يُطلب فيها شيء.",
+        capacity: "سعة RAID (TB)", trigger: "حد التشغيل (TB)", release: "الحجم المراد تحريره (TB)", grace: "أيام الإشعار",
+        mode: "نمط الحذف", modeKeep: "حذف الملفات الأصلية الثقيلة والإبقاء على 04_Entregas_Finales", modeAll: "حذف مجلد المشروع بالكامل", lang: "لغة الإشعارات",
+        enabled: "تفعيل المراقبة التلقائية", autoNotice: "إرسال الإشعارات تلقائياً", autoPurge: "الحذف تلقائياً بعد المهلة",
+        save: "حفظ", notice: "إرسال الإشعارات الآن", purge: "حذف المشاريع المنتهية الآن",
+        used: (u, c) => `QNAP: ${u} TB مستخدم من ${c} TB`, ok: "✅ المساحة جيدة", over: "🔴 تم تجاوز الحد",
+        waiting: "في مهلة الإشعار", requested: "طلب نسخة (محمية)", ready: "جاهزة لإعادة التدوير", plan: "الدفعة المقترحة",
+        daysLeft: (d) => `متبقي ${d} يوم`, none: "لا توجد مشاريع حالياً.", noNas: "QNAP غير متاح أو غير مُهيّأ.",
+        saved: "✅ تم حفظ الإعدادات", warnTrigger: "يجب أن يكون الحد أقل من السعة.", warnRelease: "يجب أن يكون الحجم المراد تحريره أقل من الحد.",
+        confirmNotice: (n, tb) => `إرسال الإشعار الآن لـ ${n} مشروع (≈ ${tb} TB)؟ لن يُحذف شيء قبل انتهاء المهلة.`,
+        confirmPurge: "حذف نهائي من QNAP للمشاريع المنتهية مهلتها والتي لم يطلب العميل نسخة منها؟",
+        noPlan: "لا توجد مشاريع مُسلَّمة مؤهلة حالياً.", done: (p, n) => `تم: ${n} إشعار مرسل، ${p} مشروع محذوف.`,
+      },
+    };
+    const rtT = () => RT[currentLang] || RT.fr;
+    const rtEl = (id) => document.getElementById(id);
+
+    function renderRetentionStrings() {
+      const r = rtT();
+      const set = (id, v) => { const e = rtEl(id); if (e) e.textContent = v; };
+      set("rt-title", r.title); set("rt-desc", r.desc);
+      set("rt-lbl-capacity", r.capacity); set("rt-lbl-trigger", r.trigger); set("rt-lbl-release", r.release);
+      set("rt-lbl-grace", r.grace); set("rt-lbl-mode", r.mode); set("rt-lbl-lang", r.lang);
+      set("rt-lbl-enabled", r.enabled); set("rt-lbl-autonotice", r.autoNotice); set("rt-lbl-autopurge", r.autoPurge);
+      set("rt-txt-save", r.save); set("rt-txt-notice", r.notice); set("rt-txt-purge", r.purge);
+      const sel = rtEl("rt-in-mode");
+      if (sel) { sel.options[0].textContent = r.modeKeep; sel.options[1].textContent = r.modeAll; }
+      if (window.__rtLast) renderRetentionStatus(window.__rtLast);
+    }
+
+    function renderRetentionStatus(s) {
+      window.__rtLast = s;
+      const r = rtT();
+      const badge = rtEl("rt-badge");
+      if (!s || !s.ok) {
+        rtEl("rt-usage-text").textContent = r.noNas;
+        rtEl("rt-usage-state").textContent = "";
+        rtEl("rt-bar").style.width = "0%";
+        rtEl("rt-summary").innerHTML = "";
+        rtEl("rt-lists").innerHTML = "";
+        badge.textContent = "—";
+        return;
+      }
+      const cap = s.settings.capacityTb, trig = s.settings.triggerTb;
+      const pct = Math.min(100, (s.usedTb / cap) * 100);
+      const bar = rtEl("rt-bar");
+      bar.style.width = pct + "%";
+      bar.style.background = s.overThreshold ? "#ef4444" : (s.usedTb >= trig * 0.85 ? "#f59e0b" : "#10b981");
+      rtEl("rt-marker").style.left = Math.min(100, (trig / cap) * 100) + "%";
+      rtEl("rt-usage-text").textContent = r.used(s.usedTb.toFixed(2), cap);
+      const st = rtEl("rt-usage-state");
+      st.textContent = s.overThreshold ? r.over : r.ok;
+      st.style.color = s.overThreshold ? "#ef4444" : "#10b981";
+      badge.textContent = `${s.usedTb.toFixed(2)} / ${cap} TB`;
+
+      const pill = (txt, color) => `<span style="padding:3px 9px;border-radius:999px;border:1px solid ${color};color:${color};">${txt}</span>`;
+      rtEl("rt-summary").innerHTML =
+        pill(`⏳ ${r.waiting}: ${s.waiting.length}`, "#38bdf8") +
+        pill(`🔒 ${r.requested}: ${s.requested.length}`, "#f59e0b") +
+        pill(`♻️ ${r.ready}: ${s.expiredReady.length}`, "#10b981") +
+        pill(`📦 ${r.plan}: ${s.plan.items.length} (${s.plan.totalTb} TB)`, "var(--gold)");
+
+      const row = (icon, name, extra) =>
+        `<div style="display:flex;justify-content:space-between;gap:8px;padding:6px 10px;background:var(--input-bg);border:1px solid var(--card-border);border-radius:8px;"><span>${icon} ${name}</span><span style="color:var(--text-muted);">${extra}</span></div>`;
+      const rows = [];
+      s.requested.forEach((x) => rows.push(row("🔒", x.clientName, x.sessionDate)));
+      s.waiting.forEach((x) => rows.push(row("⏳", x.clientName, r.daysLeft(x.daysLeft))));
+      s.expiredReady.forEach((x) => rows.push(row("♻️", x.clientName, x.sessionDate)));
+      if (!rows.length) s.plan.items.forEach((x) => rows.push(row("📦", x.clientName, `${x.sessionDate} · ${x.gb} GB`)));
+      rtEl("rt-lists").innerHTML = rows.length ? rows.join("") : `<div style="color:var(--text-muted);">${r.none}</div>`;
+    }
+
+    async function refreshRetention(force) {
+      if (!window.electronAPI || !window.electronAPI.getRetentionStatus) return;
+      try {
+        const s = await window.electronAPI.getRetentionStatus(Boolean(force));
+        renderRetentionStatus(s);
+      } catch {}
+    }
+
+    async function loadRetentionSettings() {
+      if (!window.electronAPI) return;
+      const c = await window.electronAPI.getSettings();
+      if (!c) return;
+      rtEl("rt-in-capacity").value = c.retentionCapacityTb;
+      rtEl("rt-in-trigger").value = c.retentionTriggerTb;
+      rtEl("rt-in-release").value = c.retentionReleaseTb;
+      rtEl("rt-in-grace").value = c.retentionGraceDays;
+      rtEl("rt-in-mode").value = c.retentionMode;
+      rtEl("rt-in-lang").value = c.retentionNoticeLang;
+      rtEl("rt-chk-enabled").checked = Boolean(c.retentionEnabled);
+      rtEl("rt-chk-notice").checked = Boolean(c.retentionAutoNotice);
+      rtEl("rt-chk-purge").checked = Boolean(c.retentionAutoPurge);
+    }
+
+    rtEl("rt-btn-save").onclick = async () => {
+      const r = rtT();
+      const cap = Number(rtEl("rt-in-capacity").value);
+      const trig = Number(rtEl("rt-in-trigger").value);
+      const rel = Number(rtEl("rt-in-release").value);
+      const warn = rtEl("rt-warn");
+      warn.style.display = "none";
+      if (!(cap > 0) || !(trig > 0) || !(rel > 0)) return;
+      if (trig >= cap) { warn.textContent = r.warnTrigger; warn.style.display = "block"; return; }
+      if (rel >= trig) { warn.textContent = r.warnRelease; warn.style.display = "block"; return; }
+      await window.electronAPI.saveSettings({
+        retentionCapacityTb: cap, retentionTriggerTb: trig, retentionReleaseTb: rel,
+        retentionGraceDays: Math.max(1, Math.round(Number(rtEl("rt-in-grace").value) || 7)),
+        retentionMode: rtEl("rt-in-mode").value, retentionNoticeLang: rtEl("rt-in-lang").value,
+        retentionEnabled: rtEl("rt-chk-enabled").checked,
+        retentionAutoNotice: rtEl("rt-chk-notice").checked,
+        retentionAutoPurge: rtEl("rt-chk-purge").checked,
+      });
+      alert(r.saved);
+      refreshRetention(true);
+    };
+    rtEl("rt-btn-refresh").onclick = () => refreshRetention(true);
+    rtEl("rt-btn-notice").onclick = async () => {
+      const r = rtT();
+      const s = window.__rtLast;
+      if (!s || !s.plan || !s.plan.items.length) { alert(r.noPlan); return; }
+      if (!confirm(r.confirmNotice(s.plan.items.length, s.plan.totalTb))) return;
+      const res = await window.electronAPI.runRetention("notice");
+      if (res && res.ok) alert(r.done((res.purged || []).length, (res.notified || []).filter((n) => n.notified).length));
+      refreshRetention(true);
+    };
+    rtEl("rt-btn-purge").onclick = async () => {
+      const r = rtT();
+      if (!confirm(r.confirmPurge)) return;
+      const res = await window.electronAPI.runRetention("purge");
+      if (res && res.ok) alert(r.done((res.purged || []).length, (res.notified || []).filter((n) => n.notified).length));
+      refreshRetention(true);
+    };
+    window.retentionRender = renderRetentionStrings;
+    loadRetentionSettings();
+    setTimeout(() => refreshRetention(false), 4000);
+    setInterval(() => refreshRetention(false), 10 * 60 * 1000);
 
     setLanguage("fr");
     loadRealSessions();

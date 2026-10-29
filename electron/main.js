@@ -25,6 +25,7 @@ const { WindowsDriveWatcher, MasterFolderWatcher } = require("./watcher")
 const { getConfig, getPublicSettings, updateSettings } = require("./config")
 const { LamhaBridgeServer } = require("./bridge-server")
 const { NasSyncManager } = require("./nas-sync-manager")
+const { QnapRetentionManager } = require("./qnap-retention")
 const engine = require("./ingest-engine")
 
 let mainWindow = null
@@ -34,6 +35,7 @@ let systemTray = null
 let driveWatcher = null
 let masterWatcher = null
 let nasSyncManager = null
+let retentionManager = null
 let bridgeServer = null
 let currentLanguage = "fr"
 let hasShownMinimizeBalloon = false
@@ -330,7 +332,8 @@ app.whenReady().then(() => {
   createWindow()
 
   nasSyncManager = new NasSyncManager()
-
+  retentionManager = new QnapRetentionManager()
+  retentionManager.start()
   systemTray = new LamhaSystemTray({
     currentLanguage,
     onOpenDashboard: () => showMain(),
@@ -605,6 +608,38 @@ app.whenReady().then(() => {
     const res = await nasSyncManager.syncFilesList(queue, { force: true })
     if (res && res.ok && (!res.summary || res.summary.failed === 0)) {
       engine.clearRetryQueue()
+    }
+    return res
+  })
+
+  // --- IPC: ciclo de vida QNAP (preaviso + reciclaje automático) ------------
+  ipcMain.handle("retention-get-status", async (_e, force = false) => {
+    if (!retentionManager) return { ok: false, error: "NO_MANAGER" }
+    try {
+      return await retentionManager.getStatus({ force: Boolean(force) })
+    } catch (e) {
+      return { ok: false, error: e.message || String(e) }
+    }
+  })
+  ipcMain.handle("retention-run", async (_e, action) => {
+    if (!retentionManager) return { ok: false, error: "NO_MANAGER" }
+    const res = await retentionManager.runCycle({
+      auto: false,
+      forceNotice: action === "notice",
+      forcePurge: action === "purge",
+    })
+    if (res && res.ok) {
+      const freed = (res.purged || []).reduce((a, p) => a + (p.freedBytes || 0), 0)
+      if ((res.purged || []).length) {
+        engine.addHistoryEntry({
+          type: "recycle",
+          client: res.purged.map((p) => p.clientName).join(", "),
+          folderName: `${res.purged.length} proyecto(s) liberados en QNAP`,
+          files: 0,
+          mb: Number((freed / (1024 * 1024)).toFixed(1)),
+          freedGb: Number((freed / 1024 ** 3).toFixed(2)),
+        })
+      }
     }
     return res
   })

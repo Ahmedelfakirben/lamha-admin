@@ -69,6 +69,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
   recycleProjects: (folders, forceLocalTrash = false) =>
     ipcRenderer.invoke("recycle-projects", folders, Boolean(forceLocalTrash)),
 
+  // Ciclo de vida QNAP
+  getRetentionStatus: (force = false) => ipcRenderer.invoke("retention-get-status", Boolean(force)),
+  runRetention: (action) => ipcRenderer.invoke("retention-run", action),
+
   // Mini ventana
   miniExpand: () => ipcRenderer.send("mini-expand"),
   miniClose: () => ipcRenderer.send("mini-close"),

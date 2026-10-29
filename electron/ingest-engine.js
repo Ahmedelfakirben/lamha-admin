@@ -1015,7 +1015,7 @@ async function runIngest(params, emit) {
     if (sessErr || !sess) throw new Error(sessErr?.message || "SESSION_NOT_FOUND")
 
     const customTag = Array.isArray(sess.tags)
-      ? sess.tags.find((tg) => tg && !String(tg).toLowerCase().startsWith("place:"))
+      ? sess.tags.find((tg) => tg && !String(tg).toLowerCase().startsWith("place:") && !/^(stage|retention):/i.test(String(tg)))
       : null
     const projectName = customTag || sess.subcategory || sess.category || "Sesion"
     const folderName = generateProjectFolderName(sess.session_date, sess.client_name, projectName)
@@ -1834,4 +1834,6 @@ module.exports = {
   syncMasterFile,
   enqueueMasterFile,
   isIngesting: () => Boolean(currentJob || masterProcessing),
+  getClient,
+  normalizePhoneForWhatsApp,
 }

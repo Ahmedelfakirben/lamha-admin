@@ -403,6 +403,77 @@ const TIMELINE_I18N: Record<
   },
 }
 
+// Ciclo de vida QNAP (preaviso / solicitud de copia / reciclaje)
+const RETENTION_TL: Record<
+  TimelineLang,
+  {
+    notice: string
+    requested: string
+    purged: string
+    resolved: string
+    failed: string
+    noticeDesc: (days: number, deadline: string) => string
+    requestedDesc: string
+    purgedDesc: (gb: number, keepFinals: boolean) => string
+    resolvedDesc: Record<string, string>
+    failedDesc: string
+    channels: string
+  }
+> = {
+  fr: {
+    notice: "Préavis de recyclage QNAP",
+    requested: "Copie demandée par le client",
+    purged: "Projet recyclé sur le QNAP",
+    resolved: "Demande de copie traitée",
+    failed: "Échec du recyclage QNAP",
+    noticeDesc: (d, dl) => `Le client a été prévenu : ses fichiers seront supprimés du serveur dans ${d} jours (${dl}).`,
+    requestedDesc: "Le client a cliqué sur « Demander une copie ». La suppression automatique est bloquée tant que la demande n'est pas traitée.",
+    purgedDesc: (gb, k) => `${gb} GB libérés. ${k ? "Les photos finales (04_Entregas_Finales) ont été conservées." : "Dossier complet supprimé du QNAP."}`,
+    resolvedDesc: { resent_allow_purge: "Fichiers renvoyés au client : le recyclage est de nouveau autorisé.", hold_request: "Suppression bloquée manuellement à la demande du client.", vip_lock: "Projet protégé définitivement (VIP) : ne sera jamais recyclé." },
+    failedDesc: "La suppression sur le QNAP a échoué. Aucune donnée n'a été marquée comme recyclée.",
+    channels: "Envoyé par",
+  },
+  es: {
+    notice: "Preaviso de reciclaje QNAP",
+    requested: "Copia solicitada por el cliente",
+    purged: "Proyecto reciclado en el QNAP",
+    resolved: "Solicitud de copia atendida",
+    failed: "Fallo al reciclar en el QNAP",
+    noticeDesc: (d, dl) => `Se avisó al cliente: sus archivos se eliminarán del servidor en ${d} días (${dl}).`,
+    requestedDesc: "El cliente pulsó «Solicitar copia». El borrado automático queda bloqueado hasta atender la solicitud.",
+    purgedDesc: (gb, k) => `${gb} GB liberados. ${k ? "Se conservaron las fotos finales (04_Entregas_Finales)." : "Carpeta completa eliminada del QNAP."}`,
+    resolvedDesc: { resent_allow_purge: "Archivos reenviados al cliente: el reciclaje vuelve a estar permitido.", hold_request: "Borrado bloqueado manualmente a petición del cliente.", vip_lock: "Proyecto blindado para siempre (VIP): nunca se reciclará." },
+    failedDesc: "El borrado en el QNAP falló. No se marcó nada como reciclado.",
+    channels: "Enviado por",
+  },
+  en: {
+    notice: "QNAP recycle notice",
+    requested: "Copy requested by client",
+    purged: "Project recycled on QNAP",
+    resolved: "Copy request handled",
+    failed: "QNAP recycle failed",
+    noticeDesc: (d, dl) => `The client was notified: their files will be removed from the server in ${d} days (${dl}).`,
+    requestedDesc: "The client clicked “Request a copy”. Automatic deletion is blocked until the request is handled.",
+    purgedDesc: (gb, k) => `${gb} GB freed. ${k ? "Final photos (04_Entregas_Finales) were kept." : "Whole folder removed from the QNAP."}`,
+    resolvedDesc: { resent_allow_purge: "Files resent to the client: recycling is allowed again.", hold_request: "Deletion manually blocked at the client's request.", vip_lock: "Project permanently protected (VIP): it will never be recycled." },
+    failedDesc: "Deletion on the QNAP failed. Nothing was marked as recycled.",
+    channels: "Sent via",
+  },
+  ar: {
+    notice: "إشعار مسبق بإعادة تدوير QNAP",
+    requested: "العميل طلب نسخة",
+    purged: "تمت إعادة تدوير المشروع في QNAP",
+    resolved: "تمت معالجة طلب النسخة",
+    failed: "فشلت إعادة التدوير في QNAP",
+    noticeDesc: (d, dl) => `تم إبلاغ العميل: سيتم حذف ملفاته من الخادم خلال ${d} أيام (${dl}).`,
+    requestedDesc: "ضغط العميل على «طلب نسخة». الحذف التلقائي متوقف إلى حين معالجة الطلب.",
+    purgedDesc: (gb, k) => `تم تحرير ${gb} GB. ${k ? "تم الاحتفاظ بالصور النهائية (04_Entregas_Finales)." : "تم حذف المجلد بالكامل من QNAP."}`,
+    resolvedDesc: { resent_allow_purge: "تم إرسال الملفات للعميل: أصبح التدوير مسموحاً من جديد.", hold_request: "تم إيقاف الحذف يدوياً بطلب من العميل.", vip_lock: "مشروع محمي نهائياً (VIP): لن يُعاد تدويره أبداً." },
+    failedDesc: "فشل الحذف في QNAP. لم يتم تسجيل أي شيء كمُعاد تدويره.",
+    channels: "أُرسل عبر",
+  },
+}
+
 export function SessionAuditTimeline({ sessionId, clientName }: SessionAuditTimelineProps) {
   const { language } = useLanguage()
   const activeLang = (["es", "fr", "en", "ar"].includes(language) ? language : "fr") as TimelineLang
@@ -435,6 +506,18 @@ export function SessionAuditTimeline({ sessionId, clientName }: SessionAuditTime
   }, [sessionId])
 
   const getActionBadge = (action: string) => {
+    if (action.includes("RETENTION")) {
+      const r = RETENTION_TL[activeLang]
+      const map: Record<string, { label: string; color: string }> = {
+        RETENTION_NOTICE_SENT: { label: r.notice, color: "text-sky-400 [html.light_&]:text-sky-700 bg-sky-500/15 [html.light_&]:bg-sky-50 border-sky-500/30 [html.light_&]:border-sky-200" },
+        CLIENT_RETENTION_REQUESTED: { label: r.requested, color: "text-amber-400 [html.light_&]:text-amber-700 bg-amber-500/15 [html.light_&]:bg-amber-50 border-amber-500/30 [html.light_&]:border-amber-200" },
+        RETENTION_PURGED: { label: r.purged, color: "text-emerald-400 [html.light_&]:text-emerald-700 bg-emerald-500/15 [html.light_&]:bg-emerald-50 border-emerald-500/30 [html.light_&]:border-emerald-200" },
+        RETENTION_REQUEST_RESOLVED: { label: r.resolved, color: "text-purple-400 [html.light_&]:text-purple-700 bg-purple-500/15 [html.light_&]:bg-purple-50 border-purple-500/30 [html.light_&]:border-purple-200" },
+        RETENTION_PURGE_FAILED: { label: r.failed, color: "text-rose-400 [html.light_&]:text-rose-700 bg-rose-500/15 [html.light_&]:bg-rose-50 border-rose-500/30 [html.light_&]:border-rose-200" },
+      }
+      const hit = map[action] || map.RETENTION_NOTICE_SENT
+      return { icon: HardDrive, label: hit.label, color: hit.color }
+    }
     if (action.includes("INGESTION")) {
       return {
         icon: FolderDown,
@@ -517,6 +600,34 @@ export function SessionAuditTimeline({ sessionId, clientName }: SessionAuditTime
     const action = log.action || ""
     const d = log.details || {}
 
+    // 0. Ciclo de vida QNAP
+    if (action.includes("RETENTION")) {
+      const r = RETENTION_TL[activeLang]
+      let text = ""
+      if (action === "RETENTION_NOTICE_SENT") {
+        const dl = d.deadline ? format(new Date(d.deadline), "dd MMM yyyy", { locale: dateLocale }) : ""
+        text = r.noticeDesc(d.grace_days || 7, dl)
+      } else if (action === "CLIENT_RETENTION_REQUESTED") {
+        text = d.resolution === "hold_request" ? r.resolvedDesc.hold_request : r.requestedDesc
+      } else if (action === "RETENTION_PURGED") {
+        text = r.purgedDesc(d.freed_gb || 0, d.mode === "keep_finals")
+      } else if (action === "RETENTION_REQUEST_RESOLVED") {
+        text = r.resolvedDesc[d.resolution] || ""
+      } else if (action === "RETENTION_PURGE_FAILED") {
+        text = r.failedDesc
+      }
+      const via: string[] = []
+      if (d.email_sent) via.push("✉️ Email")
+      if (d.whatsapp_sent) via.push("💬 WhatsApp")
+      return (
+        <div className="space-y-1 mt-1">
+          <p className="text-[11px] text-[#d4cbbf] [html.light_&]:text-[#544c43] leading-relaxed">{text}</p>
+          {via.length > 0 && (
+            <p className="text-[10px] text-[#8c7a6b] [html.light_&]:text-[#786b5e]">{r.channels}: {via.join(" · ")}</p>
+          )}
+        </div>
+      )
+    }
     // 1. Visibilidad compartida con el cliente (MEDIA_SHARED_TOGGLE)
     if (action.includes("SHARED")) {
       const isShared = Boolean(d.is_shared)

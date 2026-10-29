@@ -20,6 +20,7 @@ import {
 import { format } from "date-fns"
 import { SessionDialog } from "@/components/session-dialog"
 import { Pagination } from "@/components/pagination"
+import { QnapRetentionRequestsBanner } from "@/components/qnap-retention-requests-banner"
 import { useLanguage } from "@/context/language-context"
 import { SHOOTING_TYPE_I18N, getSessionShootingType } from "@/lib/shooting-type"
 import Link from "next/link"
@@ -253,6 +254,9 @@ export default function ProjectsPage() {
           <SessionDialog triggerType="add" />
         </div>
       </div>
+
+      {/* QNAP: solicitudes de copia de clientes + preavisos de reciclaje (solo se muestra si hay) */}
+      <QnapRetentionRequestsBanner />
 
       {/* Stats Cards */}
       <div className="grid gap-4 sm:grid-cols-4">

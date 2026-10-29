@@ -1609,3 +1609,69 @@ export async function triggerWelcomeNotificationsForSessionAction(params: {
     return { success: false, error: err?.message || 'Error enviando notificaciones de bienvenida' };
   }
 }
+
+export async function resolveClientRetentionRequestAction(
+  sessionId: string,
+  resolution: 'resent_allow_purge' | 'hold_request' | 'vip_lock',
+  userContext?: UserAuditContext
+) {
+  try {
+    const { data: session, error: fetchErr } = await supabase
+      .from('sessions')
+      .select('id, client_name, tags')
+      .eq('id', sessionId)
+      .single();
+
+    if (fetchErr || !session) throw new Error(fetchErr?.message || 'Sesión no encontrada');
+
+    const currentTags: string[] = Array.isArray(session.tags) ? session.tags : [];
+    const cleaned = currentTags.filter(
+      (tg) =>
+        !String(tg).startsWith('retention:requested') &&
+        !String(tg).startsWith('retention:resent') &&
+        !String(tg).startsWith('retention:vip_lock')
+    );
+
+    const nowTs = Date.now();
+    let updatedTags = [...cleaned];
+    if (resolution === 'resent_allow_purge') {
+      updatedTags.push(`retention:resent:${nowTs}`);
+    } else if (resolution === 'hold_request') {
+      updatedTags.push(`retention:requested:${nowTs}`);
+    } else if (resolution === 'vip_lock') {
+      updatedTags = updatedTags.filter((tg) => !String(tg).startsWith('retention:notified'));
+      updatedTags.push(`retention:vip_lock:${nowTs}`);
+    }
+
+    const { error: updateErr } = await supabase
+      .from('sessions')
+      .update({ tags: updatedTags })
+      .eq('id', sessionId);
+
+    if (updateErr) throw updateErr;
+
+    await recordAuditLog({
+      action:
+        resolution === 'hold_request'
+          ? 'CLIENT_RETENTION_REQUESTED'
+          : 'RETENTION_REQUEST_RESOLVED',
+      entityType: 'session',
+      entityId: sessionId,
+      entityTitle: session.client_name,
+      details: {
+        resolution,
+        resolved_at: new Date(nowTs).toISOString(),
+      },
+      ...userContext,
+    });
+
+    revalidatePath('/projects');
+    revalidatePath('/emails');
+    revalidatePath(`/sessions/${sessionId}`);
+
+    return { success: true, tags: updatedTags };
+  } catch (err: any) {
+    console.error('Resolve client retention request error:', err);
+    return { success: false, error: err?.message || 'Error actualizando solicitud de retención' };
+  }
+}
