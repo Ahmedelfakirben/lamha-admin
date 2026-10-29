@@ -32,7 +32,16 @@
     "files": [
       "electron/**/*",
       "package.json"
-    ]
+    ],
+    "npmRebuild": false,
+    "nodeGypRebuild": false,
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "Lam7a Studios - Ingest Companion"
+    }
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

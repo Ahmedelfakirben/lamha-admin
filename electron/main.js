@@ -1,14 +1,32 @@
+const fs = require("fs")
+const os = require("os")
+const path = require("path")
+const startupLog = path.join(os.tmpdir(), "lamha_ingest_startup.log")
+function bootLog(...args) {
+  try {
+    fs.appendFileSync(startupLog, `[${new Date().toISOString()}] ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ')}\n`)
+  } catch {}
+}
+bootLog("=== INICIO MAIN.JS ===", process.pid, process.execPath)
+
+process.on("uncaughtException", (err) => {
+  bootLog("FATAL UNCAUGHT_EXCEPTION:", err && err.stack ? err.stack : err)
+})
+process.on("unhandledRejection", (err) => {
+  bootLog("FATAL UNHANDLED_REJECTION:", err && err.stack ? err.stack : err)
+})
+
 // Delegar al Panel Administrador si se ejecuta desde el ejecutable del panel o con la variable de entorno
 if (process.env.LAMHA_APP === "admin" || (process.execPath && process.execPath.toLowerCase().includes("panel administrador"))) {
+  bootLog("Delegando a main-admin.js")
   require("../electron-admin/main-admin.js")
   return
 }
 
 const { app, BrowserWindow, ipcMain, shell, dialog, screen, Notification, nativeImage } = require("electron")
-const path = require("path")
-const fs = require("fs")
 
 function logToFile(...args) {
+  bootLog(...args)
   try {
     const line = `[${new Date().toISOString()}] ${args.map((a) => (typeof a === "object" ? JSON.stringify(a) : a)).join(" ")}\n`
     const logPath = path.join(app.getPath("userData"), "app.log")
