@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { google } from "googleapis"
+import { getOAuthRedirectUri } from "../oauth-utils"
 
 export const dynamic = "force-dynamic"
 
@@ -14,9 +15,7 @@ export async function GET(req: NextRequest) {
       }, { status: 500 })
     }
 
-    // Usar la URL de origen de la petición o fallback a localhost:3000
-    const origin = req.nextUrl.origin || "http://localhost:3000"
-    const redirectUri = `${origin}/api/auth/google/callback`
+    const redirectUri = getOAuthRedirectUri(req)
 
     const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri)
 
@@ -30,7 +29,7 @@ export async function GET(req: NextRequest) {
       state: req.nextUrl.searchParams.get("redirect") || "/settings",
     })
 
-    return NextResponse.json({ url })
+    return NextResponse.json({ url, redirectUri })
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 })
   }

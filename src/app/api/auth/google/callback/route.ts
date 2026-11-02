@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { google } from "googleapis"
 import { createClient } from "@supabase/supabase-js"
+import { getOAuthRedirectUri } from "../oauth-utils"
 
 export const dynamic = "force-dynamic"
 
@@ -27,8 +28,7 @@ export async function GET(req: NextRequest) {
   try {
     const clientId = (process.env.GOOGLE_CLIENT_ID || "").replace(/"/g, "").trim()
     const clientSecret = (process.env.GOOGLE_CLIENT_SECRET || "").replace(/"/g, "").trim()
-    const origin = req.nextUrl.origin || "http://localhost:3000"
-    const redirectUri = `${origin}/api/auth/google/callback`
+    const redirectUri = getOAuthRedirectUri(req)
 
     const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri)
     const { tokens } = await oauth2Client.getToken(code)
