@@ -12,6 +12,15 @@ const EventEmitter = require("events")
 const { app, shell } = require("electron")
 const { getConfig, updateSettings } = require("./config")
 
+function isIngestActive() {
+  try {
+    const e = require("./ingest-engine")
+    return Boolean(e && e.isIngesting && e.isIngesting())
+  } catch {
+    return false
+  }
+}
+
 function normalizeFolderToken(val) {
   return String(val || "")
     .trim()
@@ -275,7 +284,7 @@ class NasSyncManager extends EventEmitter {
 
   // Vigilancia continua en tiempo real para nuevos archivos creados o pegados en cualquier carpeta
   async realtimeTick() {
-    if (!this.isActive() || this.isScanning || this.isRunning) return
+    if (!this.isActive() || this.isScanning || this.isRunning || isIngestActive()) return
     const cfg = getConfig()
     const files = this.scanLocalTree(cfg.ssdPath)
     const readyNewFiles = []
@@ -354,7 +363,7 @@ class NasSyncManager extends EventEmitter {
 
   // Escanea diferencias entre Local SSD y NAS (Unidireccional: lo que falta en el NAS)
   async scanForPending({ triggerPrompt = true } = {}) {
-    if (this.isScanning || this.isRunning) return this.PendingSummary
+    if (this.isScanning || this.isRunning || isIngestActive()) return this.PendingSummary
     this.isScanning = true
     this.emit("state-changed", this.getState())
 
@@ -469,6 +478,7 @@ class NasSyncManager extends EventEmitter {
 
   async syncFilesList(items, options = {}) {
     const force = Boolean(options.force)
+    if (!force && isIngestActive()) return { ok: false, busy: true, ingesting: true }
     if (this.isRunning || !items || items.length === 0) return { ok: false, busy: true }
     const cfg = getConfig()
     if (!cfg.nasPassword || !cfg.nasHost) {
@@ -545,7 +555,7 @@ class NasSyncManager extends EventEmitter {
           )
         )
         for (let i = 0; i < remoteDirs.length; i++) {
-          if (this.cancelled || (!force && !this.isActive())) break
+          if (this.cancelled || (!force && (!this.isActive() || isIngestActive()))) break
           emitProgress(`Préparation NAS (${i + 1}/${remoteDirs.length})...`, 2)
           await initClient.ensureDir(remoteDirs[i])
         }
@@ -556,7 +566,7 @@ class NasSyncManager extends EventEmitter {
         } catch {}
       }
 
-      if (this.cancelled || (!force && !this.isActive())) {
+      if (this.cancelled || (!force && (!this.isActive() || isIngestActive()))) {
         this.emit("sync-progress", { type: "cancelled", isNasMirror: true })
         return { ok: false, cancelled: true }
       }
@@ -585,7 +595,7 @@ class NasSyncManager extends EventEmitter {
 
         try {
           await connect()
-          while (!this.cancelled && (force || this.isActive())) {
+          while (!this.cancelled && (force || this.isActive()) && (force || !isIngestActive())) {
             const idx = nextIdx++
             if (idx >= items.length) return
             const it = items[idx]
@@ -638,7 +648,7 @@ class NasSyncManager extends EventEmitter {
       await Promise.all(Array.from({ length: poolSize }, worker))
       this.saveCache()
 
-      if (this.cancelled || (!force && !this.isActive())) {
+      if (this.cancelled || (!force && (!this.isActive() || isIngestActive()))) {
         this.emit("sync-progress", { type: "cancelled", isNasMirror: true })
         return { ok: false, cancelled: true }
       }

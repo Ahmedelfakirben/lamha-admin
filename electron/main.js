@@ -288,6 +288,8 @@ function closeMini() {
 }
 
 function broadcastIngest(ev) {
+  // Si la ingesta principal está en curso, bloquear eventos de sincronización en segundo plano para no alternar la UI
+  if (engine && engine.isIngesting && engine.isIngesting() && ev.isNasMirror) return
   if (ev.type !== "log") lastIngestState = ev
   for (const win of [mainWindow, miniWindow]) {
     if (win && !win.isDestroyed()) win.webContents.send("ingest-event", ev)
@@ -404,6 +406,8 @@ app.whenReady().then(() => {
   })
 
   nasSyncManager.on("sync-progress", (ev) => {
+    // Si la ingesta principal está activa, nunca mostrar ni transmitir eventos de sincronización en segundo plano
+    if (engine && engine.isIngesting && engine.isIngesting()) return
     broadcastIngest(ev)
     if (ev.type === "progress") {
       showMini()
@@ -749,6 +753,12 @@ app.whenReady().then(() => {
 
 async function triggerIngestWorkflow(params) {
   lastIngestState = null
+  // Cancelar inmediatamente cualquier sincronización en segundo plano activa para que la Ingesta tenga el 100% de prioridad y ancho de banda
+  if (nasSyncManager && nasSyncManager.isRunning) {
+    try {
+      nasSyncManager.cancelCurrentSync()
+    } catch {}
+  }
   // La app se minimiza y aparece la mini ventana con el progreso en la esquina derecha
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.minimize()
   showMini()
@@ -771,6 +781,12 @@ async function triggerIngestWorkflow(params) {
       notify(title, body)
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.flashFrame(true)
       miniCloseTimer = setTimeout(closeMini, 20000)
+      // Reanudar escaneo NAS en segundo plano tras 5 segundos de finalizada la ingesta
+      setTimeout(() => {
+        if (nasSyncManager && nasSyncManager.isActive() && !(engine && engine.isIngesting && engine.isIngesting())) {
+          nasSyncManager.scanForPending({ triggerPrompt: false }).catch(() => {})
+        }
+      }, 5000)
     } else if (ev.type === "error" || ev.type === "cancelled" || (ev.type === "done" && ev.empty)) {
       miniCloseTimer = setTimeout(closeMini, 8000)
       showMain()
