@@ -126,14 +126,29 @@ export function NasStorageDashboard({ initialSessions = [] }: { initialSessions?
       const res = await fetch("/api/media/storage-config")
       const data: StorageConfigData = await res.json()
       if (data.success) {
-        // Si el servidor de la nube no puede alcanzar el NAS local privado, probar desde el PC local
+        const targetHost = data.ftp.host || ftpHost || "192.168.11.1"
+        const targetBaseDir = data.ftp.baseDir || "/usb1_1/Lamha-Storage"
+
+        // Si el servidor de la nube no puede alcanzar el NAS local privado (192.168.11.1), probar desde el PC local del estudio
         if (!data.ftp.isOnline) {
-          const probe = await checkStudioNas(data.ftp.host || ftpHost || "192.168.11.1")
+          const probe = await checkStudioNas(targetHost)
           if (probe.reachable) {
             data.ftp.isOnline = true
             data.isNetworkReachable = true
+            data.activeType = "nas_ftp"
+            data.activeBasePath = `ftp://${targetHost}${targetBaseDir}`
+          } else {
+            // Si el servidor devolvió una ruta Linux interna (/home/nextjs/...) y estamos en cliente local, normalizar a C:\Lamha-Storage
+            if (data.activeBasePath.startsWith("/home/nextjs") || data.activeBasePath.startsWith("/home/")) {
+              data.activeBasePath = "C:\\Lamha-Storage"
+              data.local.basePath = "C:\\Lamha-Storage"
+            }
           }
+        } else {
+          data.activeType = "nas_ftp"
+          data.activeBasePath = `ftp://${targetHost}${targetBaseDir}`
         }
+
         setConfig(data)
         setFtpHost(data.ftp.host)
         setFtpUser(data.ftp.user)
@@ -144,12 +159,18 @@ export function NasStorageDashboard({ initialSessions = [] }: { initialSessions?
       // Intento de rescate nativo
       const probe = await checkStudioNas(ftpHost || "192.168.11.1")
       if (probe.reachable) {
-        setConfig(prev => prev ? { ...prev, isNetworkReachable: true, ftp: { ...prev.ftp, isOnline: true } } : prev)
+        setConfig(prev => prev ? { 
+          ...prev, 
+          isNetworkReachable: true, 
+          activeType: "nas_ftp",
+          activeBasePath: `ftp://${ftpHost || "192.168.11.1"}${ftpBaseDir || "/usb1_1/Lamha-Storage"}`,
+          ftp: { ...prev.ftp, isOnline: true } 
+        } : prev)
       }
     } finally {
       setIsLoadingConfig(false)
     }
-  }, [ftpHost])
+  }, [ftpHost, ftpBaseDir])
 
   // Scan all projects on storage
   const fetchScan = useCallback(async () => {
@@ -157,18 +178,49 @@ export function NasStorageDashboard({ initialSessions = [] }: { initialSessions?
     try {
       const res = await fetch("/api/media/scan-all")
       const data: ScanResult = await res.json()
-      if (data.success) {
+      if (data.success && data.projects && data.projects.length > 0) {
         setScanData(data)
-        // Auto-expand first project
         if (data.projects.length > 0) {
           setExpandedProjects({ [data.projects[0].folderName]: true })
         }
+        setIsLoadingScan(false)
+        return
       }
     } catch {
-      // Ignorar
-    } finally {
-      setIsLoadingScan(false)
+      // Fallback a companion local
     }
+
+    // Fallback: Si el servidor remoto cloud no detecta los proyectos porque 192.168.11.1 es una IP local del estudio,
+    // consultar a Ingest Companion local (:41890) que está físicamente conectado en la misma LAN
+    try {
+      const resCompanion = await fetch("http://127.0.0.1:41890/nas-status", { signal: AbortSignal.timeout(3000) })
+      if (resCompanion.ok) {
+        const cData = await resCompanion.json()
+        if (cData && cData.ok && cData.projects && cData.projects.length > 0) {
+          const companionProjects: ScannedProject[] = (cData.projects || []).map((p: any) => ({
+            folderName: p.folderName,
+            clientName: p.folderName.split("_").slice(1, -1).join(" ") || p.folderName.split("_")[1] || p.folderName,
+            sessionDate: p.folderName.split("_")[0] || "",
+            filesCount: p.filesCount || 0,
+            totalSizeMB: Math.round((p.bytes || 0) / (1024 * 1024)),
+            subfolders: []
+          }))
+          setScanData({
+            success: true,
+            storageType: "nas_ftp",
+            isOnline: true,
+            totalProjects: companionProjects.length,
+            projects: companionProjects,
+            totalSessionsInDb: companionProjects.length
+          })
+          if (companionProjects.length > 0) {
+            setExpandedProjects({ [companionProjects[0].folderName]: true })
+          }
+        }
+      }
+    } catch {}
+
+    setIsLoadingScan(false)
   }, [])
 
   useEffect(() => {

@@ -10,11 +10,12 @@ const url = require("url")
 const BRIDGE_PORT = 41890
 
 class LamhaBridgeServer {
-  constructor({ onStartIngest, onShowMain, getStatus, getCards }) {
+  constructor({ onStartIngest, onShowMain, getStatus, getCards, getRetentionStatus }) {
     this.onStartIngest = onStartIngest
     this.onShowMain = onShowMain
     this.getStatus = getStatus
     this.getCards = getCards
+    this.getRetentionStatus = getRetentionStatus
     this.server = null
   }
 
@@ -82,6 +83,26 @@ class LamhaBridgeServer {
           res.end(JSON.stringify({ reachable: false, host: targetHost, port: targetPort, error: err.message }))
         })
         socket.connect(targetPort, targetHost)
+        return
+      }
+
+      // GET /nas-status — Estado y carpetas reales del NAS escaneado localmente
+      if (req.method === "GET" && pathname === "/nas-status") {
+        if (this.getRetentionStatus) {
+          const force = parsedUrl.query.force === "true"
+          Promise.resolve(this.getRetentionStatus(force))
+            .then((status) => {
+              res.writeHead(200)
+              res.end(JSON.stringify(status || { ok: false }))
+            })
+            .catch((err) => {
+              res.writeHead(500)
+              res.end(JSON.stringify({ ok: false, error: err.message }))
+            })
+          return
+        }
+        res.writeHead(404)
+        res.end(JSON.stringify({ ok: false, error: "Retention manager not initialized" }))
         return
       }
 

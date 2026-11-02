@@ -706,6 +706,7 @@ app.whenReady().then(() => {
       language: currentLanguage,
     }),
     getCards: () => (driveWatcher ? driveWatcher.getActiveCards() : []),
+    getRetentionStatus: (force) => (retentionManager ? retentionManager.getStatus(force) : { ok: false }),
   })
   bridgeServer.start()
 

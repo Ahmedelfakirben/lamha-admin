@@ -198,7 +198,15 @@ function DualDeliverySettingsCard() {
       const res = await fetch("/api/auth/google/url")
       const data = await res.json()
       if (data.url) {
-        window.location.href = data.url
+        // En Electron Desktop Admin o webviews embebidos, Google bloquea el inicio de sesión OAuth
+        // ("Acceso bloqueado: error de autorización - Error 400 invalid_request").
+        // Abrir siempre en el navegador externo de Windows (Chrome / Edge) mediante _blank:
+        if (typeof window !== "undefined" && (window.desktopAdminAPI || (window as any).electronAPI)) {
+          window.open(data.url, "_blank")
+        } else {
+          // En navegador web estándar, abrir en pestaña o redirigir
+          window.open(data.url, "_blank") || (window.location.href = data.url)
+        }
       } else {
         alert("Error: " + (data.error || "No se pudo generar el enlace de conexión"))
       }

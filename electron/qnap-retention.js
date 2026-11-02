@@ -15,6 +15,7 @@ const { getConfig } = require("./config")
 const engine = require("./ingest-engine")
 
 const TB = 1024 ** 4
+const GB = 1024 ** 3
 const DAY_MS = 24 * 60 * 60 * 1000
 const FINALS_FOLDER = "04_Entregas_Finales"
 
@@ -231,7 +232,10 @@ class QnapRetentionManager extends EventEmitter {
   /** Lista de proyectos candidatos (entregados, más antiguos primero) hasta sumar el volumen a liberar. */
   buildPlan(scan, sessions) {
     const cfg = getConfig()
-    const need = cfg.retentionReleaseTb * TB
+    const unit = cfg.retentionUnit === "GB" ? "GB" : "TB"
+    const unitMultiplier = unit === "GB" ? GB : TB
+    const relVal = cfg.retentionReleaseValue !== undefined ? cfg.retentionReleaseValue : cfg.retentionReleaseTb
+    const need = relVal * unitMultiplier
     const items = []
     let sum = 0
     const candidates = []
@@ -252,12 +256,19 @@ class QnapRetentionManager extends EventEmitter {
         folderName: c.project.folderName,
         clientName: c.session.client_name,
         sessionDate: c.session.session_date,
-        gb: Number((c.reclaim / 1024 ** 3).toFixed(2)),
+        gb: Number((c.reclaim / GB).toFixed(2)),
         reclaimBytes: c.reclaim,
       })
       sum += c.reclaim
     }
-    return { items, totalBytes: sum, totalTb: Number((sum / TB).toFixed(3)), enough: sum >= need }
+    return {
+      items,
+      totalBytes: sum,
+      totalGb: Number((sum / GB).toFixed(2)),
+      totalTb: Number((sum / TB).toFixed(3)),
+      totalFormatted: unit === "GB" ? `${Number((sum / GB).toFixed(2))} GB` : `${Number((sum / TB).toFixed(3))} TB`,
+      enough: sum >= need,
+    }
   }
 
   async getStatus({ force = false } = {}) {
@@ -265,29 +276,66 @@ class QnapRetentionManager extends EventEmitter {
     const scan = await this.scanUsage({ force })
     const sessRes = await engine.listSessions()
     const sessions = sessRes && sessRes.ok ? sessRes.sessions : []
+
+    const unit = cfg.retentionUnit === "GB" ? "GB" : "TB"
+    const unitMultiplier = unit === "GB" ? GB : TB
+    const capVal = cfg.retentionCapacityValue !== undefined ? cfg.retentionCapacityValue : cfg.retentionCapacityTb
+    const trigVal = cfg.retentionTriggerValue !== undefined ? cfg.retentionTriggerValue : cfg.retentionTriggerTb
+    const relVal = cfg.retentionReleaseValue !== undefined ? cfg.retentionReleaseValue : cfg.retentionReleaseTb
+
+    const totalBytes = capVal * unitMultiplier
+    const triggerBytes = trigVal * unitMultiplier
+    const releaseBytes = relVal * unitMultiplier
+
+    const usedBytes = scan && scan.ok ? scan.usedBytes || 0 : 0
+    const freeBytes = Math.max(0, totalBytes - usedBytes)
+    const usedPercent = totalBytes > 0 ? Number(((usedBytes / totalBytes) * 100).toFixed(1)) : 0
+    const freePercent = Number(Math.max(0, 100 - usedPercent).toFixed(1))
+    const overThreshold = usedBytes >= triggerBytes
+
     const out = {
       ok: Boolean(scan && scan.ok),
       error: scan && !scan.ok ? scan.error : null,
+      unit,
+      capacityValue: capVal,
+      triggerValue: trigVal,
+      releaseValue: relVal,
       settings: {
         enabled: cfg.retentionEnabled,
+        unit,
+        capacityValue: capVal,
+        triggerValue: trigVal,
+        releaseValue: relVal,
         capacityTb: cfg.retentionCapacityTb,
         triggerTb: cfg.retentionTriggerTb,
         releaseTb: cfg.retentionReleaseTb,
         graceDays: cfg.retentionGraceDays,
         mode: cfg.retentionMode,
+        noticeLang: cfg.retentionNoticeLang || "fr",
       },
       scannedAt: scan && scan.at ? scan.at : null,
-      usedBytes: 0,
-      usedGb: 0,
-      usedTb: 0,
+      totalBytes,
+      totalGb: Number((totalBytes / GB).toFixed(2)),
+      totalTb: Number((totalBytes / TB).toFixed(3)),
+      usedBytes,
+      usedGb: Number((usedBytes / GB).toFixed(2)),
+      usedTb: Number((usedBytes / TB).toFixed(3)),
+      freeBytes,
+      freeGb: Number((freeBytes / GB).toFixed(2)),
+      freeTb: Number((freeBytes / TB).toFixed(3)),
+      usedPercent,
+      freePercent,
+      triggerBytes,
+      triggerGb: Number((triggerBytes / GB).toFixed(2)),
+      triggerTb: Number((triggerBytes / TB).toFixed(3)),
       nasHost: cfg.nasHost || "192.168.11.1",
       nasBaseDir: cfg.nasBaseDir || "/usb1_1/Lamha-Storage",
-      projects: [],
-      overThreshold: false,
+      projects: scan && scan.ok ? scan.projects || [] : [],
+      overThreshold,
       waiting: [],
       requested: [],
       expiredReady: [],
-      plan: { items: [], totalTb: 0, enough: false },
+      plan: { items: [], totalBytes: 0, totalGb: 0, totalTb: 0, totalFormatted: `0 ${unit}`, enough: false },
       lastRun: this.lastRun,
     }
     const now = Date.now()
@@ -303,11 +351,6 @@ class QnapRetentionManager extends EventEmitter {
       else out.waiting.push(row)
     }
     if (scan && scan.ok) {
-      out.usedBytes = scan.usedBytes || 0
-      out.usedGb = Number((scan.usedBytes / 1024 ** 3).toFixed(2))
-      out.usedTb = Number((scan.usedBytes / TB).toFixed(3))
-      out.projects = scan.projects || []
-      out.overThreshold = scan.usedBytes >= cfg.retentionTriggerTb * TB
       out.plan = this.buildPlan(scan, sessions)
     }
     return out
@@ -496,7 +539,10 @@ class QnapRetentionManager extends EventEmitter {
       }
 
       let notified = []
-      const over = scan.usedBytes >= cfg.retentionTriggerTb * TB
+      const unitMultiplier = cfg.retentionUnit === "GB" ? GB : TB
+      const trigVal = cfg.retentionTriggerValue !== undefined ? cfg.retentionTriggerValue : cfg.retentionTriggerTb
+      const triggerBytes = trigVal * unitMultiplier
+      const over = scan.usedBytes >= triggerBytes
       if (forceNotice || (auto && cfg.retentionAutoNotice && over)) {
         const waiting = sessions.some((s) => {
           const tags = Array.isArray(s.tags) ? s.tags : []
@@ -509,7 +555,14 @@ class QnapRetentionManager extends EventEmitter {
       }
       this.lastRun = { at: Date.now(), purged: purged.length, notified: notified.filter((n) => n.notified).length }
       this.emit("changed", this.lastRun)
-      return { ok: true, purged, notified, usedTb: Number((scan.usedBytes / TB).toFixed(3)) }
+      return {
+        ok: true,
+        purged,
+        notified,
+        usedBytes: scan.usedBytes,
+        usedGb: Number((scan.usedBytes / GB).toFixed(2)),
+        usedTb: Number((scan.usedBytes / TB).toFixed(3)),
+      }
     } catch (e) {
       return { ok: false, error: e.message || String(e) }
     } finally {

@@ -746,6 +746,26 @@
       <div class="card-content">
         <p id="rt-desc" style="font-size:12px;color:var(--text-muted);line-height:1.5;"></p>
 
+        <!-- Tarjetas KPI de Estado de Almacenamiento -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:8px;">
+          <div style="background:var(--input-bg);border:1px solid var(--card-border);border-radius:10px;padding:9px 12px;">
+            <div id="rt-kpi-total-lbl" style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Espace Total</div>
+            <div id="rt-kpi-total-val" style="font-size:15px;font-weight:700;color:var(--text);margin-top:2px;">—</div>
+          </div>
+          <div style="background:var(--input-bg);border:1px solid var(--card-border);border-radius:10px;padding:9px 12px;">
+            <div id="rt-kpi-used-lbl" style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Espace Utilisé</div>
+            <div id="rt-kpi-used-val" style="font-size:15px;font-weight:700;color:#10b981;margin-top:2px;">—</div>
+          </div>
+          <div style="background:var(--input-bg);border:1px solid var(--card-border);border-radius:10px;padding:9px 12px;">
+            <div id="rt-kpi-free-lbl" style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Espace Libre</div>
+            <div id="rt-kpi-free-val" style="font-size:15px;font-weight:700;color:#38bdf8;margin-top:2px;">—</div>
+          </div>
+          <div style="background:var(--input-bg);border:1px solid var(--card-border);border-radius:10px;padding:9px 12px;">
+            <div id="rt-kpi-trig-lbl" style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Seuil Alerte</div>
+            <div id="rt-kpi-trig-val" style="font-size:15px;font-weight:700;color:var(--gold);margin-top:2px;">—</div>
+          </div>
+        </div>
+
         <div style="background:var(--input-bg);border:1px solid var(--card-border);border-radius:12px;padding:12px 14px;">
           <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px;">
             <span id="rt-usage-text">—</span>
@@ -758,7 +778,12 @@
           <div id="rt-summary" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;font-size:11px;"></div>
         </div>
 
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;">
+          <label style="font-size:11px;color:var(--text-muted);display:flex;flex-direction:column;gap:4px;"><span id="rt-lbl-unit"></span>
+            <select id="rt-in-unit" class="select-input">
+              <option value="TB">TB (Téraoctets - QNAP)</option>
+              <option value="GB">GB (Gigaoctets - Test)</option>
+            </select></label>
           <label style="font-size:11px;color:var(--text-muted);display:flex;flex-direction:column;gap:4px;"><span id="rt-lbl-capacity"></span>
             <input id="rt-in-capacity" class="text-input" type="number" step="0.1" min="0.1" /></label>
           <label style="font-size:11px;color:var(--text-muted);display:flex;flex-direction:column;gap:4px;"><span id="rt-lbl-trigger"></span>
@@ -2961,76 +2986,172 @@
     }
 
     // ---------------------------------------------------------------------
-    // Ciclo de vida QNAP (preaviso + reciclaje automático)
+    // Ciclo de vida QNAP / Almacenamiento en red (preaviso + reciclaje automático)
     // ---------------------------------------------------------------------
     const RT = {
       fr: {
-        title: "♻️ Cycle de vie du QNAP (RAID 1) — Préavis & recyclage automatique",
-        desc: "Quand le QNAP dépasse le seuil, les projets LIVRÉS les plus anciens sont sélectionnés jusqu'au volume à libérer. Les clients sont prévenus par Email + WhatsApp (bouton « demander une copie »). Passé le délai, seuls les projets sans demande sont supprimés du QNAP.",
-        capacity: "Capacité du RAID (TB)", trigger: "Seuil de déclenchement (TB)", release: "Volume à libérer (TB)", grace: "Jours de préavis",
-        mode: "Mode de suppression", modeKeep: "Supprimer les originaux lourds, garder 04_Entregas_Finales", modeAll: "Supprimer le dossier complet du projet", lang: "Langue des avis",
-        enabled: "Activer la surveillance automatique", autoNotice: "Envoyer les avis automatiquement", autoPurge: "Supprimer automatiquement après le délai",
-        save: "Enregistrer", notice: "Envoyer les avis maintenant", purge: "Supprimer les projets échus maintenant",
-        used: (u, c) => `QNAP : ${u} TB utilisés / ${c} TB`, ok: "✅ Espace OK", over: "🔴 Seuil dépassé",
-        waiting: "En préavis", requested: "Copie demandée (bloqués)", ready: "Prêts à recycler", plan: "Lot prévu",
-        daysLeft: (d) => `${d} j restants`, none: "Aucun projet pour le moment.", noNas: "QNAP injoignable ou non configuré.",
-        detected: (n, h) => `🟢 QNAP connecté (${h}) — ${n} dossier(s) mesuré(s) :`,
-        belowThreshold: (trig) => `Espace bien en dessous du seuil (${trig} TB) — Fichiers protégés, aucun recyclage nécessaire.`,
-        saved: "✅ Paramètres enregistrés", warnTrigger: "Le seuil doit être inférieur à la capacité.", warnRelease: "Le volume à libérer doit être inférieur au seuil.",
-        confirmNotice: (n, tb) => `Envoyer maintenant l'avis de ${n} projet(s) (≈ ${tb} TB) ? Rien ne sera supprimé avant la fin du délai.`,
-        confirmPurge: "Supprimer DÉFINITIVEMENT du QNAP les projets dont le délai est échu et sans demande client ?",
-        noPlan: "Aucun projet livré éligible pour le moment.", done: (p, n) => `Terminé : ${n} avis envoyés, ${p} projet(s) supprimés.`,
+        title: "♻️ Cycle de vie du stockage réseau — Préavis & recyclage automatique",
+        desc: "Quand le stockage dépasse le seuil, les projets LIVRÉS les plus anciens sont sélectionnés jusqu'au volume à libérer. Les clients sont prévenus par Email + WhatsApp (bouton « demander une copie »). Passé le délai, seuls les projets sans demande sont supprimés.",
+        lblUnit: "Unité de mesure",
+        kpiTotal: "Espace Total",
+        kpiUsed: "Espace Utilisé",
+        kpiFree: "Espace Libre",
+        kpiTrig: "Seuil d'Alerte",
+        capacity: (u) => `Capacité (${u})`,
+        trigger: (u) => `Seuil de déclenchement (${u})`,
+        release: (u) => `Volume à libérer (${u})`,
+        grace: "Jours de préavis",
+        mode: "Mode de suppression",
+        modeKeep: "Supprimer les originaux lourds, garder 04_Entregas_Finales",
+        modeAll: "Supprimer le dossier complet du projet",
+        lang: "Langue des avis",
+        enabled: "Activer la surveillance automatique",
+        autoNotice: "Envoyer les avis automatiquement",
+        autoPurge: "Supprimer automatiquement après le délai",
+        save: "Enregistrer",
+        notice: "Envoyer les avis maintenant",
+        purge: "Supprimer les projets échus maintenant",
+        ok: "✅ Espace OK",
+        over: "🔴 Seuil dépassé",
+        waiting: "En préavis",
+        requested: "Copie demandée (bloqués)",
+        ready: "Prêts à recycler",
+        plan: "Lot prévu",
+        daysLeft: (d) => `${d} j restants`,
+        none: "Aucun projet pour le moment.",
+        noNas: "Stockage réseau injoignable ou non configuré.",
+        detected: (n, h) => `🟢 Stockage connecté (${h}) — ${n} dossier(s) mesuré(s) :`,
+        belowThreshold: (trig, u) => `Espace bien en dessous du seuil (${trig} ${u}) — Fichiers protégés, aucun recyclage nécessaire.`,
+        saved: "✅ Paramètres enregistrés",
+        warnTrigger: "Le seuil doit être inférieur à la capacité.",
+        warnRelease: "Le volume à libérer doit être inférieur au seuil.",
+        confirmNotice: (n, amt, u) => `Envoyer maintenant l'avis de ${n} projet(s) (≈ ${amt} ${u}) ? Rien ne sera supprimé avant la fin du délai.`,
+        confirmPurge: "Supprimer DÉFINITIVEMENT les projets dont le délai est échu et sans demande client ?",
+        noPlan: "Aucun projet livré éligible pour le moment.",
+        done: (p, n) => `Terminé : ${n} avis envoyés, ${p} projet(s) supprimés.`,
       },
       es: {
-        title: "♻️ Ciclo de vida del QNAP (RAID 1) — Preaviso y reciclaje automático",
-        desc: "Cuando el QNAP supera el umbral, se seleccionan los proyectos ENTREGADOS más antiguos hasta el volumen a liberar. Se avisa a los clientes por Email + WhatsApp (botón «solicitar copia»). Pasado el plazo, solo se borran del QNAP los proyectos sin solicitud.",
-        capacity: "Capacidad del RAID (TB)", trigger: "Umbral de disparo (TB)", release: "Volumen a liberar (TB)", grace: "Días de preaviso",
-        mode: "Modo de borrado", modeKeep: "Borrar originales pesados, conservar 04_Entregas_Finales", modeAll: "Borrar la carpeta completa del proyecto", lang: "Idioma de los avisos",
-        enabled: "Activar vigilancia automática", autoNotice: "Enviar avisos automáticamente", autoPurge: "Borrar automáticamente al vencer el plazo",
-        save: "Guardar", notice: "Enviar avisos ahora", purge: "Borrar proyectos vencidos ahora",
-        used: (u, c) => `QNAP: ${u} TB usados / ${c} TB`, ok: "✅ Espacio OK", over: "🔴 Umbral superado",
-        waiting: "En preaviso", requested: "Copia solicitada (bloqueados)", ready: "Listos para reciclar", plan: "Lote previsto",
-        daysLeft: (d) => `${d} d restantes`, none: "Ningún proyecto por ahora.", noNas: "QNAP inaccesible o sin configurar.",
-        detected: (n, h) => `🟢 QNAP conectado (${h}) — ${n} carpeta(s) medida(s):`,
-        belowThreshold: (trig) => `Espacio muy por debajo del umbral (${trig} TB) — Archivos protegidos, no requiere reciclaje.`,
-        saved: "✅ Ajustes guardados", warnTrigger: "El umbral debe ser menor que la capacidad.", warnRelease: "El volumen a liberar debe ser menor que el umbral.",
-        confirmNotice: (n, tb) => `¿Enviar ahora el aviso a ${n} proyecto(s) (≈ ${tb} TB)? No se borrará nada hasta que termine el plazo.`,
-        confirmPurge: "¿Borrar DEFINITIVAMENTE del QNAP los proyectos con plazo vencido y sin solicitud del cliente?",
-        noPlan: "No hay proyectos entregados elegibles por ahora.", done: (p, n) => `Terminado: ${n} avisos enviados, ${p} proyecto(s) borrados.`,
+        title: "♻️ Ciclo de vida del almacenamiento en red — Preaviso y reciclaje automático",
+        desc: "Cuando la unidad de red supera el umbral, se seleccionan los proyectos ENTREGADOS más antiguos hasta el volumen a liberar. Se avisa a los clientes por Email + WhatsApp (botón «solicitar copia»). Pasado el plazo, solo se borran los proyectos sin solicitud.",
+        lblUnit: "Unidad de medida",
+        kpiTotal: "Espacio Total",
+        kpiUsed: "Espacio Usado",
+        kpiFree: "Espacio Libre",
+        kpiTrig: "Umbral de Alerta",
+        capacity: (u) => `Capacidad (${u})`,
+        trigger: (u) => `Umbral de disparo (${u})`,
+        release: (u) => `Volumen a liberar (${u})`,
+        grace: "Días de preaviso",
+        mode: "Modo de borrado",
+        modeKeep: "Borrar originales pesados, conservar 04_Entregas_Finales",
+        modeAll: "Borrar la carpeta completa del proyecto",
+        lang: "Idioma de los avisos",
+        enabled: "Activar vigilancia automática",
+        autoNotice: "Enviar avisos automáticamente",
+        autoPurge: "Borrar automáticamente al vencer el plazo",
+        save: "Guardar",
+        notice: "Enviar avisos ahora",
+        purge: "Borrar proyectos vencidos ahora",
+        ok: "✅ Espacio OK",
+        over: "🔴 Umbral superado",
+        waiting: "En preaviso",
+        requested: "Copia solicitada (bloqueados)",
+        ready: "Listos para reciclar",
+        plan: "Lote previsto",
+        daysLeft: (d) => `${d} d restantes`,
+        none: "Ningún proyecto por ahora.",
+        noNas: "Unidad de red inaccesible o sin configurar.",
+        detected: (n, h) => `🟢 Almacenamiento conectado (${h}) — ${n} carpeta(s) medida(s):`,
+        belowThreshold: (trig, u) => `Espacio muy por debajo del umbral (${trig} ${u}) — Archivos protegidos, no requiere reciclaje.`,
+        saved: "✅ Ajustes guardados",
+        warnTrigger: "El umbral debe ser menor que la capacidad.",
+        warnRelease: "El volumen a liberar debe ser menor que el umbral.",
+        confirmNotice: (n, amt, u) => `¿Enviar ahora el aviso a ${n} proyecto(s) (≈ ${amt} ${u})? No se borrará nada hasta que termine el plazo.`,
+        confirmPurge: "¿Borrar DEFINITIVAMENTE los proyectos con plazo vencido y sin solicitud del cliente?",
+        noPlan: "No hay proyectos entregados elegibles por ahora.",
+        done: (p, n) => `Terminado: ${n} avisos enviados, ${p} proyecto(s) borrados.`,
       },
       en: {
-        title: "♻️ QNAP lifecycle (RAID 1) — Notice & automatic recycling",
-        desc: "When the QNAP exceeds the threshold, the oldest DELIVERED projects are selected up to the volume to free. Clients are notified by Email + WhatsApp (\"request a copy\" button). After the grace period, only projects without a request are deleted from the QNAP.",
-        capacity: "RAID capacity (TB)", trigger: "Trigger threshold (TB)", release: "Volume to free (TB)", grace: "Notice days",
-        mode: "Deletion mode", modeKeep: "Delete heavy originals, keep 04_Entregas_Finales", modeAll: "Delete the whole project folder", lang: "Notice language",
-        enabled: "Enable automatic monitoring", autoNotice: "Send notices automatically", autoPurge: "Delete automatically after the grace period",
-        save: "Save", notice: "Send notices now", purge: "Delete expired projects now",
-        used: (u, c) => `QNAP: ${u} TB used / ${c} TB`, ok: "✅ Space OK", over: "🔴 Threshold exceeded",
-        waiting: "In notice period", requested: "Copy requested (locked)", ready: "Ready to recycle", plan: "Planned batch",
-        daysLeft: (d) => `${d} d left`, none: "No projects right now.", noNas: "QNAP unreachable or not configured.",
-        detected: (n, h) => `🟢 QNAP connected (${h}) — ${n} measured folder(s):`,
-        belowThreshold: (trig) => `Space well below threshold (${trig} TB) — Files safe, no recycling needed.`,
-        saved: "✅ Settings saved", warnTrigger: "Threshold must be lower than capacity.", warnRelease: "Volume to free must be lower than the threshold.",
-        confirmNotice: (n, tb) => `Send notices now for ${n} project(s) (≈ ${tb} TB)? Nothing is deleted until the grace period ends.`,
-        confirmPurge: "PERMANENTLY delete from the QNAP the projects whose grace period expired and with no client request?",
-        noPlan: "No eligible delivered projects right now.", done: (p, n) => `Done: ${n} notices sent, ${p} project(s) deleted.`,
+        title: "♻️ Network storage lifecycle — Notice & automatic recycling",
+        desc: "When the network storage exceeds the threshold, the oldest DELIVERED projects are selected up to the volume to free. Clients are notified by Email + WhatsApp (\"request a copy\" button). After the grace period, only projects without a request are deleted.",
+        lblUnit: "Measurement unit",
+        kpiTotal: "Total Space",
+        kpiUsed: "Used Space",
+        kpiFree: "Free Space",
+        kpiTrig: "Alert Threshold",
+        capacity: (u) => `Capacity (${u})`,
+        trigger: (u) => `Trigger threshold (${u})`,
+        release: (u) => `Volume to free (${u})`,
+        grace: "Notice days",
+        mode: "Deletion mode",
+        modeKeep: "Delete heavy originals, keep 04_Entregas_Finales",
+        modeAll: "Delete the whole project folder",
+        lang: "Notice language",
+        enabled: "Enable automatic monitoring",
+        autoNotice: "Send notices automatically",
+        autoPurge: "Delete automatically after the grace period",
+        save: "Save",
+        notice: "Send notices now",
+        purge: "Delete expired projects now",
+        ok: "✅ Space OK",
+        over: "🔴 Threshold exceeded",
+        waiting: "In notice period",
+        requested: "Copy requested (locked)",
+        ready: "Ready to recycle",
+        plan: "Planned batch",
+        daysLeft: (d) => `${d} d left`,
+        none: "No projects right now.",
+        noNas: "Network storage unreachable or not configured.",
+        detected: (n, h) => `🟢 Storage connected (${h}) — ${n} measured folder(s):`,
+        belowThreshold: (trig, u) => `Space well below threshold (${trig} ${u}) — Files safe, no recycling needed.`,
+        saved: "✅ Settings saved",
+        warnTrigger: "Threshold must be lower than capacity.",
+        warnRelease: "Volume to free must be lower than the threshold.",
+        confirmNotice: (n, amt, u) => `Send notices now for ${n} project(s) (≈ ${amt} ${u})? Nothing is deleted until the grace period ends.`,
+        confirmPurge: "PERMANENTLY delete projects whose grace period expired and with no client request?",
+        noPlan: "No eligible delivered projects right now.",
+        done: (p, n) => `Done: ${n} notices sent, ${p} project(s) deleted.`,
       },
       ar: {
-        title: "♻️ دورة حياة QNAP (RAID 1) — إشعار وإعادة تدوير تلقائية",
-        desc: "عندما يتجاوز QNAP الحد المحدد، يتم اختيار أقدم المشاريع المُسلَّمة حتى بلوغ الحجم المراد تحريره. يُبلَّغ العملاء عبر البريد وواتساب (زر «طلب نسخة»). بعد انتهاء المهلة تُحذف فقط المشاريع التي لم يُطلب فيها شيء.",
-        capacity: "سعة RAID (TB)", trigger: "حد التشغيل (TB)", release: "الحجم المراد تحريره (TB)", grace: "أيام الإشعار",
-        mode: "نمط الحذف", modeKeep: "حذف الملفات الأصلية الثقيلة والإبقاء على 04_Entregas_Finales", modeAll: "حذف مجلد المشروع بالكامل", lang: "لغة الإشعارات",
-        enabled: "تفعيل المراقبة التلقائية", autoNotice: "إرسال الإشعارات تلقائياً", autoPurge: "الحذف تلقائياً بعد المهلة",
-        save: "حفظ", notice: "إرسال الإشعارات الآن", purge: "حذف المشاريع المنتهية الآن",
-        used: (u, c) => `QNAP: ${u} TB مستخدم من ${c} TB`, ok: "✅ المساحة جيدة", over: "🔴 تم تجاوز الحد",
-        waiting: "في مهلة الإشعار", requested: "طلب نسخة (محمية)", ready: "جاهزة لإعادة التدوير", plan: "الدفعة المقترحة",
-        daysLeft: (d) => `متبقي ${d} يوم`, none: "لا توجد مشاريع حالياً.", noNas: "QNAP غير متاح أو غير مُهيّأ.",
-        detected: (n, h) => `🟢 QNAP متصل (${h}) — ${n} مجلدات تم قياسها:`,
-        belowThreshold: (trig) => `المساحة أقل بكثير من الحد (${trig} TB) — الملفات محمية، لا داعي لإعادة التدوير.`,
-        saved: "✅ تم حفظ الإعدادات", warnTrigger: "يجب أن يكون الحد أقل من السعة.", warnRelease: "يجب أن يكون الحجم المراد تحريره أقل من الحد.",
-        confirmNotice: (n, tb) => `إرسال الإشعار الآن لـ ${n} مشروع (≈ ${tb} TB)؟ لن يُحذف شيء قبل انتهاء المهلة.`,
-        confirmPurge: "حذف نهائي من QNAP للمشاريع المنتهية مهلتها والتي لم يطلب العميل نسخة منها؟",
-        noPlan: "لا توجد مشاريع مُسلَّمة مؤهلة حالياً.", done: (p, n) => `تم: ${n} إشعار مرسل، ${p} مشروع محذوف.`,
+        title: "♻️ دورة حياة التخزين الشبكي — إشعار وإعادة تدوير تلقائية",
+        desc: "عندما يتجاوز التخزين الحد المحدد، يتم اختيار أقدم المشاريع المُسلَّمة حتى بلوغ الحجم المراد تحريره. يُبلَّغ العملاء عبر البريد وواتساب (زر «طلب نسخة»). بعد انتهاء المهلة تُحذف فقط المشاريع التي لم يُطلب فيها شيء.",
+        lblUnit: "وحدة القياس",
+        kpiTotal: "المساحة الكلية",
+        kpiUsed: "المساحة المستخدمة",
+        kpiFree: "المساحة الفارغة",
+        kpiTrig: "حد التنبيه",
+        capacity: (u) => `السعة (${u})`,
+        trigger: (u) => `حد التشغيل (${u})`,
+        release: (u) => `الحجم المراد تحريره (${u})`,
+        grace: "أيام الإشعار",
+        mode: "نمط الحذف",
+        modeKeep: "حذف الملفات الأصلية الثقيلة والإبقاء على 04_Entregas_Finales",
+        modeAll: "حذف مجلد المشروع بالكامل",
+        lang: "لغة الإشعارات",
+        enabled: "تفعيل المراقبة التلقائية",
+        autoNotice: "إرسال الإشعارات تلقائياً",
+        autoPurge: "الحذف تلقائياً بعد المهلة",
+        save: "حفظ",
+        notice: "إرسال الإشعارات الآن",
+        purge: "حذف المشاريع المنتهية الآن",
+        ok: "✅ المساحة جيدة",
+        over: "🔴 تم تجاوز الحد",
+        waiting: "في مهلة الإشعار",
+        requested: "طلب نسخة (محمية)",
+        ready: "جاهزة لإعادة التدوير",
+        plan: "الدفعة المقترحة",
+        daysLeft: (d) => `متبقي ${d} يوم`,
+        none: "لا توجد مشاريع حالياً.",
+        noNas: "التخزين غير متاح أو غير مُهيّأ.",
+        detected: (n, h) => `🟢 التخزين متصل (${h}) — ${n} مجلدات تم قياسها:`,
+        belowThreshold: (trig, u) => `المساحة أقل بكثير من الحد (${trig} ${u}) — الملفات محمية، لا داعي لإعادة التدوير.`,
+        saved: "✅ تم حفظ الإعدادات",
+        warnTrigger: "يجب أن يكون الحد أقل من السعة.",
+        warnRelease: "يجب أن يكون الحجم المراد تحريره أقل من الحد.",
+        confirmNotice: (n, amt, u) => `إرسال الإشعار الآن لـ ${n} مشروع (≈ ${amt} ${u})؟ لن يُحذف شيء قبل انتهاء المهلة.`,
+        confirmPurge: "حذف نهائي للمشاريع المنتهية مهلتها والتي لم يطلب العميل نسخة منها؟",
+        noPlan: "لا توجد مشاريع مُسلَّمة مؤهلة حالياً.",
+        done: (p, n) => `تم: ${n} إشعار مرسل، ${p} مشروع محذوف.`,
       },
     };
     const rtT = () => RT[currentLang] || RT.fr;
@@ -3039,11 +3160,26 @@
     function renderRetentionStrings() {
       const r = rtT();
       const set = (id, v) => { const e = rtEl(id); if (e) e.textContent = v; };
-      set("rt-title", r.title); set("rt-desc", r.desc);
-      set("rt-lbl-capacity", r.capacity); set("rt-lbl-trigger", r.trigger); set("rt-lbl-release", r.release);
-      set("rt-lbl-grace", r.grace); set("rt-lbl-mode", r.mode); set("rt-lbl-lang", r.lang);
-      set("rt-lbl-enabled", r.enabled); set("rt-lbl-autonotice", r.autoNotice); set("rt-lbl-autopurge", r.autoPurge);
-      set("rt-txt-save", r.save); set("rt-txt-notice", r.notice); set("rt-txt-purge", r.purge);
+      const unit = (rtEl("rt-in-unit") && rtEl("rt-in-unit").value) || "TB";
+      set("rt-title", r.title);
+      set("rt-desc", r.desc);
+      set("rt-lbl-unit", r.lblUnit);
+      set("rt-kpi-total-lbl", r.kpiTotal);
+      set("rt-kpi-used-lbl", r.kpiUsed);
+      set("rt-kpi-free-lbl", r.kpiFree);
+      set("rt-kpi-trig-lbl", r.kpiTrig);
+      set("rt-lbl-capacity", r.capacity(unit));
+      set("rt-lbl-trigger", r.trigger(unit));
+      set("rt-lbl-release", r.release(unit));
+      set("rt-lbl-grace", r.grace);
+      set("rt-lbl-mode", r.mode);
+      set("rt-lbl-lang", r.lang);
+      set("rt-lbl-enabled", r.enabled);
+      set("rt-lbl-autonotice", r.autoNotice);
+      set("rt-lbl-autopurge", r.autoPurge);
+      set("rt-txt-save", r.save);
+      set("rt-txt-notice", r.notice);
+      set("rt-txt-purge", r.purge);
       const sel = rtEl("rt-in-mode");
       if (sel) { sel.options[0].textContent = r.modeKeep; sel.options[1].textContent = r.modeAll; }
       if (window.__rtLast) renderRetentionStatus(window.__rtLast);
@@ -3059,55 +3195,70 @@
         rtEl("rt-bar").style.width = "0%";
         rtEl("rt-summary").innerHTML = "";
         rtEl("rt-lists").innerHTML = "";
+        rtEl("rt-kpi-total-val").textContent = "—";
+        rtEl("rt-kpi-used-val").textContent = "—";
+        rtEl("rt-kpi-free-val").textContent = "—";
+        rtEl("rt-kpi-trig-val").textContent = "—";
         badge.textContent = "—";
         return;
       }
-      const cap = s.settings.capacityTb, trig = s.settings.triggerTb;
-      const usedBytes = s.usedBytes || (s.usedTb * 1024 ** 4) || 0;
-      const usedGb = s.usedGb || Number((usedBytes / 1024 ** 3).toFixed(2));
-      const usedTb = s.usedTb || Number((usedBytes / (1024 ** 4)).toFixed(3));
 
-      let usageFormatted = "";
-      let badgeFormatted = "";
-      if (usedTb >= 0.05) {
-        usageFormatted = `QNAP : ${usedTb.toFixed(2)} TB (${usedGb.toFixed(1)} GB) / ${cap} TB`;
-        badgeFormatted = `${usedTb.toFixed(2)} / ${cap} TB`;
-      } else if (usedGb >= 0.01) {
-        usageFormatted = `QNAP : ${usedGb.toFixed(2)} GB (${usedTb.toFixed(3)} TB) / ${cap} TB`;
-        badgeFormatted = `${usedGb.toFixed(2)} GB / ${cap} TB`;
-      } else if (usedBytes > 0) {
-        const mb = (usedBytes / (1024 * 1024)).toFixed(1);
-        usageFormatted = `QNAP : ${mb} MB / ${cap} TB`;
-        badgeFormatted = `${mb} MB / ${cap} TB`;
+      const unit = s.unit || (rtEl("rt-in-unit") && rtEl("rt-in-unit").value) || "TB";
+      const isGb = unit === "GB";
+
+      const totalVal = isGb ? (s.totalGb || 0) : (s.totalTb || 0);
+      const usedVal = isGb ? (s.usedGb || 0) : (s.usedTb || 0);
+      const freeVal = isGb ? (s.freeGb || 0) : (s.freeTb || 0);
+      const trigVal = s.triggerValue !== undefined ? s.triggerValue : (isGb ? (s.settings.triggerValue || (s.settings.triggerTb * 1024)) : s.settings.triggerTb);
+
+      const usedPct = s.usedPercent !== undefined ? s.usedPercent : (totalVal > 0 ? Number(((usedVal / totalVal) * 100).toFixed(1)) : 0);
+      const freePct = s.freePercent !== undefined ? s.freePercent : Math.max(0, Number((100 - usedPct).toFixed(1)));
+
+      // Visualización en tarjetas KPI
+      rtEl("rt-kpi-total-val").textContent = isGb ? `${totalVal.toFixed(1)} GB` : `${totalVal.toFixed(2)} TB`;
+      rtEl("rt-kpi-used-val").textContent = isGb
+        ? `${usedVal.toFixed(2)} GB (${usedPct}%)`
+        : (s.usedGb >= 1024 ? `${usedVal.toFixed(2)} TB (${usedPct}%)` : `${(s.usedGb || 0).toFixed(2)} GB (${usedPct}%)`);
+      rtEl("rt-kpi-free-val").textContent = isGb ? `${freeVal.toFixed(1)} GB (${freePct}%)` : `${freeVal.toFixed(2)} TB (${freePct}%)`;
+      rtEl("rt-kpi-trig-val").textContent = `${trigVal} ${unit}`;
+
+      // Barra de progreso y marcador
+      const pctForBar = Math.min(100, Math.max(usedPct, (s.usedBytes > 0 ? 1.5 : 0)));
+      const bar = rtEl("rt-bar");
+      bar.style.width = pctForBar + "%";
+      bar.style.background = s.overThreshold ? "#ef4444" : (usedVal >= trigVal * 0.85 ? "#f59e0b" : "#10b981");
+
+      const trigPct = totalVal > 0 ? Math.min(100, (trigVal / totalVal) * 100) : 70;
+      rtEl("rt-marker").style.left = trigPct + "%";
+
+      // Texto de uso y badge
+      if (isGb) {
+        rtEl("rt-usage-text").textContent = `${s.nasHost || "Stockage"} : ${usedVal.toFixed(2)} GB / ${totalVal.toFixed(1)} GB (${usedPct}% utilisé)`;
+        badge.textContent = `${usedVal.toFixed(2)} / ${totalVal.toFixed(1)} GB`;
       } else {
-        usageFormatted = `QNAP : 0.00 TB / ${cap} TB`;
-        badgeFormatted = `0.00 / ${cap} TB`;
+        const detailStr = (s.usedGb || 0) < 1024 ? ` (${(s.usedGb || 0).toFixed(2)} GB)` : "";
+        rtEl("rt-usage-text").textContent = `${s.nasHost || "QNAP"} : ${usedVal.toFixed(3)} TB${detailStr} / ${totalVal.toFixed(2)} TB (${usedPct}% utilisé)`;
+        badge.textContent = `${usedVal >= 0.05 ? usedVal.toFixed(2) : (s.usedGb || 0).toFixed(2) + ' GB'} / ${totalVal.toFixed(2)} TB`;
       }
 
-      const pct = Math.min(100, (usedTb / cap) * 100);
-      const bar = rtEl("rt-bar");
-      bar.style.width = (usedBytes > 0 ? Math.max(1.5, pct) : 0) + "%";
-      bar.style.background = s.overThreshold ? "#ef4444" : (usedTb >= trig * 0.85 ? "#f59e0b" : "#10b981");
-      rtEl("rt-marker").style.left = Math.min(100, (trig / cap) * 100) + "%";
-      rtEl("rt-usage-text").textContent = usageFormatted;
       const st = rtEl("rt-usage-state");
       st.textContent = s.overThreshold ? r.over : r.ok;
       st.style.color = s.overThreshold ? "#ef4444" : "#10b981";
-      badge.textContent = badgeFormatted;
 
       const pill = (txt, color) => `<span style="padding:3px 9px;border-radius:999px;border:1px solid ${color};color:${color};">${txt}</span>`;
+      const planAmt = s.plan ? (isGb ? `${s.plan.totalGb || (s.plan.totalTb * 1024).toFixed(1)} GB` : `${s.plan.totalTb} TB`) : `0 ${unit}`;
       rtEl("rt-summary").innerHTML =
-        pill(`⏳ ${r.waiting}: ${s.waiting.length}`, "#38bdf8") +
-        pill(`🔒 ${r.requested}: ${s.requested.length}`, "#f59e0b") +
-        pill(`♻️ ${r.ready}: ${s.expiredReady.length}`, "#10b981") +
-        pill(`📦 ${r.plan}: ${s.plan.items.length} (${s.plan.totalTb} TB)`, "var(--gold)");
+        pill(`⏳ ${r.waiting}: ${(s.waiting || []).length}`, "#38bdf8") +
+        pill(`🔒 ${r.requested}: ${(s.requested || []).length}`, "#f59e0b") +
+        pill(`♻️ ${r.ready}: ${(s.expiredReady || []).length}`, "#10b981") +
+        pill(`📦 ${r.plan}: ${(s.plan && s.plan.items ? s.plan.items.length : 0)} (${planAmt})`, "var(--gold)");
 
       const row = (icon, name, extra) =>
         `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 10px;background:var(--input-bg);border:1px solid var(--card-border);border-radius:8px;font-size:12px;"><span>${icon} ${escapeHtml(name)}</span><span style="color:var(--text-muted);font-size:11px;font-family:monospace;">${escapeHtml(extra)}</span></div>`;
       const rows = [];
-      s.requested.forEach((x) => rows.push(row("🔒", x.clientName, x.sessionDate)));
-      s.waiting.forEach((x) => rows.push(row("⏳", x.clientName, r.daysLeft(x.daysLeft))));
-      s.expiredReady.forEach((x) => rows.push(row("♻️", x.clientName, x.sessionDate)));
+      (s.requested || []).forEach((x) => rows.push(row("🔒", x.clientName, x.sessionDate)));
+      (s.waiting || []).forEach((x) => rows.push(row("⏳", x.clientName, r.daysLeft(x.daysLeft))));
+      (s.expiredReady || []).forEach((x) => rows.push(row("♻️", x.clientName, x.sessionDate)));
       if (s.plan && s.plan.items && s.plan.items.length) {
         s.plan.items.forEach((x) => rows.push(row("📦", x.clientName, `${x.sessionDate} · ${x.gb} GB`)));
       }
@@ -3122,9 +3273,9 @@
           return row("📁", p.folderName, sizeStr);
         });
         rtEl("rt-lists").innerHTML = `
-          <div style="font-size:11px;font-weight:700;color:var(--gold);margin-bottom:6px;">${r.detected(s.projects.length, s.nasHost || "QNAP")}</div>
+          <div style="font-size:11px;font-weight:700;color:var(--gold);margin-bottom:6px;">${r.detected(s.projects.length, s.nasHost || "Stockage")}</div>
           <div style="display:flex;flex-direction:column;gap:5px;">${projRows.join("")}</div>
-          <div style="font-size:10px;color:var(--text-muted);margin-top:6px;font-style:italic;">${r.belowThreshold(trig)}</div>
+          <div style="font-size:10px;color:var(--text-muted);margin-top:6px;font-style:italic;">${r.belowThreshold(trigVal, unit)}</div>
         `;
       } else {
         rtEl("rt-lists").innerHTML = `<div style="color:var(--text-muted);">${r.none}</div>`;
@@ -3143,19 +3294,26 @@
       if (!window.electronAPI) return;
       const c = await window.electronAPI.getSettings();
       if (!c) return;
-      rtEl("rt-in-capacity").value = c.retentionCapacityTb;
-      rtEl("rt-in-trigger").value = c.retentionTriggerTb;
-      rtEl("rt-in-release").value = c.retentionReleaseTb;
+      if (c.retentionUnit) rtEl("rt-in-unit").value = c.retentionUnit;
+      rtEl("rt-in-capacity").value = c.retentionCapacityValue !== undefined ? c.retentionCapacityValue : c.retentionCapacityTb;
+      rtEl("rt-in-trigger").value = c.retentionTriggerValue !== undefined ? c.retentionTriggerValue : c.retentionTriggerTb;
+      rtEl("rt-in-release").value = c.retentionReleaseValue !== undefined ? c.retentionReleaseValue : c.retentionReleaseTb;
       rtEl("rt-in-grace").value = c.retentionGraceDays;
       rtEl("rt-in-mode").value = c.retentionMode;
       rtEl("rt-in-lang").value = c.retentionNoticeLang;
       rtEl("rt-chk-enabled").checked = Boolean(c.retentionEnabled);
       rtEl("rt-chk-notice").checked = Boolean(c.retentionAutoNotice);
       rtEl("rt-chk-purge").checked = Boolean(c.retentionAutoPurge);
+      renderRetentionStrings();
     }
+
+    rtEl("rt-in-unit").onchange = () => {
+      renderRetentionStrings();
+    };
 
     rtEl("rt-btn-save").onclick = async () => {
       const r = rtT();
+      const unit = rtEl("rt-in-unit").value || "TB";
       const cap = Number(rtEl("rt-in-capacity").value);
       const trig = Number(rtEl("rt-in-trigger").value);
       const rel = Number(rtEl("rt-in-release").value);
@@ -3165,9 +3323,16 @@
       if (trig >= cap) { warn.textContent = r.warnTrigger; warn.style.display = "block"; return; }
       if (rel >= trig) { warn.textContent = r.warnRelease; warn.style.display = "block"; return; }
       await window.electronAPI.saveSettings({
-        retentionCapacityTb: cap, retentionTriggerTb: trig, retentionReleaseTb: rel,
+        retentionUnit: unit,
+        retentionCapacityValue: cap,
+        retentionTriggerValue: trig,
+        retentionReleaseValue: rel,
+        retentionCapacityTb: unit === "TB" ? cap : Number((cap / 1024).toFixed(4)),
+        retentionTriggerTb: unit === "TB" ? trig : Number((trig / 1024).toFixed(4)),
+        retentionReleaseTb: unit === "TB" ? rel : Number((rel / 1024).toFixed(4)),
         retentionGraceDays: Math.max(1, Math.round(Number(rtEl("rt-in-grace").value) || 7)),
-        retentionMode: rtEl("rt-in-mode").value, retentionNoticeLang: rtEl("rt-in-lang").value,
+        retentionMode: rtEl("rt-in-mode").value,
+        retentionNoticeLang: rtEl("rt-in-lang").value,
         retentionEnabled: rtEl("rt-chk-enabled").checked,
         retentionAutoNotice: rtEl("rt-chk-notice").checked,
         retentionAutoPurge: rtEl("rt-chk-purge").checked,
@@ -3180,7 +3345,9 @@
       const r = rtT();
       const s = window.__rtLast;
       if (!s || !s.plan || !s.plan.items.length) { alert(r.noPlan); return; }
-      if (!confirm(r.confirmNotice(s.plan.items.length, s.plan.totalTb))) return;
+      const unit = s.unit || "TB";
+      const amt = unit === "GB" ? (s.plan.totalGb || (s.plan.totalTb * 1024).toFixed(1)) : s.plan.totalTb;
+      if (!confirm(r.confirmNotice(s.plan.items.length, amt, unit))) return;
       const res = await window.electronAPI.runRetention("notice");
       if (res && res.ok) alert(r.done((res.purged || []).length, (res.notified || []).filter((n) => n.notified).length));
       refreshRetention(true);

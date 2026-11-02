@@ -1,0 +1,209 @@
+{
+  "updatedAt": "2026-10-29T15:47:18.196Z",
+  "templates": {
+    "welcome": {
+      "key": "welcome",
+      "enabled": true,
+      "sendWhatsAppAlso": true,
+      "translations": {
+        "fr": {
+          "atelierTag": "ATELIER PHOTOGRAPHIQUE",
+          "tagline": "",
+          "subject": "✦ Bienvenue chez Lam7a Studios — Confirmation de Réservation : {{clientName}}",
+          "greeting": "Cher/Chère {{clientName}},",
+          "intro": "C'est un véritable honneur de vous accueillir au sein de <strong>Lam7a Studios</strong>. Nous avons bien enregistré votre projet et réservé la date dans l'agenda de notre atelier.",
+          "bodyText": "Notre équipe de photographes et directeurs artistiques prépare déjà l'ensemble du dispositif créatif pour immortaliser vos précieux moments avec le plus haut niveau d'exigence et d'élégance.",
+          "ctaBtn": "✦ Accéder au Portail Client →",
+          "closing": "Pour toute question, coordination de tenues ou précision avant le jour J, notre équipe reste à votre entière disposition.",
+          "footerText": "Lam7a Studios Atelier • Tous droits réservés."
+        },
+        "ar": {
+          "atelierTag": "استوديو التصوير الفني",
+          "tagline": "تخليد اللحظات الأبدية بأرقى المعايير",
+          "subject": "✦ مرحباً بكم في استوديو لمحة — تأكيد حجز جلسة التصوير: {{clientName}}",
+          "greeting": "عزيزنا/عزيزتنا {{clientName}}،",
+          "intro": "إنه لمن دواعي سرورنا واعتزازنا أن نرحب بكم في <strong>استوديو لمحة (Lam7a Studios)</strong>. لقد تم تسجيل مشروعكم وتثبيت الموعد المحدد في جدول مواعيد الاستوديو.",
+          "bodyText": "فريقنا من المصورين والمشرفين الفنيين يستعد لتقديم أرقى تجربة تصوير توثق لحظاتكم المميزة بأعلى درجات الفخامة والإتقان.",
+          "ctaBtn": "✦ الدخول إلى المساحة الخاصة ←",
+          "closing": "إذا كانت لديكم أي استفسارات بخصوص الملابس، الموقع أو تفاصيل الجلسة، يسعدنا تواصلكم معنا في أي وقت.",
+          "footerText": "استوديو لمحة • جميع الحقوق محفوظة."
+        },
+        "en": {
+          "atelierTag": "PHOTOGRAPHIC ATELIER",
+          "tagline": "Capturing eternity in every instant",
+          "subject": "✦ Welcome to Lam7a Studios — Booking Confirmation: {{clientName}}",
+          "greeting": "Dear {{clientName}},",
+          "intro": "It is a true honor to welcome you to <strong>Lam7a Studios</strong>. We have officially registered your project and reserved your date in our atelier's calendar.",
+          "bodyText": "Our team of photographers and creative directors is already preparing the artistic and technical direction to immortalize your moments with the highest level of craftsmanship and elegance.",
+          "ctaBtn": "✦ Open Client Portal →",
+          "closing": "Should you have any inquiries regarding styling, locations, or special requests prior to your session, we remain at your complete disposal.",
+          "footerText": "Lam7a Studios Atelier • All rights reserved."
+        },
+        "es": {
+          "atelierTag": "ATELIER FOTOGRÁFICO",
+          "tagline": "Capturando la eternidad en cada instante",
+          "subject": "✦ Bienvenida a Lam7a Studios — Confirmación de Reserva: {{clientName}}",
+          "greeting": "Estimado/a {{clientName}},",
+          "intro": "Es un honor darte la más cálida bienvenida a <strong>Lam7a Studios</strong>. Hemos registrado formalmente tu proyecto y reservado la fecha en la agenda de nuestro atelier.",
+          "bodyText": "Nuestro equipo de fotógrafos y directores de arte ya está preparando todo el despliegue técnico y creativo para inmortalizar tus mejores momentos con la máxima fidelidad, elegancia y cuidado del detalle.",
+          "ctaBtn": "✦ Acceder al Portal Cliente →",
+          "closing": "Si necesitas realizar cualquier consulta, coordinar la vestimenta, ubicación o afinar detalles antes del día señalado, estamos a tu entera disposición.",
+          "footerText": "Lam7a Studios Atelier • Todos los derechos reservados."
+        }
+      }
+    },
+    "photos_ready": {
+      "key": "photos_ready",
+      "enabled": true,
+      "sendWhatsAppAlso": true,
+      "translations": {
+        "fr": {
+          "atelierTag": "ESPACE PRIVÉ & SÉLECTION",
+          "tagline": "",
+          "subject": "✦ Vos photos sont prêtes sur votre Espace Privé — Lam7a Studios ({{clientName}})",
+          "greeting": "Bonjour {{clientName}},",
+          "intro": "Nous avons le plaisir de vous annoncer que votre reportage photo a été traité et calibré par notre atelier. Vos photographies ({{photosCount}}) sont prêtes à être consultées sur votre Espace Privé.",
+          "bodyText": "Connectez-vous avec votre email et votre code PIN {{portalPin}}, puis cliquez sur l'icône cœur (❤️) sur chaque photo que vous souhaitez sélectionner pour l'album ou la retouche finale.",
+          "ctaBtn": "✦ Accéder à mon Espace Privé →",
+          "closing": "Nous espérons de tout cœur que vous apprécierez revivre ces instants autant que nous avons aimé les capturer.",
+          "footerText": "Lam7a Studios Atelier • Tous droits réservés."
+        },
+        "ar": {
+          "atelierTag": "المساحة الخاصة واختيار الصور",
+          "tagline": "ذكرياتكم الثمينة أصبحت جاهزة الآن",
+          "subject": "✦ صوركم أصبحت جاهزة في المساحة الخاصة — استوديو لمحة ({{clientName}})",
+          "greeting": "مرحباً {{clientName}}!",
+          "intro": "يسعدنا إعلامكم أن جلسة التصوير الخاصة بكم تم تجهيزها ومعالجتها فنيّاً بدقة عالية في استوديو لمحة. يتوفر لديكم الآن ({{photosCount}}) صورة جاهزة للمعاينة.",
+          "bodyText": "سجلوا الدخول باستخدام بريدكم الإلكتروني والرمز السري {{portalPin}}، ثم اضغطوا على أيقونة القلب (❤️) على الصور التي ترغبون باختيارها للألبوم أو المعالجة النهائية.",
+          "ctaBtn": "✦ الدخول إلى مساحتي الخاصة ←",
+          "closing": "نتمنى من كل قلوبنا أن تستمتعوا بمشاهدة هذه الذكريات الخالدة بقدر استمتاعنا بتوثيقها لكم.",
+          "footerText": "استوديو لمحة • جميع الحقوق محفوظة."
+        },
+        "en": {
+          "atelierTag": "PRIVATE CLIENT SPACE & SELECTION",
+          "tagline": "Your precious memories are now available",
+          "subject": "✦ Your photos are ready in your Private Space — Lam7a Studios ({{clientName}})",
+          "greeting": "Hello {{clientName}}!",
+          "intro": "We are delighted to inform you that your photoshoot has been processed and calibrated by our atelier. Your photographs ({{photosCount}}) are ready to view.",
+          "bodyText": "Log in using your email address and security PIN {{portalPin}}, then click the heart icon (❤️) on each photo you wish to select for your final album or editorial retouching.",
+          "ctaBtn": "✦ Access My Private Space →",
+          "closing": "We sincerely hope you cherish reliving these moments as much as we enjoyed creating them.",
+          "footerText": "Lam7a Studios Atelier • All rights reserved."
+        },
+        "es": {
+          "atelierTag": "ESPACIO PRIVADO & SELECCIÓN",
+          "tagline": "Tus recuerdos más bellos ya están disponibles",
+          "subject": "✦ Tus fotos están listas en tu Espace Privé — Lam7a Studios ({{clientName}})",
+          "greeting": "¡Hola {{clientName}}!",
+          "intro": "Nos alegra comunicarte que el reportaje fotográfico ha sido procesado y calibrado por nuestro atelier. Ya tienes tus fotografías ({{photosCount}}) disponibles para visualizar.",
+          "bodyText": "Ingresa al portal con tu correo y tu código PIN {{portalPin}}, y haz clic en el icono del corazón (❤️) en cada foto que desees seleccionar para el álbum o retoque editorial.",
+          "ctaBtn": "✦ Acceder a mi Espace Privé →",
+          "closing": "Esperamos de corazón que disfrutes reviviendo estos momentos tanto como nosotros disfrutamos capturándolos.",
+          "footerText": "Lam7a Studios Atelier • Todos los derechos reservados."
+        }
+      }
+    },
+    "selection_confirmed": {
+      "key": "selection_confirmed",
+      "enabled": true,
+      "sendWhatsAppAlso": true,
+      "translations": {
+        "fr": {
+          "atelierTag": "SÉLECTION VALIDÉE & EN ÉDITION",
+          "tagline": "",
+          "subject": "✦ Confirmation de votre sélection d'art — Lam7a Studios ({{clientName}})",
+          "greeting": "Bonjour {{clientName}},",
+          "intro": "Nous confirmons la bonne réception de votre sélection de <strong>{{photosCount}} photographies</strong> validées depuis votre Espace Privé.",
+          "bodyText": "Notre équipe de direction artistique et de retouche d'art prend immédiatement le relais pour la calibration colorimétrique avancée et la mise en page de votre album.",
+          "ctaBtn": "✦ Revoir ma Sélection sur le Portail →",
+          "closing": "Nous vous tiendrons informé(e) dès que votre livraison finale sera prête à l'atelier.",
+          "footerText": "Lam7a Studios Atelier • Tous droits réservés."
+        },
+        "ar": {
+          "atelierTag": "تم اعتماد الاختيار وبدء المونتاج",
+          "tagline": "تم استلام قائمتكم المختارة من الصور بنجاح",
+          "subject": "✦ تأكيد استلام اختياركم الفني — استوديو لمحة ({{clientName}})",
+          "greeting": "مرحباً {{clientName}}!",
+          "intro": "نؤكد لكم استلام اختياركم لـ <strong>{{photosCount}} صورة</strong> تم اعتمادها بنجاح عبر مساحتكم الخاصة.",
+          "bodyText": "فريق الإشراف الفني والمعالجة الدقيقة في استوديو لمحة يباشر الآن مرحلة المعايرة اللونية وتصميم الألبوم وفق أعلى معايير الجودة.",
+          "ctaBtn": "✦ مراجعة الصور المختارة في البوابة ←",
+          "closing": "سنقوم بإشعاركم فور جاهزية النسخة النهائية والألبوم للاستلام في الاستوديو.",
+          "footerText": "استوديو لمحة • جميع الحقوق محفوظة."
+        },
+        "en": {
+          "atelierTag": "SELECTION CONFIRMED & IN PRODUCTION",
+          "tagline": "Your photo selection has been safely received",
+          "subject": "✦ Photo Selection Confirmed — Lam7a Studios ({{clientName}})",
+          "greeting": "Hello {{clientName}}!",
+          "intro": "We confirm the successful receipt of your curated selection of <strong>{{photosCount}} photographs</strong> from your Private Space.",
+          "bodyText": "Our creative team has commenced the master retouching, color grading, and custom book layout for your project.",
+          "ctaBtn": "✦ Review Selection on Portal →",
+          "closing": "We will notify you as soon as your final collection is ready at the atelier.",
+          "footerText": "Lam7a Studios Atelier • All rights reserved."
+        },
+        "es": {
+          "atelierTag": "SELECCIÓN CONFIRMADA & EN EDICIÓN",
+          "tagline": "Hemos recibido tu selección de fotografías",
+          "subject": "✦ Confirmación de tu Selección — Lam7a Studios ({{clientName}})",
+          "greeting": "¡Hola {{clientName}}!",
+          "intro": "Confirmamos la recepción de tu selección de <strong>{{photosCount}} fotografías</strong> enviada desde tu Espace Privé.",
+          "bodyText": "Nuestro equipo editorial y de retoque de arte comienza ahora la fase de postproducción y maquetación de tu álbum.",
+          "ctaBtn": "✦ Revisar mi Selección en el Portal →",
+          "closing": "Te avisaremos en cuanto tu entrega final esté lista en el estudio.",
+          "footerText": "Lam7a Studios Atelier • Todos los derechos reservados."
+        }
+      }
+    },
+    "ready_delivery": {
+      "key": "ready_delivery",
+      "enabled": true,
+      "sendWhatsAppAlso": true,
+      "translations": {
+        "fr": {
+          "atelierTag": "LIVRAISON ATELIER & MONTAGE FINAL",
+          "tagline": "Votre commande est prête pour le retrait à l'Atelier",
+          "subject": "✦ Vos photographies d'art sont prêtes à l'Atelier — Lam7a Studios ({{clientName}})",
+          "greeting": "Cher/Chère {{clientName}},",
+          "intro": "Nous avons l'immense honneur de vous annoncer que les tirages d'art, la reliure de votre album et les finitions de votre projet sont désormais <strong>prêts et finalisés</strong> à notre atelier.",
+          "bodyText": "Vous pouvez vous présenter à notre studio à Tanger afin de recevoir votre coffret d'art prestigieux. Vos fichiers numériques définitifs sont également consultables et téléchargeables sur votre Espace Privé.",
+          "ctaBtn": "✦ Consulter la Livraison sur mon Espace Privé →",
+          "closing": "Toute l'équipe de Lam7a Studios vous remercie chaleureusement pour votre confiance et a hâte de vous remettre vos précieux souvenirs.",
+          "footerText": "Lam7a Studios Atelier • Tous droits réservés."
+        },
+        "ar": {
+          "atelierTag": "التسليم النهائي في الاستوديو",
+          "tagline": "طلبكم وألبومكم الفني جاهز للاستلام الآن",
+          "subject": "✦ صوركم وألبومكم الفني أصبح جاهزاً في استوديو لمحة ({{clientName}})",
+          "greeting": "عزيزنا/عزيزتنا {{clientName}}،",
+          "intro": "يسعدنا ويشرفنا إعلامكم بأن أعمال الطباعة الفنية، التجليد الفاخر للألبوم واللمسات النهائية لمشروعكم قد <strong>اكتملت بنجاح</strong> وأصبحت جاهزة في الاستوديو.",
+          "bodyText": "يسعدنا استقبالكم في استوديو لمحة بطنجة لتسليمكم ألبومكم الفني الفاخر. كما تتوفر النسخ الرقمية النهائية عبر مساحتكم الخاصة على موقعنا.",
+          "ctaBtn": "✦ معاينة التسليم النهائي في البوابة الخاصة ←",
+          "closing": "فريق استوديو لمحة يشكركم جزيل الشكر على ثقتكم الغالية ويسعدنا دائماً خدمتكم بأعلى معايير الإتقان.",
+          "footerText": "استوديو لمحة • جميع الحقوق محفوظة."
+        },
+        "en": {
+          "atelierTag": "ATELIER DELIVERY & MASTER ARTWORKS",
+          "tagline": "Your artworks and fine album are ready for pickup",
+          "subject": "✦ Your Master Collection is ready at the Atelier — Lam7a Studios ({{clientName}})",
+          "greeting": "Dear {{clientName}},",
+          "intro": "It is our absolute pleasure to inform you that your fine art prints, luxury linen album, and final edits are now <strong>completed and ready for collection</strong> at our atelier.",
+          "bodyText": "You are cordially invited to visit our atelier in Tangier to collect your bespoke photo box and album. Your final high-resolution digital files are also available on your Private Client Space.",
+          "ctaBtn": "✦ View Delivery on My Private Space →",
+          "closing": "The entire Lam7a Studios team thanks you for your trust and looks forward to handing over your cherished memories.",
+          "footerText": "Lam7a Studios Atelier • All rights reserved."
+        },
+        "es": {
+          "atelierTag": "ENTREGA ATELIER & MONTAJE FINAL",
+          "tagline": "Tu pedido y álbum de arte ya están listos en el estudio",
+          "subject": "✦ Tu entrega final está lista en el Atelier — Lam7a Studios ({{clientName}})",
+          "greeting": "Estimado/a {{clientName}},",
+          "intro": "Es un auténtico placer comunicarte que las impresiones de arte, el encuadernado de tu álbum y los acabados finales de tu proyecto ya están <strong>totalmente terminados y listos</strong> en nuestro atelier.",
+          "bodyText": "Puedes pasar por nuestro atelier en Tánger para recoger tu elegante álbum y fotografías físicas. También puedes acceder a tu Espace Privé para ver la entrega digital completa.",
+          "ctaBtn": "✦ Ver Entrega en mi Espace Privé →",
+          "closing": "Todo el equipo de Lam7a Studios te agradece enormemente tu confianza y estamos deseando entregarte tus recuerdos más especiales.",
+          "footerText": "Lam7a Studios Atelier • Todos los derechos reservados."
+        }
+      }
+    }
+  }
+}
