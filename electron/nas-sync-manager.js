@@ -21,6 +21,27 @@ function isIngestActive() {
   }
 }
 
+function findAvailableSmbShare(cfg = {}) {
+  const host = cfg.nasHost || "192.168.11.200"
+  const candidates = [
+    "Z:\\",
+    `\\\\${host}\\Lamha-Storage`,
+    "\\\\192.168.11.200\\Lamha-Storage",
+    "Y:\\",
+  ]
+  for (const candidate of candidates) {
+    try {
+      if (fs.existsSync(candidate)) {
+        const testDir = path.join(candidate, ".lamha_probe_" + Date.now())
+        fs.mkdirSync(testDir, { recursive: true })
+        fs.rmdirSync(testDir)
+        return candidate
+      }
+    } catch {}
+  }
+  return null
+}
+
 function normalizeFolderToken(val) {
   return String(val || "")
     .trim()
@@ -535,6 +556,68 @@ class NasSyncManager extends EventEmitter {
 
     // Emitir estado inicial inmediato para que la mini ventana nunca quede en "Initialisation... 0/0"
     emitProgress(`Connexion au NAS (${cfg.nasHost})...`, 1)
+
+    // Prioridad 1: SMB directo (Windows Red local Z:\ o \\192.168.11.200\Lamha-Storage)
+    const smbShare = findAvailableSmbShare(cfg)
+    if (smbShare) {
+      emitProgress(`Copia directa Windows SMB (${smbShare})...`, 2)
+      try {
+        for (let i = 0; i < items.length; i++) {
+          if (this.cancelled || (!force && (!this.isActive() || isIngestActive()))) break
+          const it = items[i]
+          const targetPath = path.join(smbShare, it.relPath)
+          const targetDir = path.dirname(targetPath)
+          if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true })
+
+          let sent = false
+          for (let attempt = 0; attempt < 2 && !sent; attempt++) {
+            try {
+              if (fs.existsSync(targetPath) && fs.statSync(targetPath).size === it.size) {
+                uploadedBytes += it.size
+              } else {
+                fs.copyFileSync(it.fullPath, targetPath)
+                uploadedBytes += it.size
+              }
+              sent = true
+              okCount++
+              this.cache[it.relPath] = { size: it.size, mtimeMs: it.mtimeMs }
+              this.knownRealtime.set(it.fullPath, { size: it.size, mtimeMs: it.mtimeMs })
+            } catch (copyErr) {
+              if (attempt === 1) failCount++
+            }
+          }
+          processedCount++
+          emitProgress(it.fileName)
+        }
+
+        this.saveCache()
+        if (okCount > 0 || items.length === 0) {
+          const summary = {
+            files: okCount,
+            failed: failCount,
+            mb: Number((uploadedBytes / (1024 * 1024)).toFixed(1)),
+            elapsedSec: Math.max(1, Math.round((Date.now() - startTime) / 1000)),
+            smb: true,
+          }
+          this.emit("sync-progress", {
+            type: "done",
+            isNasMirror: true,
+            summary,
+            stages: {
+              copy: { state: "done", percent: 100 },
+              cloud: { state: "done", percent: 100 },
+              nas: { state: "done", percent: 100 },
+            },
+          })
+          this.emit("sync-completed", summary)
+          this.isRunning = false
+          this.emit("state-changed", this.getState())
+          return { ok: true, synced: okCount, smb: true }
+        }
+      } catch (smbErr) {
+        console.warn("[SMB Sync] Fallback a FTP tras error SMB:", smbErr.message)
+      }
+    }
 
     const ftp = require("basic-ftp")
 

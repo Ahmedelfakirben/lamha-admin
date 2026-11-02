@@ -135,7 +135,7 @@ export function getNasFtpConfig(): NasFtpConfig {
 
   // Si tenemos ajustes en DB y estamos fuera de LAN (probe en false), priorizar host de Tailscale
   const db = cachedDbSettings?.data
-  let effectiveHost = fileConfig.host || process.env.LAMHA_FTP_HOST || "192.168.11.1"
+  let effectiveHost = fileConfig.host || process.env.LAMHA_FTP_HOST || "192.168.11.200"
 
   if (db?.ftp_remote_host && db.ftp_remote_host.trim() !== "") {
     // Si la LAN no está disponible, usar el host remoto de Tailscale
@@ -146,9 +146,9 @@ export function getNasFtpConfig(): NasFtpConfig {
 
   return {
     host: effectiveHost,
-    user: db?.ftp_remote_user || fileConfig.user || process.env.LAMHA_FTP_USER || "admin",
-    password: db?.ftp_remote_password || fileConfig.password || process.env.LAMHA_FTP_PASSWORD || "Satec2016C@U",
-    baseDir: db?.ftp_remote_base_dir || fileConfig.baseDir || process.env.LAMHA_FTP_BASE_DIR || "/usb1_1/Lamha-Storage",
+    user: db?.ftp_remote_user || fileConfig.user || process.env.LAMHA_FTP_USER || "Lam7aStudio",
+    password: db?.ftp_remote_password || fileConfig.password || process.env.LAMHA_FTP_PASSWORD || "Admin2016@",
+    baseDir: db?.ftp_remote_base_dir || fileConfig.baseDir || process.env.LAMHA_FTP_BASE_DIR || "/",
   }
 }
 

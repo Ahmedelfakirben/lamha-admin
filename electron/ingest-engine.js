@@ -21,6 +21,27 @@ const classify = (name) => {
   return "other"
 }
 
+function findAvailableSmbShare(cfg = {}) {
+  const host = cfg.nasHost || "192.168.11.200"
+  const candidates = [
+    "Z:\\",
+    `\\\\${host}\\Lamha-Storage`,
+    "\\\\192.168.11.200\\Lamha-Storage",
+    "Y:\\",
+  ]
+  for (const candidate of candidates) {
+    try {
+      if (fs.existsSync(candidate)) {
+        const testDir = path.join(candidate, ".lamha_probe_" + Date.now())
+        fs.mkdirSync(testDir, { recursive: true })
+        fs.rmdirSync(testDir)
+        return candidate
+      }
+    } catch {}
+  }
+  return null
+}
+
 // ---------------------------------------------------------------------------
 // i18n de los mensajes del motor (FR / ES / EN / AR)
 // ---------------------------------------------------------------------------
@@ -1313,6 +1334,88 @@ async function runIngest(params, emit) {
       }
 
       tracker.setStage("nas", { state: "active", percent: 0 }, true)
+
+      // PRIORIDAD 1: SMB DIRECTO (Red Windows de altísima velocidad: Z:\ o \\192.168.11.200\Lamha-Storage)
+      const smbShare = findAvailableSmbShare(cfg)
+      if (smbShare) {
+        tracker.log("info", `[SMB] Red Windows directa detectada (${smbShare}): transfiriendo a máxima velocidad...`)
+        const uniqueDirs = new Set(okItems.map((it) => path.join(smbShare, folderName, "01_RAW", it.sub || "")))
+        for (const d of uniqueDirs) {
+          try {
+            fs.mkdirSync(d, { recursive: true })
+          } catch {}
+        }
+
+        const nasTotal = okItems.reduce((a, b) => a + b.size, 0) || 1
+        let nasBytes = 0
+        let nasProcessed = 0
+        let nasIdx = 0
+        let consecutiveFails = 0
+        const poolSize = Math.min(3, Math.max(1, okItems.length))
+
+        const smbWorker = async () => {
+          while (!isCancelled()) {
+            if (consecutiveFails >= 6) break
+            const i = nasIdx++
+            if (i >= okItems.length) return
+            const it = okItems[i]
+            const targetDir = path.join(smbShare, folderName, "01_RAW", it.sub || "")
+            const targetFile = path.join(targetDir, it.name)
+            let sent = false
+
+            for (let attempt = 0; attempt < 2 && !sent; attempt++) {
+              try {
+                if (fs.existsSync(targetFile) && fs.statSync(targetFile).size === it.size) {
+                  nasBytes += it.size
+                  tracker.addBytes(it.size)
+                } else {
+                  await new Promise((resolve, reject) => {
+                    const rs = fs.createReadStream(it.dest)
+                    const ws = fs.createWriteStream(targetFile)
+                    rs.on("data", (chunk) => {
+                      nasBytes += chunk.length
+                      tracker.addBytes(chunk.length)
+                      tracker.stages.nas.percent = Math.min(100, (nasBytes / nasTotal) * 100)
+                      tracker.push()
+                    })
+                    ws.on("finish", resolve)
+                    rs.on("error", reject)
+                    ws.on("error", reject)
+                    rs.pipe(ws)
+                  })
+                }
+                sent = true
+              } catch (err) {
+                if (attempt === 1) console.error("[SMB Copy Error]:", err.message)
+              }
+            }
+
+            if (sent) {
+              nasOk++
+              consecutiveFails = 0
+            } else {
+              nasFail++
+              consecutiveFails++
+            }
+            nasProcessed++
+            tracker.stages.nas.percent = Math.min(100, Math.round((nasBytes / nasTotal) * 100))
+            tracker.push()
+          }
+        }
+
+        await Promise.all(Array.from({ length: poolSize }, smbWorker))
+
+        if (nasOk > 0 || okItems.length === 0) {
+          tracker.log(nasFail ? "warn" : "success", `[SMB] Transferencia finalizada: ${nasOk} archivos copiados vía SMB directo.${nasFail ? ` (${nasFail} fallidos)` : ""}`)
+          nasState = nasFail ? (nasOk ? "partial" : "failed") : "done"
+          tracker.setStage("nas", { state: nasFail && !nasOk ? "error" : "done", percent: 100 }, true)
+          return
+        } else {
+          tracker.log("warn", "[SMB] No se pudo completar por red directa de Windows, pasando a FTP como respaldo...")
+        }
+      }
+
+      // PRIORIDAD 2: FALLBACK FTP
       tracker.log("info", t.nasStart(cfg.nasHost))
       const ftp = require("basic-ftp")
 
@@ -1687,7 +1790,25 @@ async function processSingleMasterItem(item, ftpClient, ensuredDirs, batchState,
   const nasTask = async () => {
     const cfg = getConfig()
     const isNasAllowed = cfg.nasAutoSyncEnabled && (!cfg.nasSyncPausedUntil || Date.now() >= cfg.nasSyncPausedUntil)
-    if (!isNasAllowed || !cfg.nasPassword || !cfg.nasHost || !ftpClient) return
+    if (!isNasAllowed) return
+
+    // Prioridad 1: SMB Directo (Red Windows)
+    const smbBase = findAvailableSmbShare(cfg)
+    if (smbBase) {
+      try {
+        const targetDir = path.join(smbBase, item.projectFolder || "", item.masterSubfolder || "")
+        fs.mkdirSync(targetDir, { recursive: true })
+        const targetFile = path.join(targetDir, item.fileName)
+        fs.copyFileSync(item.filePath, targetFile)
+        emitStep(100, "done", "done", 100)
+        return
+      } catch (smbErr) {
+        console.warn("[Master File] Error copiando por SMB directo, intentando FTP:", smbErr.message)
+      }
+    }
+
+    // Prioridad 2: Fallback FTP
+    if (!cfg.nasPassword || !cfg.nasHost || !ftpClient) return
     try {
       const remoteDir = path.posix.join(cfg.nasBaseDir || "/", item.projectFolder || "", item.masterSubfolder || "")
       if (!ensuredDirs.has(remoteDir)) {

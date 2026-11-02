@@ -103,10 +103,10 @@ export function NasStorageDashboard({ initialSessions = [] }: { initialSessions?
 
   // Root path editing form state
   const [isEditingPath, setIsEditingPath] = useState(false)
-  const [ftpHost, setFtpHost] = useState("192.168.11.1")
-  const [ftpUser, setFtpUser] = useState("admin")
-  const [ftpPassword, setFtpPassword] = useState("Satec2016C@U")
-  const [ftpBaseDir, setFtpBaseDir] = useState("/usb1_1/Lamha-Storage")
+  const [ftpHost, setFtpHost] = useState("192.168.11.200")
+  const [ftpUser, setFtpUser] = useState("Lam7aStudio")
+  const [ftpPassword, setFtpPassword] = useState("Admin2016@")
+  const [ftpBaseDir, setFtpBaseDir] = useState("/")
   const [localPath, setLocalPath] = useState("C:\\Lamha-Storage")
   const [isTesting, setIsTesting] = useState(false)
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
@@ -587,15 +587,15 @@ export function NasStorageDashboard({ initialSessions = [] }: { initialSessions?
                 <button
                   type="button"
                   onClick={() => {
-                    setFtpHost("192.168.11.1")
-                    setFtpUser("admin")
-                    setFtpPassword("Satec2016C@U")
-                    setFtpBaseDir("/usb1_1/Lamha-Storage")
+                    setFtpHost("192.168.11.200")
+                    setFtpUser("Lam7aStudio")
+                    setFtpPassword("Admin2016@")
+                    setFtpBaseDir("/")
                   }}
                   className="px-3 py-1.5 rounded-xl bg-[#181613] hover:bg-[#24201b] border border-[#26211c] hover:border-[#c69f68]/40 text-xs text-[#f5f2eb] transition-all flex items-center gap-2"
                 >
                   <Wifi className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>{t.presetZte}</span>
+                  <span>NAS QNAP TS-433 (192.168.11.200)</span>
                 </button>
 
                 <button
