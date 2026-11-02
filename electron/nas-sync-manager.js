@@ -323,10 +323,13 @@ class NasSyncManager extends EventEmitter {
   // Construye un mapa de los archivos existentes en el NAS mediante FTP list()
   async fetchRemoteTreeMap(ftpClient, nasBaseDir, localProjectNames) {
     const remoteMap = new Map() // relPath -> size
+    const baseDir = nasBaseDir || "/"
     let rootList = []
     try {
-      await ftpClient.ensureDir(nasBaseDir)
-      rootList = await ftpClient.list(nasBaseDir)
+      if (baseDir !== "/" && baseDir !== "") {
+        await ftpClient.ensureDir(baseDir)
+      }
+      rootList = await ftpClient.list(baseDir)
     } catch {
       return null
     }
@@ -335,7 +338,7 @@ class NasSyncManager extends EventEmitter {
 
     const walkRemote = async (relDir, depth) => {
       if (depth > 6) return
-      const fullRemoteDir = `${nasBaseDir}/${relDir}`
+      const fullRemoteDir = path.posix.join(baseDir, relDir)
       let items = []
       try {
         items = await ftpClient.list(fullRemoteDir)
@@ -550,7 +553,7 @@ class NasSyncManager extends EventEmitter {
           new Set(
             items.map((it) => {
               const subDir = path.posix.dirname(it.relPath)
-              return subDir && subDir !== "." ? `${cfg.nasBaseDir}/${subDir}` : cfg.nasBaseDir
+              return subDir && subDir !== "." ? path.posix.join(cfg.nasBaseDir || "/", subDir) : (cfg.nasBaseDir || "/")
             })
           )
         )
@@ -599,7 +602,7 @@ class NasSyncManager extends EventEmitter {
             const idx = nextIdx++
             if (idx >= items.length) return
             const it = items[idx]
-            const remotePath = `${cfg.nasBaseDir}/${it.relPath}`
+            const remotePath = path.posix.join(cfg.nasBaseDir || "/", it.relPath)
             let sent = false
 
             emitProgress(it.fileName)

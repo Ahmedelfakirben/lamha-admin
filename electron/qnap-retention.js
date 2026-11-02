@@ -187,7 +187,8 @@ class QnapRetentionManager extends EventEmitter {
     let client
     try {
       client = await this._ftp()
-      const root = await client.list(cfg.nasBaseDir)
+      const baseDir = cfg.nasBaseDir || "/"
+      const root = await client.list(baseDir)
       const projects = []
       for (const dir of root.filter((i) => i.isDirectory && i.name !== "." && i.name !== "..")) {
         let bytes = 0
@@ -196,7 +197,7 @@ class QnapRetentionManager extends EventEmitter {
           if (depth > 8) return
           let items = []
           try {
-            items = await client.list(`${cfg.nasBaseDir}/${rel}`)
+            items = await client.list(path.posix.join(baseDir, rel))
           } catch {
             return
           }
@@ -474,7 +475,7 @@ class QnapRetentionManager extends EventEmitter {
         const proj = scan.projects.find((p) => matchSession(p.folderName, [s]) === s)
         if (!proj) continue
         if (!client) client = await this._ftp()
-        const base = `${cfg.nasBaseDir}/${proj.folderName}`
+        const base = path.posix.join(cfg.nasBaseDir || "/", proj.folderName)
         let removed = 0
         try {
           if (cfg.retentionMode === "delete_all") {

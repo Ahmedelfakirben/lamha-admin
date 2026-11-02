@@ -1320,7 +1320,7 @@ async function runIngest(params, emit) {
       const initClient = new ftp.Client(120000)
       try {
         await initClient.access({ host: cfg.nasHost, user: cfg.nasUser, password: cfg.nasPassword, port: 21 })
-        const uniqueDirs = new Set(okItems.map((it) => `${cfg.nasBaseDir}/${folderName}/01_RAW/${it.sub}`))
+        const uniqueDirs = new Set(okItems.map((it) => path.posix.join(cfg.nasBaseDir || "/", folderName, "01_RAW", it.sub || "")))
         for (const d of uniqueDirs) {
           await initClient.ensureDir(d)
         }
@@ -1363,8 +1363,8 @@ async function runIngest(params, emit) {
             const i = nasIdx++
             if (i >= okItems.length) return
             const it = okItems[i]
-            const dir = `${cfg.nasBaseDir}/${folderName}/01_RAW/${it.sub}`
-            const remote = `${dir}/${it.name}`
+            const dir = path.posix.join(cfg.nasBaseDir || "/", folderName, "01_RAW", it.sub || "")
+            const remote = path.posix.join(dir, it.name)
             let sent = false
 
             for (let attempt = 0; attempt < 2 && !sent; attempt++) {
@@ -1689,7 +1689,7 @@ async function processSingleMasterItem(item, ftpClient, ensuredDirs, batchState,
     const isNasAllowed = cfg.nasAutoSyncEnabled && (!cfg.nasSyncPausedUntil || Date.now() >= cfg.nasSyncPausedUntil)
     if (!isNasAllowed || !cfg.nasPassword || !cfg.nasHost || !ftpClient) return
     try {
-      const remoteDir = `${cfg.nasBaseDir}/${item.projectFolder}/${item.masterSubfolder}`
+      const remoteDir = path.posix.join(cfg.nasBaseDir || "/", item.projectFolder || "", item.masterSubfolder || "")
       if (!ensuredDirs.has(remoteDir)) {
         await ftpClient.ensureDir(remoteDir)
         ensuredDirs.add(remoteDir)
