@@ -62,19 +62,28 @@ let lastIngestState = null // último evento relevante, para pintar la mini vent
 logToFile("--- INICIANDO PROCESO ELECTRON (PID:", process.pid, ") ---")
 
 // Asigna AppUserModelId en Windows vinculando directamente al ejecutable para que la barra de tareas muestre el icono oficial de Lamha
-if (process.platform === "win32") {
-  app.setAppUserModelId(process.execPath || "ma.lam7a.studios.ingest")
-} else {
-  app.setAppUserModelId("ma.lam7a.studios.ingest")
+if (app && typeof app.setAppUserModelId === "function") {
+  if (process.platform === "win32") {
+    app.setAppUserModelId(process.execPath || "ma.lam7a.studios.ingest")
+  } else {
+    app.setAppUserModelId("ma.lam7a.studios.ingest")
+  }
 }
 
 // Registrar protocolo lamha:// para permitir lanzamientos directos desde la web
-if (process.defaultApp) {
-  if (process.argv.length >= 2) {
-    app.setAsDefaultProtocolClient("lamha", process.execPath, [path.resolve(process.argv[1])])
+if (app && typeof app.setAsDefaultProtocolClient === "function") {
+  if (process.defaultApp) {
+    if (process.argv.length >= 2) {
+      app.setAsDefaultProtocolClient("lamha", process.execPath, [path.resolve(process.argv[1])])
+    }
+  } else {
+    app.setAsDefaultProtocolClient("lamha")
   }
-} else {
-  app.setAsDefaultProtocolClient("lamha")
+}
+
+if (!app || typeof app.requestSingleInstanceLock !== "function") {
+  logToFile("Electron app API not available, exiting.")
+  return
 }
 
 const gotTheLock = app.requestSingleInstanceLock()

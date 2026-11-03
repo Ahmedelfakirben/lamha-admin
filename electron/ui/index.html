@@ -3270,7 +3270,8 @@
           const gb = (p.bytes / 1024 ** 3).toFixed(2);
           const mb = (p.bytes / 1024 ** 2).toFixed(1);
           const sizeStr = Number(gb) >= 0.1 ? `${gb} GB` : `${mb} MB`;
-          return row("📁", p.folderName, sizeStr);
+          const countStr = p.filesCount ? `${p.filesCount} arch. · ` : "";
+          return row("📁", p.folderName, `${countStr}${sizeStr}`);
         });
         rtEl("rt-lists").innerHTML = `
           <div style="font-size:11px;font-weight:700;color:var(--gold);margin-bottom:6px;">${r.detected(s.projects.length, s.nasHost || "Stockage")}</div>

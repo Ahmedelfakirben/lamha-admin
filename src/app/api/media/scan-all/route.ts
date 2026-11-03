@@ -54,12 +54,22 @@ export async function GET() {
         port: 21,
       })
 
+      const IGNORED_ROOT_DIRS = new Set([
+        "@recycle",
+        "@recently-snapshot",
+        "lamha-storage",
+        "system volume information",
+        "@upload_cache",
+        ".qsync",
+        ".@qdrive",
+      ])
+
       const projectFolders = await client.list(NAS_FTP_CONFIG.baseDir)
       storageType = "nas_ftp"
       isOnline = true
 
       for (const item of projectFolders) {
-        if (!item.isDirectory || item.name.startsWith(".") || item.name === "System Volume Information") continue
+        if (!item.isDirectory || item.name.startsWith(".") || IGNORED_ROOT_DIRS.has(item.name.toLowerCase())) continue
 
         const folderName = item.name
         // Intentar parsear fecha y cliente del nombre YYYY-MM-DD_Cliente_Proyecto
@@ -89,9 +99,11 @@ export async function GET() {
           "04_Entregas_Finales",
         ]
 
+        const basePrefix = NAS_FTP_CONFIG.baseDir === "/" ? "" : NAS_FTP_CONFIG.baseDir
+
         for (const sub of candidateSubdirs) {
           try {
-            const list = await client.list(`${NAS_FTP_CONFIG.baseDir}/${folderName}/${sub}`)
+            const list = await client.list(`${basePrefix}/${folderName}/${sub}`)
             const files = list
               .filter(f => !f.isDirectory && !f.name.startsWith("."))
               .map(f => {
@@ -102,7 +114,7 @@ export async function GET() {
                   size: f.size || 0,
                   modified: typeof f.date === "string" ? f.date : f.rawModifiedAt || null,
                   type: classifyMediaFile(f.name),
-                  fullPath: `ftp://${NAS_FTP_CONFIG.host}${NAS_FTP_CONFIG.baseDir}/${folderName}/${sub}/${f.name}`
+                  fullPath: `ftp://${NAS_FTP_CONFIG.host}${basePrefix}/${folderName}/${sub}/${f.name}`
                 }
               })
 

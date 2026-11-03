@@ -33,3 +33,4 @@ export function getOAuthRedirectUri(req: NextRequest): string {
 
   return `${origin}/api/auth/google/callback`
 }
+

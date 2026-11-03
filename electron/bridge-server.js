@@ -60,10 +60,10 @@ class LamhaBridgeServer {
         return
       }
 
-      // GET /check-nas — Comprobar si el NAS local (192.168.11.1) responde por Socket TCP
+      // GET /check-nas — Comprobar si el NAS local (192.168.11.200) responde por Socket TCP
       if (req.method === "GET" && pathname === "/check-nas") {
         const net = require("net")
-        const targetHost = parsedUrl.query.host || "192.168.11.1"
+        const targetHost = parsedUrl.query.host || "192.168.11.200"
         const targetPort = parseInt(parsedUrl.query.port, 10) || 21
         const socket = new net.Socket()
         socket.setTimeout(1500)
@@ -83,6 +83,101 @@ class LamhaBridgeServer {
           res.end(JSON.stringify({ reachable: false, host: targetHost, port: targetPort, error: err.message }))
         })
         socket.connect(targetPort, targetHost)
+        return
+      }
+
+      // GET /project-nas — Estado y conteo exacto de un proyecto en el NAS (vía SMB o FTP)
+      if (req.method === "GET" && pathname === "/project-nas") {
+        const folderName = parsedUrl.query.folder
+        if (!folderName) {
+          res.writeHead(400)
+          res.end(JSON.stringify({ ok: false, error: "folder query required" }))
+          return
+        }
+
+        const fs = require("fs")
+        const path = require("path")
+        const smbCandidates = [
+          path.join("Z:\\", folderName),
+          `\\\\192.168.11.200\\Lamha-Storage\\${folderName}`,
+        ]
+
+        let foundPath = null
+        for (const c of smbCandidates) {
+          try {
+            if (fs.existsSync(c)) {
+              foundPath = c
+              break
+            }
+          } catch {}
+        }
+
+        if (foundPath) {
+          try {
+            let filesCount = 0
+            let totalSizeBytes = 0
+            const walk = (dir) => {
+              const entries = fs.readdirSync(dir, { withFileTypes: true })
+              for (const e of entries) {
+                if (e.name.startsWith(".")) continue
+                const full = path.join(dir, e.name)
+                if (e.isDirectory()) walk(full)
+                else if (e.isFile()) {
+                  filesCount++
+                  try { totalSizeBytes += fs.statSync(full).size } catch {}
+                }
+              }
+            }
+            walk(foundPath)
+            res.writeHead(200)
+            res.end(JSON.stringify({
+              ok: true,
+              exists: true,
+              folderName,
+              path: foundPath,
+              filesCount,
+              bytes: totalSizeBytes,
+              sizeMB: Number((totalSizeBytes / (1024 * 1024)).toFixed(1)),
+              sizeGB: Number((totalSizeBytes / (1024 * 1024 * 1024)).toFixed(2)),
+              source: "smb",
+            }))
+            return
+          } catch (smbErr) {
+            console.warn("[BRIDGE] Error leyendo carpeta SMB:", smbErr.message)
+          }
+        }
+
+        // Si no está por SMB local o falló, buscar en el scan de retención
+        if (this.getRetentionStatus) {
+          Promise.resolve(this.getRetentionStatus(false))
+            .then((status) => {
+              const p = status && status.projects ? status.projects.find((x) => x.folderName === folderName) : null
+              if (p) {
+                res.writeHead(200)
+                res.end(JSON.stringify({
+                  ok: true,
+                  exists: true,
+                  folderName,
+                  filesCount: p.filesCount || 0,
+                  bytes: p.bytes || 0,
+                  sizeMB: Number(((p.bytes || 0) / (1024 * 1024)).toFixed(1)),
+                  sizeGB: Number(((p.bytes || 0) / (1024 * 1024 * 1024)).toFixed(2)),
+                  source: status.source || "retention_scan",
+                }))
+              } else {
+                res.writeHead(200)
+                res.end(JSON.stringify({ ok: true, exists: false, folderName, filesCount: 0, bytes: 0 }))
+              }
+            })
+            .catch((err) => {
+              res.writeHead(500)
+              res.end(JSON.stringify({ ok: false, error: err.message }))
+            })
+          return
+        }
+
+        res.writeHead(200)
+        res.end(JSON.stringify({ ok: true, exists: false, folderName, filesCount: 0, bytes: 0 }))
         return
       }
 
@@ -178,20 +273,33 @@ class LamhaBridgeServer {
             let filePath = params.path || ""
 
             if (target === "nas") {
-              // Si es NAS, abrir la URL de red FTP en Explorer
-              let nasUrl = filePath.startsWith("ftp://") 
-                ? filePath 
-                : `ftp://192.168.11.1/usb1_1/Lamha-Storage/${filePath.replace(/^[\\\/]/, "")}`
-              
-              // Si apunta a un archivo específico, abrir la carpeta contenedora en el NAS
-              if (/\.[a-zA-Z0-9]{2,5}$/.test(nasUrl)) {
-                nasUrl = nasUrl.substring(0, nasUrl.lastIndexOf("/"))
+              const cleanRel = filePath.replace(/^[\\\/]+/, "").replace(/^Lamha-Storage[\\\/]/i, "")
+              const smbCandidates = [
+                path.join("Z:\\", cleanRel),
+                `\\\\192.168.11.200\\Lamha-Storage\\${cleanRel}`,
+                "Z:\\",
+                "\\\\192.168.11.200\\Lamha-Storage",
+              ]
+              for (const cand of smbCandidates) {
+                try {
+                  if (fs.existsSync(cand)) {
+                    console.log("[BRIDGE] Abriendo ubicación NAS SMB:", cand)
+                    await shell.openPath(cand)
+                    res.writeHead(200)
+                    res.end(JSON.stringify({ ok: true, message: "Ubicación de red NAS abierta vía SMB", target: "nas", path: cand }))
+                    return
+                  }
+                } catch {}
               }
 
+              // Fallback a URL FTP si SMB no está montado
+              const nasUrl = filePath.startsWith("ftp://") 
+                ? filePath 
+                : `ftp://192.168.11.200/${cleanRel}`
               console.log("[BRIDGE] Abriendo ubicación NAS FTP:", nasUrl)
               await shell.openExternal(nasUrl)
               res.writeHead(200)
-              res.end(JSON.stringify({ ok: true, message: "Ubicación de red NAS abierta en el explorador", target: "nas", url: nasUrl }))
+              res.end(JSON.stringify({ ok: true, message: "Ubicación de red NAS abierta vía FTP", target: "nas", url: nasUrl }))
               return
             }
 

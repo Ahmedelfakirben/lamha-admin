@@ -36,7 +36,8 @@ import {
   scanLocalProjectStorage,
   listLocalProjectFiles,
   createLocalProjectStructure,
-  checkStudioNas
+  checkStudioNas,
+  scanNasProjectStorage
 } from "@/lib/desktop-bridge"
 
 interface FolderStat {
@@ -255,7 +256,7 @@ export function ProjectStorageHub({
               status: "pending_sync",
               isReachable: false,
               exists: false,
-              path: `/usb1_1/Lamha-Storage/${projectFolder}`,
+              path: `\\\\192.168.11.200\\Lamha-Storage\\${projectFolder}`,
               filesCount: 0,
               sizeMB: 0,
               sizeGB: 0,
@@ -298,6 +299,26 @@ export function ProjectStorageHub({
         if (nasProbe.reachable) {
           json.step3Nas.isReachable = true
         }
+
+        // Si el backend remoto reporta 0 archivos en el NAS (porque no puede alcanzar la IP privada local del estudio),
+        // consultar al Ingest Companion local (:41890) que sí está en la LAN con el NAS
+        if (json.step3Nas.filesCount === 0) {
+          const nasProject = await scanNasProjectStorage(projectFolder)
+          if (nasProject && nasProject.exists && nasProject.filesCount > 0) {
+            json.step3Nas.isReachable = true
+            json.step3Nas.exists = true
+            json.step3Nas.filesCount = nasProject.filesCount
+            json.step3Nas.sizeMB = nasProject.sizeMB
+            json.step3Nas.sizeGB = nasProject.sizeGB
+            json.step3Nas.path = nasProject.path || `\\\\192.168.11.200\\Lamha-Storage\\${projectFolder}`
+            json.step3Nas.isSynced = json.step1Local ? json.step3Nas.filesCount >= json.step1Local.filesCount : true
+            json.step3Nas.pendingFiles = Math.max(0, (json.step1Local?.filesCount || 0) - json.step3Nas.filesCount)
+            if (json.step3Nas.isSynced) {
+              json.isFullySynced = true
+            }
+          }
+        }
+
         setData(json)
         setError(null)
       } else {
@@ -683,7 +704,7 @@ export function ProjectStorageHub({
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-[11px] font-semibold text-[#f5f2eb] flex items-center gap-1.5">
                 <Server className="w-3.5 h-3.5 text-[#c69f68]" />
-                3. {isFr ? "Réseau (NAS ZTE)" : "Red (NAS ZTE)"}
+                3. {isFr ? "Réseau (NAS QNAP)" : "Red (NAS QNAP)"}
               </span>
               <span
                 className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${
@@ -1038,8 +1059,8 @@ export function ProjectStorageHub({
         <div className="flex items-center gap-2 flex-wrap">
           <Server className="w-3.5 h-3.5 text-[#c69f68]" />
           <span>
-            {isFr ? "Routeur NAS :" : "Router NAS:"}{" "}
-            <span className="font-mono text-[#a89f91]">192.168.11.1 (FTP)</span>
+            {isFr ? "Serveur NAS :" : "Servidor NAS:"}{" "}
+            <span className="font-mono text-[#a89f91]">192.168.11.200 (SMB / FTP)</span>
           </span>
           <span className="text-[#3d362f]">·</span>
           <span>

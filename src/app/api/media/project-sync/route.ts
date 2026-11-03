@@ -164,57 +164,87 @@ export async function GET(req: NextRequest) {
       console.error("Error consultando Supabase:", err)
     }
 
-    // ── 3. Estado RED (NAS / FTP) ──
+    // ── 3. Estado RED (NAS: Primero SMB local Z:\ o \\192.168.11.200, luego FTP) ──
     let nasReachable = false
     let nasFolderExists = false
     let totalNasFiles = 0
     let totalNasSizeBytes = 0
 
-    try {
-      const client = new ftp.Client(10000)
-      client.ftp.verbose = false
-      await client.access({
-        host: NAS_FTP_CONFIG.host,
-        user: NAS_FTP_CONFIG.user,
-        password: NAS_FTP_CONFIG.password,
-        port: 21,
-      })
-
-      nasReachable = true
-      const remoteProjectDir = `${NAS_FTP_CONFIG.baseDir}/${folderName}`
-
+    // 3.1 Prioridad SMB ultra-rápido si estamos en Windows con la unidad montada
+    const smbCandidates = [
+      path.join("Z:\\", folderName),
+      `\\\\${NAS_FTP_CONFIG.host}\\Lamha-Storage\\${folderName}`,
+    ]
+    let smbProjectPath: string | null = null
+    for (const cand of smbCandidates) {
       try {
-        const rootList = await client.list(NAS_FTP_CONFIG.baseDir)
-        nasFolderExists = rootList.some(item => item.name === folderName && item.isDirectory)
-
-        if (nasFolderExists) {
-          for (const subStat of subfolderStats) {
-            try {
-              const remoteSubDir = `${remoteProjectDir}/${subStat.name}`
-              const list = await client.list(remoteSubDir)
-              const filesOnly = list.filter(item => !item.isDirectory && !item.name.startsWith("."))
-              subStat.nasCount = filesOnly.length
-              totalNasFiles += filesOnly.length
-              
-              const subBytes = filesOnly.reduce((acc, f) => acc + (f.size || 0), 0)
-              totalNasSizeBytes += subBytes
-
-              // El NAS es el archivo maestro permanente. Si los archivos están en el NAS aunque no en local
-              // (proyecto archivado o espacio liberado en SSD), es un estado válido y sincronizado.
-              subStat.isSynced = subStat.localCount === 0 
-                ? filesOnly.length > 0 
-                : filesOnly.length >= subStat.localCount
-            } catch {
-              subStat.nasCount = 0
-              subStat.isSynced = subStat.localCount === 0
-            }
-          }
+        if (fs.existsSync(cand)) {
+          smbProjectPath = cand
+          break
         }
       } catch {}
+    }
 
-      client.close()
-    } catch (e: any) {
-      nasReachable = false
+    if (smbProjectPath) {
+      nasReachable = true
+      nasFolderExists = true
+      for (const subStat of subfolderStats) {
+        const subSmbPath = path.join(smbProjectPath, ...subStat.name.split("/"))
+        const scan = scanLocalDirectory(subSmbPath)
+        subStat.nasCount = scan.filesCount
+        totalNasFiles += scan.filesCount
+        totalNasSizeBytes += scan.totalSizeBytes
+        subStat.isSynced = subStat.localCount === 0
+          ? scan.filesCount > 0
+          : scan.filesCount >= subStat.localCount
+      }
+    } else {
+      // 3.2 Fallback FTP para acceso remoto / VPS
+      try {
+        const client = new ftp.Client(10000)
+        client.ftp.verbose = false
+        await client.access({
+          host: NAS_FTP_CONFIG.host,
+          user: NAS_FTP_CONFIG.user,
+          password: NAS_FTP_CONFIG.password,
+          port: 21,
+        })
+
+        nasReachable = true
+        const basePrefix = NAS_FTP_CONFIG.baseDir === "/" ? "" : NAS_FTP_CONFIG.baseDir
+        const remoteProjectDir = `${basePrefix}/${folderName}`
+
+        try {
+          const rootList = await client.list(NAS_FTP_CONFIG.baseDir)
+          nasFolderExists = rootList.some(item => item.name === folderName && item.isDirectory)
+
+          if (nasFolderExists) {
+            for (const subStat of subfolderStats) {
+              try {
+                const remoteSubDir = `${remoteProjectDir}/${subStat.name}`
+                const list = await client.list(remoteSubDir)
+                const filesOnly = list.filter(item => !item.isDirectory && !item.name.startsWith("."))
+                subStat.nasCount = filesOnly.length
+                totalNasFiles += filesOnly.length
+                
+                const subBytes = filesOnly.reduce((acc, f) => acc + (f.size || 0), 0)
+                totalNasSizeBytes += subBytes
+
+                subStat.isSynced = subStat.localCount === 0 
+                  ? filesOnly.length > 0 
+                  : filesOnly.length >= subStat.localCount
+              } catch {
+                subStat.nasCount = 0
+                subStat.isSynced = subStat.localCount === 0
+              }
+            }
+          }
+        } catch {}
+
+        client.close()
+      } catch (e: any) {
+        nasReachable = false
+      }
     }
 
     // ── Resumen de Sincronización en 3 Fases ──

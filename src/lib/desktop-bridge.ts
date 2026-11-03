@@ -204,9 +204,9 @@ export async function createLocalProjectStructure(folderName: string): Promise<{
 }
 
 /**
- * Comprueba la conexión local con el servidor NAS (192.168.11.1)
+ * Comprueba la conexión local con el servidor NAS QNAP (192.168.11.200)
  */
-export async function checkStudioNas(host: string = "192.168.11.1", port: number = 21): Promise<{ reachable: boolean; host: string; port: number; error?: string }> {
+export async function checkStudioNas(host: string = "192.168.11.200", port: number = 21): Promise<{ reachable: boolean; host: string; port: number; error?: string }> {
   // 1. Si estamos dentro de la app de escritorio Panel Administrador
   if (typeof window !== "undefined" && window.desktopAdminAPI?.checkNasConnection) {
     try {
@@ -229,6 +229,34 @@ export async function checkStudioNas(host: string = "192.168.11.1", port: number
   } catch {}
 
   return { reachable: false, host, port, error: "Desktop bridge no disponible" }
+}
+
+/**
+ * Consulta de forma nativa o mediante el Ingest Companion el estado de un proyecto en el NAS
+ */
+export async function scanNasProjectStorage(folderName: string): Promise<{
+  ok: boolean
+  exists: boolean
+  filesCount: number
+  bytes: number
+  sizeMB: number
+  sizeGB: number
+  path?: string
+  source?: string
+} | null> {
+  if (!folderName) return null
+
+  try {
+    const res = await fetch(`http://127.0.0.1:41890/project-nas?folder=${encodeURIComponent(folderName)}`, {
+      signal: AbortSignal.timeout(2000),
+    })
+    if (res.ok) {
+      const data = await res.json()
+      if (data.ok) return data
+    }
+  } catch {}
+
+  return null
 }
 
 /**

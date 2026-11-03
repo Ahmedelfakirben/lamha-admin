@@ -11,53 +11,53 @@ function getSyncNasStrings(lang: string = "es") {
   const l = (lang === "fr" || lang === "en" || lang === "ar") ? lang : "es"
   const dict = {
     es: {
-      startingSync: (host: string) => `Iniciando sincronización local -> NAS FTP (${host})...`,
+      startingSync: (host: string) => `Iniciando sincronización local -> NAS (${host})...`,
       folderNotFound: (dir: string) => `Carpeta local no encontrada: ${dir}`,
       folderEmpty: (dir: string) => `La carpeta local ${dir} no contiene archivos para sincronizar.`,
-      foundFilesConnecting: (count: number) => `Encontrados ${count} archivos en local. Conectando al NAS ZTE...`,
+      foundFilesConnecting: (count: number) => `Encontrados ${count} archivos en local. Conectando al NAS QNAP (SMB / FTP)...`,
       connectionEstablished: (dir: string) => `Conexión al NAS establecida. Directorio asegurado: ${dir}`,
       fileSkipped: (name: string) => `[Omitido] ${name} ya existe en el NAS.`,
       copyingFile: (cur: number, tot: number, name: string, mb: string) => `[Copiando ${cur}/${tot}] ${name} (${mb} MB) -> NAS...`,
-      fileSuccess: (name: string) => `[OK] ${name} subido al NAS con éxito.`,
+      fileSuccess: (name: string) => `[OK] ${name} guardado en el NAS con éxito.`,
       syncCompleted: (copied: number, mb: string, skipped: number) => `🎉 Sincronización completada: ${copied} archivos copiados (${mb} MB), ${skipped} omitidos.`,
       criticalSyncError: (err: string) => `Error crítico en la sincronización: ${err}`,
       defaultNasError: "Error al sincronizar con el NAS",
     },
     fr: {
-      startingSync: (host: string) => `Démarrage de la synchronisation local -> NAS FTP (${host})...`,
+      startingSync: (host: string) => `Démarrage de la synchronisation local -> NAS (${host})...`,
       folderNotFound: (dir: string) => `Dossier local introuvable : ${dir}`,
       folderEmpty: (dir: string) => `Le dossier local ${dir} ne contient aucun fichier à synchroniser.`,
-      foundFilesConnecting: (count: number) => `${count} fichiers trouvés en local. Connexion au NAS ZTE...`,
+      foundFilesConnecting: (count: number) => `${count} fichiers trouvés en local. Connexion au NAS QNAP (SMB / FTP)...`,
       connectionEstablished: (dir: string) => `Connexion au NAS établie. Répertoire sécurisé : ${dir}`,
       fileSkipped: (name: string) => `[Ignoré] ${name} existe déjà sur le NAS.`,
       copyingFile: (cur: number, tot: number, name: string, mb: string) => `[Copie ${cur}/${tot}] ${name} (${mb} Mo) -> NAS...`,
-      fileSuccess: (name: string) => `[OK] ${name} téléversé sur le NAS avec succès.`,
+      fileSuccess: (name: string) => `[OK] ${name} enregistré sur le NAS avec succès.`,
       syncCompleted: (copied: number, mb: string, skipped: number) => `🎉 Synchronisation terminée : ${copied} fichiers copiés (${mb} Mo), ${skipped} ignorés.`,
       criticalSyncError: (err: string) => `Erreur critique lors de la synchronisation : ${err}`,
       defaultNasError: "Erreur lors de la synchronisation avec le NAS",
     },
     en: {
-      startingSync: (host: string) => `Starting sync local -> NAS FTP (${host})...`,
+      startingSync: (host: string) => `Starting sync local -> NAS (${host})...`,
       folderNotFound: (dir: string) => `Local folder not found: ${dir}`,
       folderEmpty: (dir: string) => `Local folder ${dir} contains no files to sync.`,
-      foundFilesConnecting: (count: number) => `Found ${count} local files. Connecting to ZTE NAS...`,
+      foundFilesConnecting: (count: number) => `Found ${count} local files. Connecting to QNAP NAS (SMB / FTP)...`,
       connectionEstablished: (dir: string) => `Connection to NAS established. Directory secured: ${dir}`,
       fileSkipped: (name: string) => `[Skipped] ${name} already exists on NAS.`,
       copyingFile: (cur: number, tot: number, name: string, mb: string) => `[Copying ${cur}/${tot}] ${name} (${mb} MB) -> NAS...`,
-      fileSuccess: (name: string) => `[OK] ${name} uploaded to NAS successfully.`,
+      fileSuccess: (name: string) => `[OK] ${name} saved to NAS successfully.`,
       syncCompleted: (copied: number, mb: string, skipped: number) => `🎉 Sync completed: ${copied} files copied (${mb} MB), ${skipped} skipped.`,
       criticalSyncError: (err: string) => `Critical sync error: ${err}`,
       defaultNasError: "Error syncing with NAS",
     },
     ar: {
-      startingSync: (host: string) => `بدء المزامنة من المحلي إلى NAS FTP (${host})...`,
+      startingSync: (host: string) => `بدء المزامنة من المحلي إلى NAS (${host})...`,
       folderNotFound: (dir: string) => `المجلد المحلي غير موجود: ${dir}`,
       folderEmpty: (dir: string) => `المجلد المحلي ${dir} لا يحتوي على ملفات للمزامنة.`,
-      foundFilesConnecting: (count: number) => `تم العثور على ${count} ملفات محلية. جارٍ الاتصال بوحدة ZTE NAS...`,
+      foundFilesConnecting: (count: number) => `تم العثور على ${count} ملفات محلية. جارٍ الاتصال بوحدة QNAP NAS...`,
       connectionEstablished: (dir: string) => `تم تأسيس الاتصال بوحدة NAS. الدليل مؤمن: ${dir}`,
       fileSkipped: (name: string) => `[تم التخطي] ${name} موجود بالفعل على NAS.`,
       copyingFile: (cur: number, tot: number, name: string, mb: string) => `[جارٍ النسخ ${cur}/${tot}] ${name} (${mb} ميغابايت) -> NAS...`,
-      fileSuccess: (name: string) => `[تم] ${name} تم الرفع إلى NAS بنجاح.`,
+      fileSuccess: (name: string) => `[تم] ${name} تم الحفظ في NAS بنجاح.`,
       syncCompleted: (copied: number, mb: string, skipped: number) => `🎉 اكتملت المزامنة بنجاح: تم نسخ ${copied} ملفات (${mb} ميغابايت)، وتم تخطي ${skipped}.`,
       criticalSyncError: (err: string) => `خطأ فادح في المزامنة: ${err}`,
       defaultNasError: "خطأ في المزامنة مع NAS",
@@ -126,6 +126,79 @@ export async function POST(req: NextRequest) {
 
         log("info", tLogs.foundFilesConnecting(files.length))
 
+        // ── 1. PROBAR ACCESO SMB LOCAL DE ALTA VELOCIDAD (Z:\ o \\192.168.11.200) ──
+        const smbCandidates = [
+          path.join("Z:\\", folderName, ...targetSubfolder.split("/")),
+          `\\\\${NAS_FTP_CONFIG.host}\\Lamha-Storage\\${folderName}\\${targetSubfolder.replace(/\//g, "\\")}`,
+        ]
+        let smbTargetDir: string | null = null
+        for (const cand of smbCandidates) {
+          try {
+            const rootDrive = cand.split(/[\\/]/)[0] + "\\"
+            if (fs.existsSync(rootDrive) || fs.existsSync(path.dirname(path.dirname(cand)))) {
+              if (!fs.existsSync(cand)) fs.mkdirSync(cand, { recursive: true })
+              smbTargetDir = cand
+              break
+            }
+          } catch {}
+        }
+
+        if (smbTargetDir) {
+          log("success", `⚡ Modo Ultra-Rápido SMB activo: ${smbTargetDir}`)
+          const existing = new Set(fs.readdirSync(smbTargetDir))
+          let totalBytes = 0
+          let copiedCount = 0
+          let skippedCount = 0
+
+          for (let i = 0; i < files.length; i++) {
+            const fileName = files[i]
+            const srcPath = path.join(localDir, fileName)
+            const destPath = path.join(smbTargetDir, fileName)
+            const stat = fs.statSync(srcPath)
+            const sizeMb = (stat.size / (1024 * 1024)).toFixed(1)
+
+            send({
+              type: "progress",
+              currentIndex: i + 1,
+              totalFiles: files.length,
+              fileName,
+              sizeMb: Number(sizeMb),
+            })
+
+            if (existing.has(fileName)) {
+              try {
+                const destStat = fs.statSync(destPath)
+                if (destStat.size === stat.size) {
+                  log("info", tLogs.fileSkipped(fileName))
+                  skippedCount++
+                  continue
+                }
+              } catch {}
+            }
+
+            log("info", tLogs.copyingFile(i + 1, files.length, fileName, sizeMb))
+            fs.copyFileSync(srcPath, destPath)
+            copiedCount++
+            totalBytes += stat.size
+            log("success", tLogs.fileSuccess(fileName))
+          }
+
+          const totalMb = (totalBytes / (1024 * 1024)).toFixed(1)
+          log("success", tLogs.syncCompleted(copiedCount, totalMb, skippedCount))
+
+          send({
+            type: "completed",
+            totalFiles: files.length,
+            copiedCount,
+            skippedCount,
+            totalMb: Number(totalMb),
+          })
+
+          controller.close()
+          return
+        }
+
+        // ── 2. FALLBACK POR FTP PARA ACCESO REMOTO ──
         const conn: { current: ftp.Client | null } = { current: null }
 
         async function getConnectedClient(): Promise<ftp.Client> {
@@ -149,7 +222,8 @@ export async function POST(req: NextRequest) {
         }
 
         const initialClient = await getConnectedClient()
-        const nasTargetDir = `${NAS_FTP_CONFIG.baseDir}/${folderName}/${targetSubfolder}`
+        const basePrefix = NAS_FTP_CONFIG.baseDir === "/" ? "" : NAS_FTP_CONFIG.baseDir
+        const nasTargetDir = `${basePrefix}/${folderName}/${targetSubfolder}`
         await initialClient.ensureDir(nasTargetDir)
         log("success", tLogs.connectionEstablished(nasTargetDir))
 

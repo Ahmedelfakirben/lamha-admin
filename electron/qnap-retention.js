@@ -180,10 +180,85 @@ class QnapRetentionManager extends EventEmitter {
   }
 
   /** Mide el QNAP: tamaño por proyecto y cuánto ocupan los 04_Entregas_Finales. */
-  async scanUsage({ force = false } = {}) {
-    if (!force && this.lastScan && Date.now() - this.lastScan.at < 20 * 60 * 1000) return this.lastScan
+  async scanUsage(opts = {}) {
+    const force = typeof opts === "boolean" ? opts : Boolean(opts && opts.force)
+    if (!force && this.lastScan && Date.now() - this.lastScan.at < 60 * 1000) return this.lastScan
     const cfg = getConfig()
     if (!cfg.nasHost || !cfg.nasPassword) return { ok: false, error: "NAS_NOT_CONFIGURED" }
+
+    const IGNORED_ROOT_DIRS = new Set([
+      "@recycle",
+      "@recently-snapshot",
+      "lamha-storage",
+      "system volume information",
+      "@upload_cache",
+      ".qsync",
+      ".@qdrive",
+    ])
+
+    // ── 1. INTENTO DE ESCANEO ULTRA-RÁPIDO POR SMB (Z:\ o \\192.168.11.200\Lamha-Storage) ──
+    const smbCandidates = [
+      "Z:\\",
+      `\\\\${cfg.nasHost}\\Lamha-Storage`,
+    ]
+    let smbRoot = null
+    for (const cand of smbCandidates) {
+      try {
+        if (fs.existsSync(cand)) {
+          smbRoot = cand
+          break
+        }
+      } catch {}
+    }
+
+    if (smbRoot) {
+      try {
+        const rootEntries = fs.readdirSync(smbRoot, { withFileTypes: true })
+        const projects = []
+        for (const dir of rootEntries) {
+          if (!dir.isDirectory() || dir.name.startsWith(".")) continue
+          if (IGNORED_ROOT_DIRS.has(dir.name.toLowerCase())) continue
+
+          let bytes = 0
+          let finals = 0
+          let filesCount = 0
+
+          const walkFs = (currentDir, inFinals) => {
+            let entries = []
+            try {
+              entries = fs.readdirSync(currentDir, { withFileTypes: true })
+            } catch {
+              return
+            }
+            for (const it of entries) {
+              if (it.name.startsWith(".")) continue
+              const full = path.join(currentDir, it.name)
+              if (it.isDirectory()) {
+                walkFs(full, inFinals || it.name === FINALS_FOLDER)
+              } else if (it.isFile()) {
+                try {
+                  const st = fs.statSync(full)
+                  bytes += st.size
+                  filesCount++
+                  if (inFinals) finals += st.size
+                } catch {}
+              }
+            }
+          }
+
+          walkFs(path.join(smbRoot, dir.name), false)
+          projects.push({ folderName: dir.name, bytes, finalsBytes: finals, filesCount })
+        }
+
+        const usedBytes = projects.reduce((a, p) => a + p.bytes, 0)
+        this.lastScan = { ok: true, at: Date.now(), projects, usedBytes, source: "smb" }
+        return this.lastScan
+      } catch (smbErr) {
+        console.warn("[Retention] SMB scan failed, falling back to FTP:", smbErr.message)
+      }
+    }
+
+    // ── 2. FALLBACK POR FTP ──
     let client
     try {
       client = await this._ftp()
@@ -191,31 +266,36 @@ class QnapRetentionManager extends EventEmitter {
       const root = await client.list(baseDir)
       const projects = []
       for (const dir of root.filter((i) => i.isDirectory && i.name !== "." && i.name !== "..")) {
+        if (IGNORED_ROOT_DIRS.has(dir.name.toLowerCase())) continue
+
         let bytes = 0
         let finals = 0
+        let filesCount = 0
         const walk = async (rel, depth, inFinals) => {
           if (depth > 8) return
           let items = []
           try {
-            items = await client.list(path.posix.join(baseDir, rel))
+            const fullDir = path.posix.join(baseDir, rel)
+            items = await client.list(fullDir)
           } catch {
             return
           }
           for (const it of items) {
-            if (it.name === "." || it.name === "..") continue
+            if (it.name === "." || it.name === ".." || it.name.startsWith(".")) continue
             if (it.isDirectory) {
               await walk(`${rel}/${it.name}`, depth + 1, inFinals || it.name === FINALS_FOLDER)
             } else if (it.isFile) {
-              bytes += it.size
-              if (inFinals) finals += it.size
+              bytes += it.size || 0
+              filesCount++
+              if (inFinals) finals += it.size || 0
             }
           }
         }
         await walk(dir.name, 1, false)
-        projects.push({ folderName: dir.name, bytes, finalsBytes: finals })
+        projects.push({ folderName: dir.name, bytes, finalsBytes: finals, filesCount })
       }
       const usedBytes = projects.reduce((a, p) => a + p.bytes, 0)
-      this.lastScan = { ok: true, at: Date.now(), projects, usedBytes }
+      this.lastScan = { ok: true, at: Date.now(), projects, usedBytes, source: "ftp" }
       return this.lastScan
     } catch (e) {
       return { ok: false, error: e.message || String(e) }
@@ -272,7 +352,8 @@ class QnapRetentionManager extends EventEmitter {
     }
   }
 
-  async getStatus({ force = false } = {}) {
+  async getStatus(opts = {}) {
+    const force = typeof opts === "boolean" ? opts : Boolean(opts && opts.force)
     const cfg = getConfig()
     const scan = await this.scanUsage({ force })
     const sessRes = await engine.listSessions()

@@ -111,27 +111,52 @@ export async function POST(req: NextRequest) {
     let nasReplicated = false
     let nasError: string | null = null
 
-    // 2. Replicar al NAS FTP en caliente si está habilitado
+    // 2. Replicar al NAS (SMB primero, luego FTP) en caliente si está habilitado
     if (replicateNas) {
-      const client = new ftp.Client(90000)
-      client.ftp.verbose = false
-      try {
-        await client.access({
-          host: NAS_FTP_CONFIG.host,
-          user: NAS_FTP_CONFIG.user,
-          password: NAS_FTP_CONFIG.password,
-          port: 21,
-        })
-        const nasTargetDir = `${NAS_FTP_CONFIG.baseDir}/${folderName}/${targetSubfolder}`
-        await client.ensureDir(nasTargetDir)
-        await client.uploadFrom(localFilePath, `${nasTargetDir}/${file.name}`)
-        client.close()
-        nasReplicated = true
-        addLog("success", tLogs.nasReplicated(NAS_FTP_CONFIG.host, nasTargetDir, file.name))
-      } catch (err: any) {
-        try { client.close() } catch {}
-        nasError = err.message || "Error al conectar al NAS"
-        addLog("warn", tLogs.nasReplicaFailed(nasError || ""))
+      // 2.1 Prioridad SMB ultra-rápida
+      const smbCandidates = [
+        path.join("Z:\\", folderName, ...targetSubfolder.split("/")),
+        `\\\\${NAS_FTP_CONFIG.host}\\Lamha-Storage\\${folderName}\\${targetSubfolder.replace(/\//g, "\\")}`,
+      ]
+      let smbSaved = false
+      for (const cand of smbCandidates) {
+        try {
+          const rootDrive = cand.split(/[\\/]/)[0] + "\\"
+          if (fs.existsSync(rootDrive) || fs.existsSync(path.dirname(path.dirname(cand)))) {
+            if (!fs.existsSync(cand)) fs.mkdirSync(cand, { recursive: true })
+            const destPath = path.join(cand, file.name)
+            fs.copyFileSync(localFilePath, destPath)
+            nasReplicated = true
+            smbSaved = true
+            addLog("success", `[NAS SMB] Replicado a alta velocidad en el NAS vía SMB (${destPath})`)
+            break
+          }
+        } catch {}
+      }
+
+      // 2.2 Fallback FTP si no hay SMB montado
+      if (!smbSaved) {
+        const client = new ftp.Client(90000)
+        client.ftp.verbose = false
+        try {
+          await client.access({
+            host: NAS_FTP_CONFIG.host,
+            user: NAS_FTP_CONFIG.user,
+            password: NAS_FTP_CONFIG.password,
+            port: 21,
+          })
+          const basePrefix = NAS_FTP_CONFIG.baseDir === "/" ? "" : NAS_FTP_CONFIG.baseDir
+          const nasTargetDir = `${basePrefix}/${folderName}/${targetSubfolder}`
+          await client.ensureDir(nasTargetDir)
+          await client.uploadFrom(localFilePath, `${nasTargetDir}/${file.name}`)
+          client.close()
+          nasReplicated = true
+          addLog("success", tLogs.nasReplicated(NAS_FTP_CONFIG.host, nasTargetDir, file.name))
+        } catch (err: any) {
+          try { client.close() } catch {}
+          nasError = err.message || "Error al conectar al NAS"
+          addLog("warn", tLogs.nasReplicaFailed(nasError || ""))
+        }
       }
     } else {
       addLog("info", tLogs.nasDisabled)
