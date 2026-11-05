@@ -9,15 +9,25 @@
 export interface LocalProjectStorageResult {
   exists: boolean
   path?: string
+  localPath?: string
+  nasPath?: string
+  localExists?: boolean
+  nasExists?: boolean
   filesCount: number
   totalSizeBytes: number
   sizeMB: number
   sizeGB: number
+  nasFilesCount?: number
+  nasTotalSizeBytes?: number
+  nasSizeMB?: number
+  nasSizeGB?: number
+  status?: string
   subfolders: Array<{
     name: string
     localCount: number
     localSizeMB: number
     nasCount: number
+    nasSizeMB?: number
     isSynced: boolean
   }>
   error?: string
@@ -44,7 +54,7 @@ export interface DesktopAdminAPI {
   listProjectSubfolder?: (folderName: string, subfolderName?: string) => Promise<LocalBrowseEntry[]>
   createProjectFolders?: (folderName: string) => Promise<{ success: boolean; path?: string; error?: string }>
   checkNasConnection: (host?: string, port?: number) => Promise<{ reachable: boolean; host: string; port: number; error?: string }>
-  launchIngestCompanion: (params?: { sessionId?: string; clientName?: string }) => Promise<{ success: boolean; error?: string }>
+  launchIngestCompanion: (params?: { sessionId?: string; clientName?: string; folderName?: string; folder?: string }) => Promise<{ success: boolean; error?: string; method?: string }>
   copyClientSelection?: (params: { folderName: string; filenames: string[] }) => Promise<{ success: boolean; copiedCount?: number; destDir?: string; error?: string }>
   retry?: () => void
 }
@@ -53,6 +63,37 @@ declare global {
   interface Window {
     desktopAdminAPI?: DesktopAdminAPI
   }
+}
+
+/**
+ * Abre la herramienta Ingest Companion nativa en el PC con el proyecto seleccionado
+ */
+export async function triggerIngestCompanion(params: {
+  sessionId?: string
+  clientName?: string
+  folderName?: string
+}): Promise<{ success: boolean; error?: string }> {
+  if (typeof window !== "undefined" && window.desktopAdminAPI?.launchIngestCompanion) {
+    try {
+      const res = await window.desktopAdminAPI.launchIngestCompanion(params)
+      if (res.success) return res
+    } catch (e: any) {
+      console.warn("Fallo lanzando Ingest Companion desde desktopAdminAPI:", e)
+    }
+  }
+
+  // Fallback para navegador web mediante protocolo lamha://
+  if (typeof window !== "undefined") {
+    try {
+      const url = `lamha://ingest?session_id=${encodeURIComponent(params.sessionId || "")}&client_name=${encodeURIComponent(params.clientName || "")}&folder=${encodeURIComponent(params.folderName || "")}&auto=false`
+      window.location.href = url
+      return { success: true }
+    } catch (e: any) {
+      return { success: false, error: e.message }
+    }
+  }
+
+  return { success: false, error: "Entorno no compatible" }
 }
 
 /**

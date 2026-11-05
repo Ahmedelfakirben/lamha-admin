@@ -620,7 +620,10 @@ export function NasStorageDashboard({ initialSessions = [] }: { initialSessions?
                 <button
                   type="button"
                   onClick={() => {
-                    setFtpBaseDir("/usb1_1/Lamha-Storage-Backup")
+                    setFtpHost("192.168.11.200")
+                    setFtpUser("Lam7aStudio")
+                    setFtpPassword("Admin2016@")
+                    setFtpBaseDir("/Lamha-Storage")
                   }}
                   className="px-3 py-1.5 rounded-xl bg-[#181613] hover:bg-[#24201b] border border-[#26211c] hover:border-[#c69f68]/40 text-xs text-[#a89f91] transition-all flex items-center gap-2"
                 >

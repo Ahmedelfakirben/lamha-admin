@@ -42,6 +42,107 @@ function findAvailableSmbShare(cfg = {}) {
   return null
 }
 
+async function registerSyncedFileInSupabase(it) {
+  try {
+    const engine = require("./ingest-engine")
+    const supabase = engine.getClient()
+    if (!supabase) return
+
+    const relNormalized = (it.relPath || "").replace(/\\/g, "/")
+    const parts = relNormalized.split("/")
+    const projectFolder = parts[0]
+    const fileName = it.fileName || path.basename(it.fullPath)
+    const isMaster = relNormalized.toLowerCase().includes("03_edicion_master") || relNormalized.toLowerCase().includes("03_édition_master")
+    const ext = path.extname(fileName).toLowerCase()
+    const isVideo = [".mp4", ".mov", ".mkv", ".mxf", ".braw", ".prores", ".avi"].includes(ext)
+    const isPhoto = [".cr2", ".cr3", ".nef", ".arw", ".dng", ".raf", ".orf", ".rw2", ".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff"].includes(ext)
+
+    if (!isVideo && !isPhoto) return
+
+    const { sessionId } = await engine.resolveSessionForFolder(supabase, projectFolder)
+
+    const { data: existing } = await supabase
+      .from("media_assets")
+      .select("id, preview_url")
+      .eq("filename", fileName)
+      .eq("nas_path", relNormalized)
+      .limit(1)
+
+    if (existing && existing.length > 0 && existing[0].preview_url) {
+      return
+    }
+
+    let previewUrl = existing?.[0]?.preview_url || null
+    let sharp = null
+    try {
+      sharp = require("sharp")
+    } catch {}
+
+    if (!previewUrl && sharp) {
+      try {
+        let webpBuf = null
+        if (isPhoto) {
+          webpBuf = await sharp(it.fullPath, { failOn: "none" })
+            .rotate()
+            .resize({ width: 1600, height: 1600, fit: "inside", withoutEnlargement: true })
+            .webp({ quality: 80, effort: 2 })
+            .toBuffer()
+        } else if (isVideo && typeof engine.extractVideoWebpBuffer === "function") {
+          webpBuf = await engine.extractVideoWebpBuffer(it.fullPath, sharp)
+        }
+
+        if (webpBuf) {
+          const cleanBase = path.parse(fileName).name
+          const storagePath = `${isMaster ? "master" : "session-previews"}/${sessionId || "unassigned"}/${cleanBase}_preview.webp`
+          const { error: upErr } = await supabase.storage.from("session-previews").upload(storagePath, webpBuf, {
+            contentType: "image/webp",
+            cacheControl: "31536000",
+            upsert: true,
+          })
+          if (!upErr) {
+            const { data: pub } = supabase.storage.from("session-previews").getPublicUrl(storagePath)
+            previewUrl = pub?.publicUrl || null
+          }
+        }
+      } catch (err) {
+        console.warn("[AutoSync Supabase] Error generando preview WebP:", err.message)
+      }
+    }
+
+    const sizeMb = Number((it.size / 1024 ** 2).toFixed(2))
+    const assetType = isVideo ? "raw_video" : (isMaster ? "jpg" : "raw_photo")
+
+    if (existing && existing.length > 0) {
+      await supabase
+        .from("media_assets")
+        .update({
+          session_id: sessionId || null,
+          asset_type: assetType,
+          size_mb: sizeMb,
+          preview_url: previewUrl,
+          notes: `${isMaster ? "Master" : "AutoSync"}: ${it.fullPath}`,
+          is_archived: false,
+        })
+        .eq("id", existing[0].id)
+    } else {
+      await supabase.from("media_assets").insert([
+        {
+          session_id: sessionId || null,
+          asset_type: assetType,
+          filename: fileName,
+          nas_path: relNormalized,
+          size_mb: sizeMb,
+          preview_url: previewUrl,
+          notes: `${isMaster ? "Master" : "AutoSync"}: ${it.fullPath}`,
+          is_archived: false,
+        },
+      ])
+    }
+  } catch (err) {
+    console.warn("[AutoSync Supabase] Error registrando en base de datos:", err.message)
+  }
+}
+
 function normalizeFolderToken(val) {
   return String(val || "")
     .trim()
@@ -582,6 +683,7 @@ class NasSyncManager extends EventEmitter {
               okCount++
               this.cache[it.relPath] = { size: it.size, mtimeMs: it.mtimeMs }
               this.knownRealtime.set(it.fullPath, { size: it.size, mtimeMs: it.mtimeMs })
+              registerSyncedFileInSupabase(it).catch(() => {})
             } catch (copyErr) {
               if (attempt === 1) failCount++
             }
@@ -717,6 +819,7 @@ class NasSyncManager extends EventEmitter {
               okCount++
               this.cache[it.relPath] = { size: it.size, mtimeMs: it.mtimeMs }
               this.knownRealtime.set(it.fullPath, { size: it.size, mtimeMs: it.mtimeMs })
+              registerSyncedFileInSupabase(it).catch(() => {})
             } else {
               failCount++
             }

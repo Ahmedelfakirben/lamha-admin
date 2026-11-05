@@ -230,19 +230,21 @@ export function ProjectStorageHub({
         }
       } catch {}
 
-      // Si el servidor de la nube no puede ver el disco C: local, consultar mediante puente nativo
+      // Si el servidor de la nube no puede ver el disco C: local, consultar mediante puente nativo del PC
       const localScan = await scanLocalProjectStorage(projectFolder)
       if (localScan && localScan.exists) {
         if (!json) {
           json = {
             folderName: projectFolder,
             step1Local: {
-              status: localScan.filesCount > 0 ? "ready" : "empty",
-              exists: true,
-              path: localScan.path || `C:\\Lamha-Storage\\${projectFolder}`,
-              filesCount: localScan.filesCount,
-              sizeMB: localScan.sizeMB,
-              sizeGB: localScan.sizeGB,
+              status: localScan.filesCount > 0 
+                ? "ready" 
+                : (localScan.nasFilesCount && localScan.nasFilesCount > 0 ? "archived_in_nas" : "empty"),
+              exists: Boolean(localScan.localExists),
+              path: localScan.localPath || localScan.path || `C:\\Lamha-Storage\\${projectFolder}`,
+              filesCount: localScan.filesCount || 0,
+              sizeMB: localScan.sizeMB || 0,
+              sizeGB: localScan.sizeGB || 0,
             },
             step2Supabase: {
               status: "pending",
@@ -253,18 +255,18 @@ export function ProjectStorageHub({
               isSynced: false,
             },
             step3Nas: {
-              status: "pending_sync",
-              isReachable: false,
-              exists: false,
-              path: `\\\\192.168.11.200\\Lamha-Storage\\${projectFolder}`,
-              filesCount: 0,
-              sizeMB: 0,
-              sizeGB: 0,
-              pendingFiles: localScan.filesCount,
-              isSynced: false,
+              status: (localScan.nasFilesCount || 0) > 0 ? "synced" : "pending_sync",
+              isReachable: true,
+              exists: Boolean(localScan.nasExists),
+              path: localScan.nasPath || `\\\\192.168.11.200\\Lamha-Storage\\${projectFolder}`,
+              filesCount: localScan.nasFilesCount || 0,
+              sizeMB: localScan.nasSizeMB || 0,
+              sizeGB: localScan.nasSizeGB || 0,
+              pendingFiles: Math.max(0, (localScan.filesCount || 0) - (localScan.nasFilesCount || 0)),
+              isSynced: (localScan.nasFilesCount || 0) >= (localScan.filesCount || 0),
             },
             subfolderStats: localScan.subfolders || [],
-            isFullySynced: false,
+            isFullySynced: (localScan.nasFilesCount || 0) >= (localScan.filesCount || 0) && (localScan.nasFilesCount || 0) > 0,
             syncJob: {
               folderName: projectFolder,
               isSyncing: false,
@@ -278,14 +280,29 @@ export function ProjectStorageHub({
             },
           }
         } else {
-          // Fusionar datos locales verificados en el PC físico
+          // Fusionar datos locales y de NAS físicos comprobados en el PC
           json.step1Local = {
-            status: localScan.filesCount > 0 ? "ready" : "empty",
-            exists: true,
-            path: localScan.path || `C:\\Lamha-Storage\\${projectFolder}`,
-            filesCount: localScan.filesCount,
-            sizeMB: localScan.sizeMB,
-            sizeGB: localScan.sizeGB,
+            status: localScan.filesCount > 0 
+              ? "ready" 
+              : (localScan.nasFilesCount && localScan.nasFilesCount > 0 ? "archived_in_nas" : "empty"),
+            exists: Boolean(localScan.localExists),
+            path: localScan.localPath || localScan.path || `C:\\Lamha-Storage\\${projectFolder}`,
+            filesCount: localScan.filesCount || 0,
+            sizeMB: localScan.sizeMB || 0,
+            sizeGB: localScan.sizeGB || 0,
+          }
+          if (localScan.nasFilesCount !== undefined && localScan.nasFilesCount > 0) {
+            json.step3Nas = {
+              status: "synced",
+              isReachable: true,
+              exists: true,
+              path: localScan.nasPath || `\\\\192.168.11.200\\Lamha-Storage\\${projectFolder}`,
+              filesCount: localScan.nasFilesCount,
+              sizeMB: localScan.nasSizeMB || 0,
+              sizeGB: localScan.nasSizeGB || 0,
+              pendingFiles: Math.max(0, (localScan.filesCount || 0) - localScan.nasFilesCount),
+              isSynced: localScan.nasFilesCount >= (localScan.filesCount || 0),
+            }
           }
           if (localScan.subfolders && localScan.subfolders.length > 0) {
             json.subfolderStats = localScan.subfolders

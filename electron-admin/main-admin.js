@@ -193,33 +193,45 @@ ipcMain.handle("open-local-path", async (_event, targetPath, target = "local") =
 
   try {
     // A) MODO NAS: Abrir recurso compartido SMB o FTP en el Explorador de Windows
-    if (target === "nas" || targetPath.startsWith("ftp://") || targetPath.startsWith("\\\\")) {
+    if (target === "nas" || targetPath.startsWith("ftp://") || targetPath.startsWith("\\\\") || targetPath.startsWith("Z:") || targetPath.startsWith("z:")) {
       const cleanRel = targetPath
         .replace(/^ftp:\/\/[^/]+/, "")
         .replace(/^\/?usb1_1\/Lamha-Storage\/?/i, "")
         .replace(/^usb1_1[\\\/]Lamha-Storage[\\\/]?/i, "")
+        .replace(/^[zZ]:[\\\/]?/i, "")
         .replace(/^[\\\/]+/, "")
         .replace(/\//g, "\\")
 
-      // 1. Probar ruta UNC SMB directa
-      const smbCandidate = path.join("\\\\192.168.11.1\\usb1_1\\Lamha-Storage", cleanRel)
+      // 1. Probar unidad montada Z:\ (QNAP)
+      const zCandidate = path.join("Z:\\", cleanRel)
+      if (fs.existsSync(zCandidate)) {
+        if (fs.statSync(zCandidate).isDirectory()) {
+          await shell.openPath(zCandidate)
+        } else {
+          shell.showItemInFolder(zCandidate)
+        }
+        return { success: true, resolvedPath: zCandidate }
+      }
+
+      // 2. Probar ruta UNC SMB directa \\192.168.11.200\Lamha-Storage
+      const smbCandidate = path.join("\\\\192.168.11.200\\Lamha-Storage", cleanRel)
       if (fs.existsSync(smbCandidate)) {
         if (fs.statSync(smbCandidate).isDirectory()) {
           await shell.openPath(smbCandidate)
         } else {
           shell.showItemInFolder(smbCandidate)
         }
-        return { success: true }
+        return { success: true, resolvedPath: smbCandidate }
       }
 
-      // 2. Probar URL FTP directa en explorer.exe
+      // 3. Probar URL FTP directa en explorer.exe
       let cleanUrlPart = cleanRel.replace(/\\/g, "/")
       if (/\.[a-zA-Z0-9]{2,5}$/.test(cleanUrlPart)) {
         cleanUrlPart = cleanUrlPart.substring(0, cleanUrlPart.lastIndexOf("/"))
       }
-      const ftpUrl = `ftp://192.168.11.1/usb1_1/Lamha-Storage/${cleanUrlPart}`
+      const ftpUrl = `ftp://192.168.11.200/${cleanUrlPart}`
       spawn("explorer.exe", [ftpUrl], { detached: true, stdio: "ignore" }).unref()
-      return { success: true }
+      return { success: true, resolvedPath: ftpUrl }
     }
 
     // B) MODO LOCAL (SSD): Resolver en disco C:\Lamha-Storage y unidades secundarias
@@ -328,7 +340,7 @@ ipcMain.handle("check-local-path", async (_event, targetPath) => {
   }
 })
 
-// Función auxiliar para localizar la carpeta del proyecto en Windows
+// Función auxiliar para localizar la carpeta del proyecto en el SSD local de Windows
 function resolveLocalProjectFolder(folderName) {
   if (!folderName) return null
   const letters = ["C", "D", "E", "F", "G", "H", "I", "J", "K"]
@@ -341,76 +353,130 @@ function resolveLocalProjectFolder(folderName) {
   return path.join("C:\\Lamha-Storage", folderName)
 }
 
-// 7. Escanear estado y archivos de un proyecto local (C:\Lamha-Storage\<folder>)
+// Función auxiliar para localizar la carpeta del proyecto en el QNAP NAS (Z:\ o SMB)
+function resolveNasProjectFolder(folderName) {
+  if (!folderName) return null
+  const candidates = [
+    path.join("Z:\\", folderName),
+    path.join("Z:\\Lamha-Storage", folderName),
+    `\\\\192.168.11.200\\Lamha-Storage\\${folderName}`,
+  ]
+  for (const candidate of candidates) {
+    try {
+      if (fs.existsSync(candidate)) return candidate
+    } catch {}
+  }
+  return null
+}
+
+// Escanea recursivamente una carpeta y desglosa por subcarpetas (01_RAW, etc.)
+function scanFolderRecursive(dirPath) {
+  let count = 0
+  let totalBytes = 0
+  const subMap = {}
+
+  function walk(current, relSub) {
+    let entries = []
+    try {
+      entries = fs.readdirSync(current, { withFileTypes: true })
+    } catch { return }
+
+    for (const entry of entries) {
+      if (entry.name.startsWith(".")) continue
+      const full = path.join(current, entry.name)
+      const rel = relSub ? `${relSub}/${entry.name}` : entry.name
+
+      if (entry.isDirectory()) {
+        walk(full, rel)
+      } else if (entry.isFile()) {
+        try {
+          const st = fs.statSync(full)
+          count++
+          totalBytes += st.size
+          const topFolder = relSub ? relSub.split("/")[0] : "Raíz"
+          if (!subMap[topFolder]) {
+            subMap[topFolder] = { count: 0, bytes: 0 }
+          }
+          subMap[topFolder].count++
+          subMap[topFolder].bytes += st.size
+        } catch {}
+      }
+    }
+  }
+
+  if (dirPath && fs.existsSync(dirPath)) {
+    walk(dirPath, "")
+  }
+
+  return { count, totalBytes, subMap }
+}
+
+// 7. Escanear estado físico real dual (SSD C:\Lamha-Storage y QNAP NAS Z:\)
 ipcMain.handle("scan-project-storage", async (_event, folderName) => {
   if (!folderName) return { exists: false, error: "Nombre de carpeta no especificado" }
   try {
-    const dirPath = resolveLocalProjectFolder(folderName)
-    if (!fs.existsSync(dirPath)) {
+    const localDirPath = resolveLocalProjectFolder(folderName)
+    const nasDirPath = resolveNasProjectFolder(folderName)
+
+    const localScan = scanFolderRecursive(localDirPath)
+    const nasScan = scanFolderRecursive(nasDirPath)
+
+    const standardSubfolders = [
+      "01_RAW/Fotos",
+      "01_RAW/Videos",
+      "02_Seleccion_Cliente",
+      "03_Edicion_Master",
+      "04_Entregas_Finales",
+    ]
+
+    const allSubKeys = new Set([
+      ...standardSubfolders.map(s => s.split("/")[0]),
+      ...Object.keys(localScan.subMap),
+      ...Object.keys(nasScan.subMap),
+    ])
+
+    const subfolders = Array.from(allSubKeys).map((name) => {
+      const l = localScan.subMap[name] || { count: 0, bytes: 0 }
+      const n = nasScan.subMap[name] || { count: 0, bytes: 0 }
       return {
-        exists: false,
-        path: dirPath,
-        filesCount: 0,
-        totalSizeBytes: 0,
-        sizeMB: 0,
-        sizeGB: 0,
-        subfolders: []
+        name,
+        localCount: l.count,
+        localSizeMB: Number((l.bytes / (1024 * 1024)).toFixed(1)),
+        nasCount: n.count,
+        nasSizeMB: Number((n.bytes / (1024 * 1024)).toFixed(1)),
+        isSynced: (l.count === 0 && n.count > 0) || (n.count >= l.count && l.count > 0),
       }
+    })
+
+    const localSizeMB = Number((localScan.totalBytes / (1024 * 1024)).toFixed(1))
+    const localSizeGB = Number((localScan.totalBytes / (1024 * 1024 * 1024)).toFixed(2))
+    const nasSizeMB = Number((nasScan.totalBytes / (1024 * 1024)).toFixed(1))
+    const nasSizeGB = Number((nasScan.totalBytes / (1024 * 1024 * 1024)).toFixed(2))
+
+    let status = "pending"
+    if (localScan.count === 0 && nasScan.count > 0) {
+      status = "archived_in_nas"
+    } else if (nasScan.count >= localScan.count && localScan.count > 0) {
+      status = "synced"
+    } else if (nasScan.count > 0) {
+      status = "syncing"
     }
-
-    let filesCount = 0
-    let totalSizeBytes = 0
-    const subfoldersMap = {}
-
-    function walk(current, relSub) {
-      let entries = []
-      try {
-        entries = fs.readdirSync(current, { withFileTypes: true })
-      } catch { return }
-
-      for (const entry of entries) {
-        if (entry.name.startsWith(".")) continue
-        const full = path.join(current, entry.name)
-        const rel = relSub ? `${relSub}/${entry.name}` : entry.name
-
-        if (entry.isDirectory()) {
-          walk(full, rel)
-        } else if (entry.isFile()) {
-          try {
-            const st = fs.statSync(full)
-            filesCount++
-            totalSizeBytes += st.size
-            const topFolder = relSub ? relSub.split("/")[0] : "Raíz"
-            if (!subfoldersMap[topFolder]) {
-              subfoldersMap[topFolder] = { name: topFolder, localCount: 0, localSizeBytes: 0 }
-            }
-            subfoldersMap[topFolder].localCount++
-            subfoldersMap[topFolder].localSizeBytes += st.size
-          } catch {}
-        }
-      }
-    }
-
-    walk(dirPath, "")
-
-    const subfolders = Object.values(subfoldersMap).map(s => ({
-      name: s.name,
-      localCount: s.localCount,
-      localSizeMB: Number((s.localSizeBytes / (1024 * 1024)).toFixed(1)),
-      nasCount: 0,
-      isSynced: false,
-    }))
-
-    const sizeMB = Number((totalSizeBytes / (1024 * 1024)).toFixed(1))
-    const sizeGB = Number((totalSizeBytes / (1024 * 1024 * 1024)).toFixed(2))
 
     return {
-      exists: true,
-      path: dirPath,
-      filesCount,
-      totalSizeBytes,
-      sizeMB,
-      sizeGB,
+      exists: Boolean(localScan.count > 0 || nasScan.count > 0),
+      localExists: Boolean(localDirPath && fs.existsSync(localDirPath) && localScan.count > 0),
+      nasExists: Boolean(nasDirPath && fs.existsSync(nasDirPath) && nasScan.count > 0),
+      localPath: localDirPath,
+      nasPath: nasDirPath,
+      filesCount: localScan.count,
+      totalSizeBytes: localScan.totalBytes,
+      sizeMB: localSizeMB,
+      sizeGB: localSizeGB,
+      nasFilesCount: nasScan.count,
+      nasTotalSizeBytes: nasScan.totalBytes,
+      nasSizeMB,
+      nasSizeGB,
+      status,
       subfolders,
     }
   } catch (err) {
@@ -509,12 +575,38 @@ ipcMain.handle("check-nas-connection", async (_event, host = "192.168.11.1", por
   })
 })
 
-// 11. Iniciar o comunicar con Ingest Companion
+// 11. Iniciar o comunicar con Ingest Companion en local (solo preselecciona el proyecto, sin arrancar la copia)
 ipcMain.handle("launch-ingest-companion", async (_event, params = {}) => {
-  const protocolUrl = `lamha://ingest?session_id=${encodeURIComponent(params.sessionId || "")}&client_name=${encodeURIComponent(params.clientName || "")}&auto=true`
+  const folder = params.folderName || params.folder || ""
+  const protocolUrl = `lamha://ingest?session_id=${encodeURIComponent(params.sessionId || "")}&client_name=${encodeURIComponent(params.clientName || "")}&folder=${encodeURIComponent(folder)}&auto=false`
+
+  // 1. Intentar registrar y activar por protocolo de Windows
+  try {
+    const opened = await shell.openExternal(protocolUrl)
+    if (opened) return { success: true, method: "protocol" }
+  } catch {}
+
+  // 2. Si el protocolo aún no estuviera registrado en el sistema, lanzar el ejecutable directo
+  const candidates = [
+    "C:\\Program Files\\Lam7a Studios - Ingest Companion\\Lam7a Studios - Ingest Companion.exe",
+    path.join(process.cwd(), "..", "Lamha_Studio_PC3_Suite", "1_Ingest_Companion_Portable.exe"),
+    path.join(process.cwd(), "Lamha_Studio_PC3_Suite", "1_Ingest_Companion_Portable.exe"),
+    path.join(__dirname, "..", "..", "Lamha_Studio_PC3_Suite", "1_Ingest_Companion_Portable.exe"),
+  ]
+
+  for (const exePath of candidates) {
+    if (fs.existsSync(exePath)) {
+      try {
+        spawn(exePath, [protocolUrl], { detached: true, stdio: "ignore" }).unref()
+        return { success: true, method: "direct_spawn", path: exePath }
+      } catch {}
+    }
+  }
+
+  // 3. Fallback: shell.openExternal general
   try {
     await shell.openExternal(protocolUrl)
-    return { success: true, method: "protocol" }
+    return { success: true, method: "protocol_fallback" }
   } catch (err) {
     return { success: false, error: err.message }
   }

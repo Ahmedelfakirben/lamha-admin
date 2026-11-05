@@ -1024,6 +1024,8 @@ async function runIngest(params, emit) {
   const useLocal = params.copyLocal !== false
   const useCloud = params.uploadSupabase !== false
   const useNas = params.syncNas !== false
+  const useExtra = Boolean(params.copyExtra && params.extraPath && typeof params.extraPath === "string" && params.extraPath.trim())
+  const extraBasePath = useExtra ? params.extraPath.trim() : null
   const tracker = createTracker(emit, { copy: useLocal, cloud: useCloud, nas: useNas })
 
   try {
@@ -1545,7 +1547,58 @@ async function runIngest(params, emit) {
       }
     }
 
-    await Promise.all([runCloudPhase(), runNasPhase()])
+    const runExtraPhase = async () => {
+      if (!useExtra || !extraBasePath) return
+      if (isCancelled()) throw new Error("CANCELLED")
+      if (!fs.existsSync(extraBasePath)) {
+        tracker.log("warn", `[Copie Supplémentaire] Le dossier cible est introuvable ou inaccessible : ${extraBasePath}`)
+        return
+      }
+
+      tracker.log("info", `[Copie Supplémentaire] Début de la duplication vers : ${extraBasePath}`)
+      const extraRootDir = path.join(extraBasePath, folderName)
+      for (const d of [
+        path.join(extraRootDir, "01_RAW", "Fotos"),
+        path.join(extraRootDir, "01_RAW", "Videos"),
+        path.join(extraRootDir, "02_Seleccion_Cliente"),
+        path.join(extraRootDir, "03_Edicion_Master"),
+        path.join(extraRootDir, "04_Entregas_Finales"),
+      ]) {
+        try {
+          fs.mkdirSync(d, { recursive: true })
+        } catch {}
+      }
+
+      let extraOk = 0
+      let extraFail = 0
+      for (const it of okItems) {
+        if (isCancelled()) break
+        const sourceFile = it.dest || it.src
+        const targetDir = path.join(extraRootDir, "01_RAW", it.sub || "")
+        const targetFile = path.join(targetDir, it.name)
+        try {
+          if (fs.existsSync(targetFile) && fs.statSync(targetFile).size === it.size) {
+            extraOk++
+          } else {
+            fs.copyFileSync(sourceFile, targetFile)
+            fs.utimesSync(targetFile, it.atime, it.mtime)
+            extraOk++
+          }
+        } catch (err) {
+          extraFail++
+          tracker.log("warn", `[Copie Supplémentaire] Échec pour ${it.name}: ${err.message}`)
+        }
+      }
+
+      if (extraOk > 0 || extraFail > 0) {
+        tracker.log(
+          extraFail ? "warn" : "success",
+          `[Copie Supplémentaire] Duplication terminée: ${extraOk} fichier(s) copiés vers ${extraRootDir}${extraFail ? ` (${extraFail} erreurs)` : ""}`
+        )
+      }
+    }
+
+    await Promise.all([runCloudPhase(), runNasPhase(), runExtraPhase()])
 
     const summary = {
       sessionId: sess.id,
@@ -1561,6 +1614,7 @@ async function runIngest(params, emit) {
       rootDir,
       folderName,
       client: sess.client_name,
+      extraPath: useExtra ? extraBasePath : null,
     }
     addHistoryEntry({
       type: "ingest",
@@ -1568,6 +1622,7 @@ async function runIngest(params, emit) {
       client: sess.client_name,
       folderName,
       rootDir,
+      extraPath: useExtra ? extraBasePath : null,
       files: okItems.length,
       mb: totalMb,
       cloudOk,
@@ -1728,7 +1783,7 @@ async function processSingleMasterItem(item, ftpClient, ensuredDirs, batchState,
   const storagePath = `master/${sessionId || "unassigned"}/${cleanBase}_preview.webp`
   const nasRelativePath = `${item.projectFolder}/${item.masterSubfolder}/${item.fileName}`
   const sizeMb = Number((item.size / 1024 ** 2).toFixed(2))
-  const assetType = item.isVideo ? "raw_video" : "jpg"
+  const assetType = item.isVideo ? "video_final" : "jpg"
 
   const cloudTask = async () => {
     let previewUrl = null
@@ -1764,7 +1819,7 @@ async function processSingleMasterItem(item, ftpClient, ensuredDirs, batchState,
             asset_type: assetType,
             size_mb: sizeMb,
             preview_url: previewUrl,
-            notes: `Master: ${item.filePath}`,
+            notes: `03_Édition_Master: ${item.filePath}`,
             is_archived: false,
           })
           .eq("id", existing[0].id)
@@ -1777,7 +1832,7 @@ async function processSingleMasterItem(item, ftpClient, ensuredDirs, batchState,
             nas_path: nasRelativePath,
             size_mb: sizeMb,
             preview_url: previewUrl,
-            notes: `Master: ${item.filePath}`,
+            notes: `03_Édition_Master: ${item.filePath}`,
             is_archived: false,
           },
         ])
@@ -1954,6 +2009,8 @@ module.exports = {
   classify,
   syncMasterFile,
   enqueueMasterFile,
+  resolveSessionForFolder,
+  extractVideoWebpBuffer,
   isIngesting: () => Boolean(currentJob || masterProcessing),
   getClient,
   normalizePhoneForWhatsApp,

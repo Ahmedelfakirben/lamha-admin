@@ -437,6 +437,138 @@
       color: var(--text-muted);
     }
     [dir="rtl"] { text-align: right; }
+  
+    /* SVGs Profesionales Serios */
+    .svg-icon {
+      width: 14px;
+      height: 14px;
+      display: inline-block;
+      vertical-align: middle;
+      flex-shrink: 0;
+    }
+    .btn-icon svg {
+      width: 15px;
+      height: 15px;
+    }
+
+    /* Sección de Mantenimiento y Herramientas Avanzadas */
+    .maintenance-section {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 4px;
+      padding-top: 14px;
+      border-top: 1px solid var(--card-border);
+    }
+    .maintenance-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 4px;
+    }
+    .maintenance-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--gold);
+    }
+    .maintenance-caption {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* Acordeones Desplegables Elegantes */
+    .accordion-group {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .accordion-item {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      overflow: hidden;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .accordion-item:hover {
+      border-color: rgba(198, 159, 104, 0.4);
+    }
+    .accordion-header {
+      padding: 13px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      user-select: none;
+      background: var(--card-bg);
+      transition: background-color 0.15s;
+    }
+    .accordion-header:hover {
+      background: rgba(198, 159, 104, 0.04);
+    }
+    .accordion-header-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .accordion-header-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .accordion-chevron {
+      width: 14px;
+      height: 14px;
+      color: var(--gold);
+      transition: transform 0.25s ease;
+      flex-shrink: 0;
+    }
+    .accordion-item.open .accordion-chevron {
+      transform: rotate(90deg);
+    }
+    .accordion-title {
+      font-size: 12.5px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      color: var(--text-main);
+    }
+    .accordion-body {
+      max-height: 0;
+      overflow: hidden;
+      opacity: 0;
+      transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease, padding 0.35s ease;
+      padding: 0 18px;
+    }
+    .accordion-item.open .accordion-body {
+      max-height: 3000px;
+      opacity: 1;
+      padding: 14px 18px 20px 18px;
+      border-top: 1px solid var(--card-border);
+    }
+
+    /* Botón desplegable para filtros secundarios en Card 2 */
+    .filters-toggle-btn {
+      background: none;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 4px 10px;
+      font-size: 11px;
+      color: var(--text-muted);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s;
+    }
+    .filters-toggle-btn:hover {
+      color: var(--gold);
+      border-color: var(--gold);
+    }
+
   </style>
 </head>
 <body>
@@ -457,11 +589,11 @@
     <div class="header-actions">
       <!-- Indicadores de Salud en Vivo: Espacio SSD + Ping NAS + Cola de Reintentos -->
       <button id="btn-retry-queue" class="auth-badge" style="display: none; border-color: rgba(245, 158, 11, 0.5); color: #f59e0b; background: rgba(245, 158, 11, 0.12);" title="Reintentar archivos pendientes">
-        🔄 <span id="txt-retry-badge">0 pendientes</span>
+        <svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg> <span id="txt-retry-badge">0 pendientes</span>
       </button>
 
       <div id="badge-ssd-space" class="auth-badge" style="cursor: pointer;" title="Espacio libre en disco SSD local (Clic para ir a Reciclaje)">
-        <span>💾</span>
+        <svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="12" x2="2" y2="12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/><line x1="6" y1="16" x2="6.01" y2="16"/><line x1="10" y1="16" x2="10.01" y2="16"/></svg>
         <span id="txt-ssd-free">SSD: -- GB</span>
       </div>
 
@@ -479,8 +611,8 @@
       </select>
 
       <!-- Tema y ajustes -->
-      <button id="btn-theme" class="btn-icon" title="Changer Thème">☀️</button>
-      <button id="btn-settings" class="btn-icon" title="Paramètres">⚙</button>
+      <button id="btn-theme" class="btn-icon" title="Changer Thème"><svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button>
+      <button id="btn-settings" class="btn-icon" title="Paramètres"><svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
     </div>
   </header>
 
@@ -490,7 +622,7 @@
       <div class="card" id="step1-card">
         <div class="card-title">
           <span id="txt-step1-title">1. Source Mémoire (SD / USB)</span>
-          <button id="btn-refresh-drives" class="btn-icon" style="width: 26px; height: 26px; font-size: 11px;">↺</button>
+          <button id="btn-refresh-drives" class="btn-icon" style="width: 26px; height: 26px;" title="Actualiser"><svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg></button>
         </div>
         <div class="card-content">
           <div id="drive-box" class="drive-box active" style="position: relative;">
@@ -511,8 +643,8 @@
         <div class="card-title">
           <span id="txt-step2-title">2. Projet / Session Réelle</span>
           <div style="display: flex; align-items: center; gap: 8px;">
-            <button id="btn-new-session" class="badge-step" style="cursor: pointer; padding: 4px 10px; font-size: 10.5px; background: var(--badge-bg); color: var(--gold); border: 1px solid var(--gold);">
-              + <span id="txt-btn-new-session">Nouvelle Séance</span>
+            <button id="btn-new-session" class="badge-step" style="cursor: pointer; padding: 5px 12px; font-size: 11px; background: var(--badge-bg); color: var(--gold); border: 1px solid var(--gold); display: inline-flex; align-items: center; gap: 5px;">
+              <svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> <span id="txt-btn-new-session">Nouvelle Séance</span>
             </button>
             <button id="btn-refresh-sessions" title="Actualiser" style="background: none; border: none; color: var(--gold); cursor: pointer; display: flex; align-items: center; padding: 2px;">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
@@ -523,8 +655,8 @@
         <div class="card-content">
           <!-- Buscador + Limpiar filtros -->
           <div style="display: flex; gap: 6px; align-items: center;">
-            <input type="text" id="session-search-input" class="text-input" placeholder="🔍 Buscar cliente, categoría, subcategoría, fecha o PIN..." style="padding: 8px 12px; font-size: 12px; flex: 1;">
-            <button id="btn-clear-session-filters" class="btn-icon" style="display: none; width: 32px; height: 32px; font-size: 11px; color: var(--gold); border-color: var(--gold);" title="Limpiar filtros">✕</button>
+            <input type="text" id="session-search-input" class="text-input" placeholder="Rechercher client, projet, date..." style="padding: 8px 12px; font-size: 12px; flex: 1;">
+            <button id="btn-clear-session-filters" class="btn-icon" style="display: none; width: 32px; height: 32px; color: var(--gold); border-color: var(--gold);" title="Effacer les filtres"><svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
           </div>
 
           <!-- Filtros por Categoría, Subcategoría y Tipo (Foto/Vídeo) -->
@@ -536,9 +668,9 @@
               <option value="all">Todas las subcategorías</option>
             </select>
             <select id="filter-sess-type" class="select-input" style="padding: 6px 10px; font-size: 11.5px; width: auto;">
-              <option value="all">📸+🎬</option>
-              <option value="photo">📸 Foto</option>
-              <option value="video">🎬 Vídeo</option>
+              <option value="all">+</option>
+              <option value="photo">Foto</option>
+              <option value="video">Vídeo</option>
             </select>
           </div>
 
@@ -596,6 +728,23 @@
           <span class="badge-step">Archive Sécurisée</span>
         </label>
 
+        <div class="pipeline-step-container" style="display: flex; flex-direction: column; gap: 8px;">
+          <label class="pipeline-step">
+            <input type="checkbox" id="chk-extra">
+            <div class="pipeline-step-text">
+              <strong id="txt-pipe-extra">4. Copie Supplémentaire (Disque Externe / Montage / Réseau)</strong>
+              <span id="txt-pipe-extra-desc">Duplication automatique sur une destination personnalisée</span>
+            </div>
+            <span class="badge-step" style="background: rgba(14, 165, 233, 0.15); border-color: rgba(14, 165, 233, 0.4); color: #38bdf8;">Backup Plus</span>
+          </label>
+          <div id="extra-path-row" style="display: none; align-items: center; gap: 8px; margin-left: 28px; margin-bottom: 6px;">
+            <input type="text" id="input-extra-path" placeholder="Ex: D:\Montage ou E:\Backup_Externe" style="flex: 1; padding: 7px 10px; background: #0c0a09; border: 1px solid #292524; border-radius: 8px; color: #f5f5f4; font-size: 11px; font-family: monospace;">
+            <button type="button" id="btn-browse-extra" class="select-input" style="width: auto; padding: 7px 12px; font-size: 11px; cursor: pointer; white-space: nowrap;">
+              <svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> <span id="txt-btn-browse-extra">Parcourir</span>
+            </button>
+          </div>
+        </div>
+
         <button id="btn-start-ingest" class="btn-primary" style="margin-top: 6px;">
           <span id="txt-btn-start">DÉMARRER L'INGESTION COMPLÈTE</span>
         </button>
@@ -608,7 +757,7 @@
         <h3 id="txt-ingest-status">Ingestion en cours...</h3>
         <div style="display: flex; align-items: center; gap: 12px;">
           <button id="btn-cancel-ingest" style="background: rgba(239, 68, 68, 0.14); border: 1px solid rgba(239, 68, 68, 0.45); color: #ef4444; padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; display: none;">
-            ✕ <span id="txt-btn-cancel">Annuler</span>
+            <svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> <span id="txt-btn-cancel">Annuler</span>
           </button>
           <span class="pct-large" id="txt-pct">0%</span>
         </div>
@@ -642,188 +791,213 @@
       <!-- Acciones Post-Ingesta 1-Clic al llegar al 100% -->
       <div id="post-ingest-actions" style="display: none; flex-wrap: wrap; gap: 10px; padding-top: 6px; border-top: 1px solid var(--card-border);">
         <button id="btn-post-open-folder" class="select-input" style="width: auto; cursor: pointer; font-weight: 700; border-color: var(--gold); color: var(--gold); padding: 8px 14px;">
-          📂 <span id="txt-post-open-folder">Ouvrir Dossier Local SSD</span>
+          <svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> <span id="txt-post-open-folder">Ouvrir Dossier Local SSD</span>
         </button>
         <button id="btn-post-open-gallery" class="select-input" style="width: auto; cursor: pointer; font-weight: 700; padding: 8px 14px;">
-          🌐 <span id="txt-post-open-gallery">Ouvrir Galerie Web</span>
+          <svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"/></svg> <span id="txt-post-open-gallery">Ouvrir Galerie Web</span>
         </button>
         <button id="btn-post-eject-sd" class="select-input" style="width: auto; cursor: pointer; font-weight: 700; border-color: #10b981; color: #10b981; padding: 8px 14px;">
-          ⏏️ <span id="txt-post-eject-sd">Éjecter Carte SD en sécurité</span>
+          <svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 14 22 14"/><rect x="2" y="18" width="20" height="4" rx="1"/></svg> <span id="txt-post-eject-sd">Éjecter Carte SD en sécurité</span>
         </button>
       </div>
     </div>
 
-    <!-- Paso 4: Sincronización Unidireccional Automática (Local SSD ➔ NAS) -->
-    <div class="card" id="nas-sync-card">
-      <div class="card-title">
-        <span id="txt-step4-title">4. Synchronisation Automatique Unidirectionnelle (Local SSD ➔ NAS)</span>
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <span class="auth-badge" id="nas-sync-badge" style="cursor: default;">
-            <span class="status-dot connected" id="nas-sync-dot"></span>
-            <span id="txt-nas-sync-status">Activée (En direct)</span>
-          </span>
+    <!-- Paso 4: Sincronización Unidireccional Automática (Local SSD -> NAS) -->
+    <!-- Section Outils Avancés & Maintenance Studio (Accordéons Collapsibles) -->
+    <div class="maintenance-section">
+      <div class="maintenance-header">
+        <div class="maintenance-title">
+          <svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+          <span id="txt-sec-advanced">Outils Avancés & Maintenance Studio</span>
         </div>
+        <span class="maintenance-caption" id="txt-sec-advanced-desc">Synchronisation réseau, gestion de l'espace et cycle de vie</span>
       </div>
-      <div class="card-content">
-        <p id="txt-step4-desc" style="font-size: 12px; color: var(--text-muted); line-height: 1.5;">
-          Synchronise automatiquement tous les dossiers, documents, photos et vidéos de <strong>C:\Lamha-Storage</strong> vers le <strong>NAS</strong> (01_RAW, 02_Seleccion_Cliente, 03_Edicion_Master, 04_Entregas_Finales) de manière strictement unidirectionnelle.
-        </p>
 
-        <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; background: var(--input-bg); border: 1px solid var(--card-border); border-radius: 12px;">
-          <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px;">
-            <button id="btn-nas-toggle" class="select-input" style="width: auto; cursor: pointer; font-weight: 700; border-color: var(--gold); color: var(--gold); padding: 8px 14px;">
-              Désactiver Auto-Sync
-            </button>
-            <button id="btn-nas-resume" class="select-input" style="width: auto; cursor: pointer; font-weight: 700; border-color: #10b981; color: #10b981; padding: 8px 14px; display: none;">
-              ▶ Reprendre maintenant
-            </button>
-            <button id="btn-nas-scan" class="select-input" style="width: auto; cursor: pointer; padding: 8px 14px;">
-              🔍 <span id="txt-btn-nas-scan">Vérifier fichiers non synchronisés</span>
-            </button>
+      <div class="accordion-group">
+        <!-- Accordéon 1: Synchronisation Automatique NAS -->
+        <div class="accordion-item" id="acc-nas">
+          <div class="accordion-header">
+            <div class="accordion-header-left">
+              <svg class="accordion-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+              <span class="accordion-title" id="txt-step4-title">4. Synchronisation Réseau (Local SSD -> NAS)</span>
+            </div>
+            <div class="accordion-header-right">
+              <span class="auth-badge" id="nas-sync-badge" style="cursor: default;">
+                <span class="status-dot connected" id="nas-sync-dot"></span>
+                <span id="txt-nas-sync-status">Activée (En direct)</span>
+              </span>
+            </div>
           </div>
-
-          <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-            <span id="txt-pause-label" style="font-size: 11px; color: var(--text-muted); font-weight: 600; margin-right: 4px;">Mettre en pause :</span>
-            <button class="btn-icon btn-pause-nas" data-hours="2" style="width: auto; padding: 0 10px; height: 30px; font-size: 11px; font-weight: 700;">2h</button>
-            <button class="btn-icon btn-pause-nas" data-hours="4" style="width: auto; padding: 0 10px; height: 30px; font-size: 11px; font-weight: 700;">4h</button>
-            <button class="btn-icon btn-pause-nas" data-hours="8" style="width: auto; padding: 0 10px; height: 30px; font-size: 11px; font-weight: 700;">8h</button>
-            <button class="btn-icon btn-pause-nas" data-hours="24" style="width: auto; padding: 0 10px; height: 30px; font-size: 11px; font-weight: 700;">24h</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Paso 5: Reciclaje Inteligente de Carpetas Locales (Verificación NAS + Estado de Entrega) -->
-    <div class="card" id="recycle-card">
-      <div class="card-title">
-        <span id="txt-step5-title">5. Recyclage Intelligent des Dossiers Locaux (Vérifié par NAS)</span>
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <span class="auth-badge" id="recycle-summary-badge" style="cursor: default;">
-            ♻️ <span id="txt-recycle-recoverable">Projets livrés : 0.00 GB</span>
-          </span>
-        </div>
-      </div>
-      <div class="card-content">
-        <p id="txt-step5-desc" style="font-size: 12px; color: var(--text-muted); line-height: 1.5;">
-          Libérez de l'espace sur le SSD local pour les projets déjà livrés. Avant de recycler un dossier vers la Corbeille Windows, l'outil vérifie le NAS et synchronise automatiquement toute photo ou vidéo manquante. Un avertissement s'affiche si un projet n'est pas encore marqué comme livré.
-        </p>
-
-        <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; background: var(--input-bg); border: 1px solid var(--card-border); border-radius: 12px;">
-          <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-            <button id="btn-filter-delivered" class="select-input" style="width: auto; cursor: pointer; padding: 6px 12px; font-size: 12px; font-weight: 700; border-color: var(--gold); color: var(--gold);">
-              ✓ <span id="txt-filter-delivered">Livrés uniquement</span>
-            </button>
-            <button id="btn-filter-all-local" class="select-input" style="width: auto; cursor: pointer; padding: 6px 12px; font-size: 12px;">
-              📁 <span id="txt-filter-all-local">Tous les projets locaux</span>
-            </button>
-          </div>
-
-          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-            <button id="btn-recycle-audit-nas" class="select-input" style="width: auto; cursor: pointer; padding: 6px 12px; font-size: 12px;">
-              🔍 <span id="txt-btn-recycle-audit">Vérifier état NAS en direct</span>
-            </button>
-            <button id="btn-recycle-all-delivered" class="select-input" style="width: auto; cursor: pointer; padding: 6px 14px; font-size: 12px; font-weight: 700; border-color: #10b981; color: #10b981;">
-              ♻️ <span id="txt-btn-recycle-delivered">Recycler tous les projets livrés</span>
-            </button>
+          <div class="accordion-body">
+            <!-- card id="nas-sync-card" content preserved -->
+            <div id="nas-sync-card">
+              <p id="txt-step4-desc" style="font-size: 12px; color: var(--text-muted); line-height: 1.5; margin-bottom: 12px;">
+                Synchronise automatiquement tous les dossiers, documents, photos et vidéos de <strong>C:\Lamha-Storage</strong> vers le <strong>NAS</strong> (01_RAW, 02_Seleccion_Cliente, 03_Edicion_Master, 04_Entregas_Finales) de manière unidirectionnelle.
+              </p>
+              <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; background: var(--input-bg); border: 1px solid var(--card-border); border-radius: 12px;">
+                <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px;">
+                  <button id="btn-nas-toggle" class="select-input" style="width: auto; cursor: pointer; font-weight: 700; border-color: var(--gold); color: var(--gold); padding: 8px 14px;">
+                    Désactiver Auto-Sync
+                  </button>
+                  <button id="btn-nas-resume" class="select-input" style="width: auto; cursor: pointer; font-weight: 700; border-color: #10b981; color: #10b981; padding: 8px 14px; display: none;">
+                    <svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg> Reprendre maintenant
+                  </button>
+                  <button id="btn-nas-scan" class="select-input" style="width: auto; cursor: pointer; padding: 8px 14px;">
+                    <svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> <span id="txt-btn-nas-scan">Vérifier fichiers non synchronisés</span>
+                  </button>
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                  <span id="txt-pause-label" style="font-size: 11px; color: var(--text-muted); font-weight: 600; margin-right: 4px;">Mettre en pause :</span>
+                  <button class="btn-icon btn-pause-nas" data-hours="2" style="width: auto; padding: 0 10px; height: 30px; font-size: 11px; font-weight: 700;">2h</button>
+                  <button class="btn-icon btn-pause-nas" data-hours="4" style="width: auto; padding: 0 10px; height: 30px; font-size: 11px; font-weight: 700;">4h</button>
+                  <button class="btn-icon btn-pause-nas" data-hours="8" style="width: auto; padding: 0 10px; height: 30px; font-size: 11px; font-weight: 700;">8h</button>
+                  <button class="btn-icon btn-pause-nas" data-hours="24" style="width: auto; padding: 0 10px; height: 30px; font-size: 11px; font-weight: 700;">24h</button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div id="recycle-projects-list" style="max-height: 290px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 2px;">
-          <!-- Se rellena dinámicamente con las carpetas locales de C:\Lamha-Storage -->
-        </div>
-      </div>
-    </div>
-
-    <!-- Ciclo de vida QNAP (RAID 1): preaviso al cliente + reciclaje automático -->
-    <div class="card" id="retention-card">
-      <div class="card-title">
-        <span id="rt-title">♻️ Cycle de vie du QNAP</span>
-        <div style="display:flex;align-items:center;gap:8px;">
-          <span class="auth-badge" id="rt-badge" style="cursor:default;">—</span>
-          <button id="rt-btn-refresh" class="btn-icon" style="width:26px;height:26px;font-size:11px;">↺</button>
-        </div>
-      </div>
-      <div class="card-content">
-        <p id="rt-desc" style="font-size:12px;color:var(--text-muted);line-height:1.5;"></p>
-
-        <!-- Tarjetas KPI de Estado de Almacenamiento -->
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:8px;">
-          <div style="background:var(--input-bg);border:1px solid var(--card-border);border-radius:10px;padding:9px 12px;">
-            <div id="rt-kpi-total-lbl" style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Espace Total</div>
-            <div id="rt-kpi-total-val" style="font-size:15px;font-weight:700;color:var(--text);margin-top:2px;">—</div>
+        <!-- Accordéon 2: Recyclage Intelligent des Dossiers Locaux -->
+        <div class="accordion-item" id="acc-recycle">
+          <div class="accordion-header">
+            <div class="accordion-header-left">
+              <svg class="accordion-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+              <span class="accordion-title" id="txt-step5-title">5. Recyclage Intelligent du SSD (Vérifié NAS)</span>
+            </div>
+            <div class="accordion-header-right">
+              <span class="auth-badge" id="recycle-summary-badge" style="cursor: default;">
+                <span id="txt-recycle-recoverable">Projets livrés : 0.00 GB</span>
+              </span>
+            </div>
           </div>
-          <div style="background:var(--input-bg);border:1px solid var(--card-border);border-radius:10px;padding:9px 12px;">
-            <div id="rt-kpi-used-lbl" style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Espace Utilisé</div>
-            <div id="rt-kpi-used-val" style="font-size:15px;font-weight:700;color:#10b981;margin-top:2px;">—</div>
-          </div>
-          <div style="background:var(--input-bg);border:1px solid var(--card-border);border-radius:10px;padding:9px 12px;">
-            <div id="rt-kpi-free-lbl" style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Espace Libre</div>
-            <div id="rt-kpi-free-val" style="font-size:15px;font-weight:700;color:#38bdf8;margin-top:2px;">—</div>
-          </div>
-          <div style="background:var(--input-bg);border:1px solid var(--card-border);border-radius:10px;padding:9px 12px;">
-            <div id="rt-kpi-trig-lbl" style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Seuil Alerte</div>
-            <div id="rt-kpi-trig-val" style="font-size:15px;font-weight:700;color:var(--gold);margin-top:2px;">—</div>
+          <div class="accordion-body">
+            <!-- card id="recycle-card" content preserved -->
+            <div id="recycle-card">
+              <p id="txt-step5-desc" style="font-size: 12px; color: var(--text-muted); line-height: 1.5; margin-bottom: 12px;">
+                Libérez de l'espace sur le SSD local pour les projets déjà livrés. Avant de recycler un dossier vers la Corbeille Windows, l'outil vérifie le NAS et synchronise automatiquement toute photo ou vidéo manquante.
+              </p>
+              <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; background: var(--input-bg); border: 1px solid var(--card-border); border-radius: 12px; margin-bottom: 12px;">
+                <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                  <button id="btn-filter-delivered" class="select-input" style="width: auto; cursor: pointer; padding: 6px 12px; font-size: 12px; font-weight: 700; border-color: var(--gold); color: var(--gold);">
+                    <svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> <span id="txt-filter-delivered">Livrés uniquement</span>
+                  </button>
+                  <button id="btn-filter-all-local" class="select-input" style="width: auto; cursor: pointer; padding: 6px 12px; font-size: 12px;">
+                    <svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> <span id="txt-filter-all-local">Tous les projets locaux</span>
+                  </button>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                  <button id="btn-recycle-audit-nas" class="select-input" style="width: auto; cursor: pointer; padding: 6px 12px; font-size: 12px;">
+                    <svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> <span id="txt-btn-recycle-audit">Vérifier état NAS en direct</span>
+                  </button>
+                  <button id="btn-recycle-all-delivered" class="select-input" style="width: auto; cursor: pointer; padding: 6px 14px; font-size: 12px; font-weight: 700; border-color: #10b981; color: #10b981;">
+                    <svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> <span id="txt-btn-recycle-delivered">Recycler tous les projets livrés</span>
+                  </button>
+                </div>
+              </div>
+              <div id="recycle-projects-list" style="max-height: 290px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 2px;">
+              </div>
+            </div>
           </div>
         </div>
 
-        <div style="background:var(--input-bg);border:1px solid var(--card-border);border-radius:12px;padding:12px 14px;">
-          <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px;">
-            <span id="rt-usage-text">—</span>
-            <span id="rt-usage-state" style="font-weight:700;">—</span>
+        <!-- Accordéon 3: Cycle de Vie QNAP -->
+        <div class="accordion-item" id="acc-retention">
+          <div class="accordion-header">
+            <div class="accordion-header-left">
+              <svg class="accordion-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+              <span class="accordion-title" id="rt-title">Cycle de Vie & Rétention QNAP (Politique Studio)</span>
+            </div>
+            <div class="accordion-header-right">
+              <span class="auth-badge" id="rt-badge" style="cursor:default;">—</span>
+              <button id="rt-btn-refresh" class="btn-icon" style="width:26px;height:26px;" title="Actualiser"><svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg></button>
+            </div>
           </div>
-          <div style="position:relative;height:12px;background:rgba(127,127,127,.18);border-radius:8px;overflow:hidden;">
-            <div id="rt-bar" style="height:100%;width:0%;background:#10b981;transition:width .4s;"></div>
-            <div id="rt-marker" style="position:absolute;top:0;bottom:0;width:2px;background:var(--gold);left:70%;"></div>
+          <div class="accordion-body">
+            <!-- card id="retention-card" content preserved -->
+            <div id="retention-card">
+              <p id="rt-desc" style="font-size:12px;color:var(--text-muted);line-height:1.5;margin-bottom:12px;"></p>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:8px;margin-bottom:12px;">
+                <div style="background:var(--input-bg);border:1px solid var(--card-border);border-radius:10px;padding:9px 12px;">
+                  <div id="rt-kpi-total-lbl" style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Espace Total</div>
+                  <div id="rt-kpi-total-val" style="font-size:15px;font-weight:700;color:var(--text);margin-top:2px;">—</div>
+                </div>
+                <div style="background:var(--input-bg);border:1px solid var(--card-border);border-radius:10px;padding:9px 12px;">
+                  <div id="rt-kpi-used-lbl" style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Espace Utilisé</div>
+                  <div id="rt-kpi-used-val" style="font-size:15px;font-weight:700;color:#10b981;margin-top:2px;">—</div>
+                </div>
+                <div style="background:var(--input-bg);border:1px solid var(--card-border);border-radius:10px;padding:9px 12px;">
+                  <div id="rt-kpi-free-lbl" style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Espace Libre</div>
+                  <div id="rt-kpi-free-val" style="font-size:15px;font-weight:700;color:#38bdf8;margin-top:2px;">—</div>
+                </div>
+                <div style="background:var(--input-bg);border:1px solid var(--card-border);border-radius:10px;padding:9px 12px;">
+                  <div id="rt-kpi-trig-lbl" style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Seuil Alerte</div>
+                  <div id="rt-kpi-trig-val" style="font-size:15px;font-weight:700;color:var(--gold);margin-top:2px;">—</div>
+                </div>
+              </div>
+              <div style="background:var(--input-bg);border:1px solid var(--card-border);border-radius:12px;padding:12px 14px;margin-bottom:12px;">
+                <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px;">
+                  <span id="rt-usage-text">—</span>
+                  <span id="rt-usage-state" style="font-weight:700;">—</span>
+                </div>
+                <div style="position:relative;height:12px;background:rgba(127,127,127,.18);border-radius:8px;overflow:hidden;">
+                  <div id="rt-bar" style="height:100%;width:0%;background:#10b981;transition:width .4s;"></div>
+                  <div id="rt-marker" style="position:absolute;top:0;bottom:0;width:2px;background:var(--gold);left:70%;"></div>
+                </div>
+                <div id="rt-summary" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;font-size:11px;"></div>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px;">
+                <label style="font-size:11px;color:var(--text-muted);display:flex;flex-direction:column;gap:4px;"><span id="rt-lbl-unit"></span>
+                  <select id="rt-in-unit" class="select-input">
+                    <option value="TB">TB (Téraoctets - QNAP)</option>
+                    <option value="GB">GB (Gigaoctets - Test)</option>
+                  </select></label>
+                <label style="font-size:11px;color:var(--text-muted);display:flex;flex-direction:column;gap:4px;"><span id="rt-lbl-capacity"></span>
+                  <input id="rt-in-capacity" class="text-input" type="number" step="0.1" min="0.1" /></label>
+                <label style="font-size:11px;color:var(--text-muted);display:flex;flex-direction:column;gap:4px;"><span id="rt-lbl-trigger"></span>
+                  <input id="rt-in-trigger" class="text-input" type="number" step="0.1" min="0.1" /></label>
+                <label style="font-size:11px;color:var(--text-muted);display:flex;flex-direction:column;gap:4px;"><span id="rt-lbl-release"></span>
+                  <input id="rt-in-release" class="text-input" type="number" step="0.1" min="0.1" /></label>
+                <label style="font-size:11px;color:var(--text-muted);display:flex;flex-direction:column;gap:4px;"><span id="rt-lbl-grace"></span>
+                  <input id="rt-in-grace" class="text-input" type="number" step="1" min="1" /></label>
+                <label style="font-size:11px;color:var(--text-muted);display:flex;flex-direction:column;gap:4px;"><span id="rt-lbl-mode"></span>
+                  <select id="rt-in-mode" class="select-input"><option value="keep_finals"></option><option value="delete_all"></option></select></label>
+                <label style="font-size:11px;color:var(--text-muted);display:flex;flex-direction:column;gap:4px;"><span id="rt-lbl-lang"></span>
+                  <select id="rt-in-lang" class="select-input"><option value="fr">Français</option><option value="es">Español</option><option value="en">English</option><option value="ar">العربية</option></select></label>
+              </div>
+              <div style="display:flex;flex-wrap:wrap;gap:14px;font-size:12px;margin-bottom:12px;">
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input id="rt-chk-enabled" type="checkbox" /><span id="rt-lbl-enabled"></span></label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input id="rt-chk-notice" type="checkbox" /><span id="rt-lbl-autonotice"></span></label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input id="rt-chk-purge" type="checkbox" /><span id="rt-lbl-autopurge"></span></label>
+              </div>
+              <div id="rt-warn" style="display:none;font-size:11px;color:#ef4444;margin-bottom:12px;"></div>
+              <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+                <button id="rt-btn-save" class="btn-primary" style="padding:8px 16px;font-size:12px;"><span id="rt-txt-save"></span></button>
+                <button id="rt-btn-notice" class="select-input" style="width:auto;cursor:pointer;padding:8px 14px;font-size:12px;border-color:var(--gold);color:var(--gold);"><span id="rt-txt-notice"></span></button>
+                <button id="rt-btn-purge" class="select-input" style="width:auto;cursor:pointer;padding:8px 14px;font-size:12px;border-color:#ef4444;color:#ef4444;"><span id="rt-txt-purge"></span></button>
+              </div>
+              <div id="rt-lists" style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;font-size:12px;"></div>
+            </div>
           </div>
-          <div id="rt-summary" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;font-size:11px;"></div>
         </div>
 
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;">
-          <label style="font-size:11px;color:var(--text-muted);display:flex;flex-direction:column;gap:4px;"><span id="rt-lbl-unit"></span>
-            <select id="rt-in-unit" class="select-input">
-              <option value="TB">TB (Téraoctets - QNAP)</option>
-              <option value="GB">GB (Gigaoctets - Test)</option>
-            </select></label>
-          <label style="font-size:11px;color:var(--text-muted);display:flex;flex-direction:column;gap:4px;"><span id="rt-lbl-capacity"></span>
-            <input id="rt-in-capacity" class="text-input" type="number" step="0.1" min="0.1" /></label>
-          <label style="font-size:11px;color:var(--text-muted);display:flex;flex-direction:column;gap:4px;"><span id="rt-lbl-trigger"></span>
-            <input id="rt-in-trigger" class="text-input" type="number" step="0.1" min="0.1" /></label>
-          <label style="font-size:11px;color:var(--text-muted);display:flex;flex-direction:column;gap:4px;"><span id="rt-lbl-release"></span>
-            <input id="rt-in-release" class="text-input" type="number" step="0.1" min="0.1" /></label>
-          <label style="font-size:11px;color:var(--text-muted);display:flex;flex-direction:column;gap:4px;"><span id="rt-lbl-grace"></span>
-            <input id="rt-in-grace" class="text-input" type="number" step="1" min="1" /></label>
-          <label style="font-size:11px;color:var(--text-muted);display:flex;flex-direction:column;gap:4px;"><span id="rt-lbl-mode"></span>
-            <select id="rt-in-mode" class="select-input"><option value="keep_finals"></option><option value="delete_all"></option></select></label>
-          <label style="font-size:11px;color:var(--text-muted);display:flex;flex-direction:column;gap:4px;"><span id="rt-lbl-lang"></span>
-            <select id="rt-in-lang" class="select-input"><option value="fr">Français</option><option value="es">Español</option><option value="en">English</option><option value="ar">العربية</option></select></label>
-        </div>
-
-        <div style="display:flex;flex-wrap:wrap;gap:14px;font-size:12px;">
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input id="rt-chk-enabled" type="checkbox" /><span id="rt-lbl-enabled"></span></label>
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input id="rt-chk-notice" type="checkbox" /><span id="rt-lbl-autonotice"></span></label>
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input id="rt-chk-purge" type="checkbox" /><span id="rt-lbl-autopurge"></span></label>
-        </div>
-        <div id="rt-warn" style="display:none;font-size:11px;color:#ef4444;"></div>
-
-        <div style="display:flex;flex-wrap:wrap;gap:8px;">
-          <button id="rt-btn-save" class="btn-primary" style="padding:8px 16px;font-size:12px;"><span id="rt-txt-save"></span></button>
-          <button id="rt-btn-notice" class="select-input" style="width:auto;cursor:pointer;padding:8px 14px;font-size:12px;border-color:var(--gold);color:var(--gold);"><span id="rt-txt-notice"></span></button>
-          <button id="rt-btn-purge" class="select-input" style="width:auto;cursor:pointer;padding:8px 14px;font-size:12px;border-color:#ef4444;color:#ef4444;"><span id="rt-txt-purge"></span></button>
-        </div>
-
-        <div id="rt-lists" style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;font-size:12px;"></div>
-      </div>
-    </div>
-
-    <!-- Paso 6: Historial Reciente de Actividad -->
-    <div class="card" id="history-card">
-      <div class="card-title">
-        <span id="txt-step6-title">6. Historique Récent d'Activité</span>
-        <button id="btn-refresh-history" class="btn-icon" style="width: 26px; height: 26px; font-size: 11px;">↺</button>
-      </div>
-      <div class="card-content">
-        <div id="history-list" style="max-height: 180px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; font-size: 12px;">
-          <!-- Se rellena dinámicamente con las últimas ingestas / sincronizaciones / reciclajes -->
+        <!-- Accordéon 4: Historique Récent d'Activité -->
+        <div class="accordion-item" id="acc-history">
+          <div class="accordion-header">
+            <div class="accordion-header-left">
+              <svg class="accordion-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+              <span class="accordion-title" id="txt-step6-title">6. Historique d'Activité Récent</span>
+            </div>
+            <div class="accordion-header-right">
+              <button id="btn-refresh-history" class="btn-icon" style="width: 26px; height: 26px;" title="Actualiser"><svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg></button>
+            </div>
+          </div>
+          <div class="accordion-body">
+            <!-- card id="history-card" content preserved -->
+            <div id="history-card">
+              <div id="history-list" style="max-height: 180px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; font-size: 12px;"></div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -837,7 +1011,7 @@
           <h3 id="txt-new-sess-title" style="color: var(--gold); font-size: 16px;">+ Nouvelle Séance / Projet</h3>
           <p id="txt-new-sess-subtitle" style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Enregistrement complet dans Supabase (Client, Catégorie, Sous-catégorie, PIN)</p>
         </div>
-        <button class="btn-icon" id="btn-close-new-session" style="border:none;">✕</button>
+        <button class="btn-icon" id="btn-close-new-session" style="border:none;"><svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
 
       <!-- SECCIÓN 1: CLIENTE Y CONTACTO -->
@@ -846,17 +1020,17 @@
           <strong id="txt-sec1-client" style="font-size: 11.5px; text-transform: uppercase; color: var(--gold); letter-spacing: 0.4px;">1. Client & Coordonnées</strong>
           <div style="display: flex; gap: 6px;">
             <button type="button" id="btn-mode-existing-client" class="select-input" style="width: auto; padding: 5px 11px; font-size: 11px; cursor: pointer;">
-              👥 <span id="txt-tab-existing-client">Client Existant</span>
+              <span id="txt-tab-existing-client">Client Existant</span>
             </button>
             <button type="button" id="btn-mode-new-client" class="select-input" style="width: auto; padding: 5px 11px; font-size: 11px; cursor: pointer; border-color: var(--gold); color: var(--gold); font-weight: 700;">
-              ➕ <span id="txt-tab-new-client">Nouveau Client</span>
+              <svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> <span id="txt-tab-new-client">Nouveau Client</span>
             </button>
           </div>
         </div>
 
         <!-- Modo: Seleccionar Cliente Existente -->
         <div id="existing-client-search-box" style="display: none; flex-direction: column; gap: 8px; position: relative;">
-          <input type="text" id="inp-search-existing-client" class="text-input" placeholder="🔍 Rechercher un client par nom, téléphone ou email..." style="padding: 8px 12px; font-size: 12px;">
+          <input type="text" id="inp-search-existing-client" class="text-input" placeholder="Rechercher un client par nom, téléphone ou email..." style="padding: 8px 12px; font-size: 12px;">
           <div id="existing-clients-dropdown" style="max-height: 150px; overflow-y: auto; border: 1px solid var(--card-border); border-radius: 8px; background: var(--card-bg); display: none; flex-direction: column; gap: 2px; padding: 4px;">
           </div>
         </div>
@@ -889,10 +1063,10 @@
             <label id="txt-new-sess-env">Cadre / Lieu *</label>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
               <button type="button" id="btn-shoot-studio" class="select-input" style="padding: 8px; font-size: 11.5px; font-weight: 700; cursor: pointer; border-color: var(--gold); color: var(--gold); text-align: center;">
-                🏢 <span id="txt-opt-studio">Studio</span>
+                <span id="txt-opt-studio">Studio</span>
               </button>
               <button type="button" id="btn-shoot-party" class="select-input" style="padding: 8px; font-size: 11.5px; cursor: pointer; text-align: center;">
-                🎉 <span id="txt-opt-party">Fête / Ext.</span>
+                <span id="txt-opt-party">Fête / Extérieur</span>
               </button>
             </div>
           </div>
@@ -901,10 +1075,10 @@
             <label id="txt-new-sess-type">Type de Prestation *</label>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
               <button type="button" id="btn-type-photo" class="select-input" style="padding: 8px; font-size: 11.5px; font-weight: 700; cursor: pointer; border-color: var(--gold); color: var(--gold); text-align: center;">
-                📸 <span id="txt-opt-photo">Photo</span>
+                <span id="txt-opt-photo">Photo</span>
               </button>
               <button type="button" id="btn-type-video" class="select-input" style="padding: 8px; font-size: 11.5px; cursor: pointer; text-align: center;">
-                🎬 <span id="txt-opt-video">Vidéo</span>
+                <span id="txt-opt-video">Vidéo</span>
               </button>
             </div>
           </div>
@@ -939,16 +1113,16 @@
           <div class="form-group">
             <label id="txt-new-sess-status">Statut de Production</label>
             <select id="inp-new-status" class="select-input">
-              <option value="pending">🟡 Planifié / En attente</option>
-              <option value="shooting">🟣 En séance / Tournage</option>
-              <option value="edited">🔵 Prêt pour sélection</option>
-              <option value="delivered">🟢 Livré</option>
+              <option value="pending">Planifié / En attente</option>
+              <option value="shooting">En séance / Tournage</option>
+              <option value="edited">Prêt pour sélection</option>
+              <option value="delivered">Livré</option>
             </select>
           </div>
           <div class="form-group">
             <div style="display: flex; justify-content: space-between; align-items: center;">
               <label id="txt-new-sess-pin">Code PIN Portail (4 chiffres)</label>
-              <button type="button" id="btn-gen-pin" style="background: none; border: none; color: var(--gold); font-size: 11px; font-weight: 700; cursor: pointer;">🎲 Générer</button>
+              <button type="button" id="btn-gen-pin" style="background: none; border: none; color: var(--gold); font-size: 11px; font-weight: 700; cursor: pointer;">Générer</button>
             </div>
             <input type="text" id="inp-new-pin" class="text-input" maxlength="6" placeholder="Ex: 4829" style="font-family: monospace; letter-spacing: 2px;">
           </div>
@@ -976,13 +1150,13 @@
         <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; background: rgba(200, 164, 90, 0.08); border: 1px solid rgba(200, 164, 90, 0.28); border-radius: 10px; padding: 8px 12px; margin-top: 2px;">
           <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12px; color: var(--text); font-weight: 600; margin: 0;">
             <input type="checkbox" id="chk-new-send-welcome" checked style="width: 15px; height: 15px; accent-color: var(--gold); cursor: pointer;">
-            <span id="txt-new-sess-send-welcome">✉️ Envoyer Email & WhatsApp de bienvenue au client</span>
+            <span id="txt-new-sess-send-welcome">Envoyer Email & WhatsApp de bienvenue au client</span>
           </label>
           <select id="inp-new-notify-lang" class="select-input" style="width: auto; padding: 5px 10px; font-size: 11px;">
-            <option value="fr">🇫🇷 Français</option>
-            <option value="ar">🇲🇦 العربية</option>
-            <option value="es">🇪🇸 Español</option>
-            <option value="en">🇬🇧 English</option>
+            <option value="fr">Français</option>
+            <option value="ar">العربية</option>
+            <option value="es">Español</option>
+            <option value="en">English</option>
           </select>
         </div>
       </div>
@@ -992,7 +1166,7 @@
           Annuler
         </button>
         <button type="button" id="btn-create-session-submit" class="btn-primary" style="padding: 10px 20px; font-size: 13px;">
-          ✓ <span id="txt-btn-create-session">Créer la Séance & Sélectionner</span>
+          <svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> <span id="txt-btn-create-session">Créer la Séance & Sélectionner</span>
         </button>
       </div>
     </div>
@@ -1003,21 +1177,21 @@
     <div class="modal-card" style="max-width: 520px;">
       <div style="display: flex; justify-content: space-between; align-items: center;">
         <div style="display: flex; align-items: center; gap: 10px;">
-          <span style="font-size: 20px;">♻️</span>
+          <span style="display:inline-flex;color:var(--gold);"><svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></span>
           <h3 id="txt-recycle-modal-title" style="color: var(--gold); font-size: 15px;">Confirmer le recyclage du dossier local</h3>
         </div>
-        <button class="btn-icon" id="btn-close-recycle-modal" style="border:none;">✕</button>
+        <button class="btn-icon" id="btn-close-recycle-modal" style="border:none;"><svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
 
       <!-- Alerta Crítica si algún proyecto seleccionado AÚN NO FUE ENTREGADO -->
       <div id="recycle-undelivered-warning" style="display: none; background: rgba(239, 68, 68, 0.14); border: 1px solid rgba(239, 68, 68, 0.5); color: #fca5a5; padding: 12px 14px; border-radius: 10px; font-size: 12.5px; line-height: 1.5;">
-        <strong id="txt-recycle-warn-title" style="color: #ef4444; display: block; margin-bottom: 4px;">⚠️ ATTENTION : PROJET NON LIVRÉ !</strong>
+        <strong id="txt-recycle-warn-title" style="color: #ef4444; display: flex; align-items: center; gap: 6px; margin-bottom: 4px;"><svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> ATTENTION : PROJET NON LIVRÉ !</strong>
         <span id="txt-recycle-warn-desc">Ce projet n'est pas encore marqué comme « Livré » au client. Êtes-vous sûr de vouloir recycler son dossier local sur le SSD ?</span>
       </div>
 
       <!-- Explicación del Blindaje NAS -->
       <div style="background: var(--input-bg); border: 1px solid var(--card-border); padding: 12px 14px; border-radius: 10px; font-size: 12px; color: var(--text-muted); line-height: 1.5;">
-        🛡️ <span id="txt-recycle-nas-shield">Avant de déplacer le dossier local vers la Corbeille Windows, une vérification en direct sera effectuée sur le NAS. Si une photo, vidéo ou document n'est pas encore sur le NAS, il sera synchronisé automatiquement vers le NAS avant la suppression locale.</span>
+        <span id="txt-recycle-nas-shield">Avant de déplacer le dossier local vers la Corbeille Windows, une vérification en direct sera effectuée sur le NAS. Si une photo, vidéo ou document n'est pas encore sur le NAS, il sera synchronisé automatiquement vers le NAS avant la suppression locale.</span>
       </div>
 
       <div id="recycle-confirm-list" style="max-height: 140px; overflow-y: auto; background: var(--input-bg); border: 1px solid var(--card-border); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; font-size: 12px;">
@@ -1029,7 +1203,7 @@
           Annuler
         </button>
         <button id="btn-confirm-recycle-exec" class="btn-primary" style="padding: 10px 18px; font-size: 13px;">
-          ♻️ <span id="txt-btn-confirm-recycle">Vérifier NAS & Recycler maintenant</span>
+          <svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> <span id="txt-btn-confirm-recycle">Vérifier NAS & Recycler maintenant</span>
         </button>
       </div>
     </div>
@@ -1042,7 +1216,7 @@
     <div class="modal-card">
       <div style="display: flex; justify-content: space-between; align-items: center;">
         <h3 style="color: var(--gold);">Paramètres de l'Atelier</h3>
-        <button class="btn-icon" id="btn-close-settings" style="border:none;">✕</button>
+        <button class="btn-icon" id="btn-close-settings" style="border:none;"><svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
       <div class="form-group">
         <label>URL du Dashboard :</label>
@@ -1081,19 +1255,19 @@
     </div>
   </div>
 
-  <!-- Modal de Confirmación de Archivos Pendientes de Sincronizar (Local SSD ➔ NAS) -->
+  <!-- Modal de Confirmación de Archivos Pendientes de Sincronizar (Local SSD -> NAS) -->
   <div id="modal-nas-pending" class="modal-backdrop">
     <div class="modal-card" style="max-width: 520px;">
       <div style="display: flex; justify-content: space-between; align-items: center;">
         <div style="display: flex; align-items: center; gap: 10px;">
-          <span style="font-size: 20px;">⚠️</span>
+          <span style="display:inline-flex;color:#f59e0b;"><svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
           <h3 id="txt-pending-modal-title" style="color: var(--gold); font-size: 15px;">Fichiers non synchronisés détectés</h3>
         </div>
-        <button class="btn-icon" id="btn-close-pending" style="border:none;">✕</button>
+        <button class="btn-icon" id="btn-close-pending" style="border:none;"><svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
 
       <p id="txt-pending-modal-desc" style="font-size: 12.5px; color: var(--text-muted); line-height: 1.5;">
-        Nous avons détecté des fichiers et dossiers locaux dans <strong>C:\Lamha-Storage</strong> qui ne sont pas encore archivés sur le NAS. Souhaitez-vous démarrer la synchronisation unidirectionnelle (Local ➔ NAS) maintenant ?
+        Nous avons détecté des fichiers et dossiers locaux dans <strong>C:\Lamha-Storage</strong> qui ne sont pas encore archivés sur le NAS. Souhaitez-vous démarrer la synchronisation unidirectionnelle (Local -> NAS) maintenant ?
       </p>
 
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
@@ -1113,7 +1287,7 @@
 
       <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 4px;">
         <button id="btn-accept-pending" class="btn-primary" style="width: 100%; padding: 12px 18px; font-size: 13px;">
-          ✓ <span id="txt-btn-accept-pending">Accepter et Synchroniser maintenant (Local ➔ NAS)</span>
+          <svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg> <span id="txt-btn-accept-pending">Accepter et Synchroniser maintenant (Local -> NAS)</span>
         </button>
 
         <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;">
@@ -1149,13 +1323,13 @@
         step1Title: "1. Source Mémoire (SD / USB)",
         step2Title: "2. Projet / Session Réelle",
         step3Title: "3. Pipeline d'Ingestion Complet",
-        step4Title: "4. Synchronisation Automatique Unidirectionnelle (Local SSD ➔ NAS)",
+        step4Title: "4. Synchronisation Automatique Unidirectionnelle (Local SSD -> NAS)",
         step4Desc: "Synchronise automatiquement tous les dossiers, documents, photos et vidéos de C:\\Lamha-Storage vers le NAS (01_RAW, 02_Seleccion_Cliente, 03_Edicion_Master, 04_Entregas_Finales) de manière strictement unidirectionnelle.",
         step5Title: "5. Recyclage Intelligent des Dossiers Locaux (Vérifié par NAS)",
         step5Desc: "Libérez de l'espace sur le SSD local pour les projets déjà livrés. Avant de recycler un dossier vers la Corbeille Windows, l'outil vérifie le NAS et synchronise automatiquement toute photo ou vidéo manquante. Un avertissement s'affiche si un projet n'est pas encore marqué comme livré.",
         step6Title: "6. Historique Récent d'Activité",
         selectSessionLabel: "Associer à la séance :",
-        searchPlaceholder: "🔍 Filtrer par client, date ou catégorie...",
+        searchPlaceholder: "Filtrer par client, date ou catégorie...",
         btnNewSession: "Nouveau Projet",
         newSessTitle: "+ Nouveau Projet / Séance",
         newSessClient: "Nom du Client :",
@@ -1168,6 +1342,9 @@
         pipeCloudDesc: "Envoi des aperçus WebP et enregistrement dans la base de données",
         pipeNas: "3. Sauvegarde Réseau vers le NAS de l'Atelier",
         pipeNasDesc: "Archivage automatique sécurisé en arrière-plan",
+        pipeExtra: "4. Copie Supplémentaire (Disque Externe / Montage / Réseau)",
+        pipeExtraDesc: "Duplication automatique sur une destination personnalisée",
+        btnBrowseExtra: "Parcourir",
         btnStart: "DÉMARRER L'INGESTION COMPLÈTE",
         btnCancel: "Annuler",
         cancelledStatus: "Opération annulée.",
@@ -1179,17 +1356,17 @@
         nasStatusDisabled: "Désactivée",
         btnDisableSync: "Désactiver Auto-Sync",
         btnEnableSync: "Activer Auto-Sync",
-        btnResumeNow: "▶ Reprendre maintenant",
+        btnResumeNow: "Reprendre maintenant",
         btnScanPending: "Vérifier fichiers non synchronisés",
         pauseLabel: "Mettre en pause :",
         pendingModalTitle: "Fichiers non synchronisés détectés",
-        pendingModalDesc: "Nous avons détecté des fichiers et dossiers locaux dans C:\\Lamha-Storage qui ne sont pas encore archivés sur le NAS. Souhaitez-vous démarrer la synchronisation unidirectionnelle (Local ➔ NAS) maintenant ?",
+        pendingModalDesc: "Nous avons détecté des fichiers et dossiers locaux dans C:\\Lamha-Storage qui ne sont pas encore archivés sur le NAS. Souhaitez-vous démarrer la synchronisation unidirectionnelle (Local -> NAS) maintenant ?",
         pendingFilesLabel: "Fichiers en attente",
         pendingSizeLabel: "Volume total",
-        btnAcceptPending: "Accepter et Synchroniser maintenant (Local ➔ NAS)",
+        btnAcceptPending: "Accepter et Synchroniser maintenant (Local -> NAS)",
         modalPauseLabel: "Ou mettre en pause :",
         btnDismissPending: "Plus tard",
-        allSyncedMsg: "Tous les dossiers et fichiers locaux sont déjà synchronisés sur le NAS ✓",
+        allSyncedMsg: "Tous les dossiers et fichiers locaux sont déjà synchronisés sur le NAS ",
         postOpenFolder: "Ouvrir Dossier Local SSD",
         postOpenGallery: "Ouvrir Galerie Web",
         postEjectSd: "Éjecter Carte SD en sécurité",
@@ -1198,25 +1375,25 @@
         btnRecycleAudit: "Vérifier état NAS en direct",
         btnRecycleDelivered: "Recycler tous les projets livrés",
         recoverableLabel: "Projets livrés :",
-        statusDelivered: "Livré ✓",
-        statusNotDelivered: "Non livré ⚠️",
+        statusDelivered: "Livré ",
+        statusNotDelivered: "Non livré ",
         statusPlanned: "Planifié",
         statusIngested: "Ingéré",
         statusEditing: "En Édition",
         statusReview: "En Sélection",
         statusUnlinked: "Non lié",
-        nasSyncedOk: "100% sur NAS ✓",
+        nasSyncedOk: "100% sur NAS ",
         nasMissingCount: (n) => `${n} fich. à sync avant recyclage`,
         btnRecycleOne: "Recycler",
         noRecycleItems: "Aucun dossier local à afficher pour ce filtre.",
         recycleModalTitle: "Confirmer le recyclage du dossier local",
-        recycleWarnTitle: "⚠️ ATTENTION : PROJET NON LIVRÉ AU CLIENT !",
+        recycleWarnTitle: "ATTENTION : PROJET NON LIVRÉ AU CLIENT !",
         recycleWarnDesc: (names) => `Le projet « ${names} » figure comme NON LIVRÉ au client. Êtes-vous absolument sûr de vouloir recycler son dossier local sur le SSD ?`,
         recycleNasShield: "Avant de déplacer le dossier local vers la Corbeille Windows, une vérification en direct sera effectuée sur le NAS. Si une photo, vidéo ou document n'est pas encore sur le NAS, il sera synchronisé automatiquement vers le NAS avant la suppression locale.",
         btnConfirmRecycle: "Vérifier NAS & Recycler maintenant",
         recycleSuccessMsg: (n, gb, synced) => `${n} dossier(s) envoyé(s) à la Corbeille (${gb} Go libérés)${synced ? ` après synchronisation de ${synced} fichier(s) vers le NAS.` : "."}`,
-        recycleErrNas: "❌ Opération annulée : Impossible de vérifier ou joindre le NAS (192.168.11.1). Aucun fichier local n'a été supprimé.",
-        recycleErrIncomplete: "❌ Opération annulée : Certains fichiers n'ont pas pu être copiés sur le NAS. Aucun fichier local n'a été supprimé.",
+        recycleErrNas: "Opération annulée : Impossible de vérifier ou joindre le NAS (192.168.11.1). Aucun fichier local n'a été supprimé.",
+        recycleErrIncomplete: "Opération annulée : Certains fichiers n'ont pas pu être copiés sur le NAS. Aucun fichier local n'a été supprimé.",
         historyEmpty: "Aucune activité récente enregistrée.",
         cfgAutostart: "Démarrer automatiquement avec Windows",
         cfgAutostartDesc: "Actif en arrière-plan dès l'allumage du PC",
@@ -1229,13 +1406,13 @@
         step1Title: "1. Origen de Memoria (SD / USB)",
         step2Title: "2. Proyecto / Sesión Real",
         step3Title: "3. Pipeline de Ingesta Completo",
-        step4Title: "4. Sincronización Automática Unidireccional (Local SSD ➔ NAS)",
+        step4Title: "4. Sincronización Automática Unidireccional (Local SSD -> NAS)",
         step4Desc: "Sincroniza automáticamente todas las carpetas, documentos, fotos y vídeos de C:\\Lamha-Storage hacia el NAS (01_RAW, 02_Seleccion_Cliente, 03_Edicion_Master, 04_Entregas_Finales) de forma estrictamente unidireccional.",
         step5Title: "5. Reciclaje Inteligente de Carpetas Locales (Verificado por NAS)",
         step5Desc: "Libera espacio en el SSD local reciclando las carpetas de los proyectos entregados. Antes de reciclar, se comprueba la sincronización con el NAS: si una foto o vídeo aún no está en el NAS, se sincroniza al NAS antes de borrar. Muestra aviso si un proyecto aún no fue entregado.",
         step6Title: "6. Historial Reciente de Actividad",
         selectSessionLabel: "Vincular a la sesión:",
-        searchPlaceholder: "🔍 Filtrar por cliente, fecha o categoría...",
+        searchPlaceholder: "Filtrar por cliente, fecha o categoría...",
         btnNewSession: "Nuevo Proyecto",
         newSessTitle: "+ Nuevo Proyecto / Sesión",
         newSessClient: "Nombre del Cliente:",
@@ -1248,6 +1425,9 @@
         pipeCloudDesc: "Subida de previsualizaciones WebP y registro en base de datos",
         pipeNas: "3. Respaldo en Red al NAS del Estudio",
         pipeNasDesc: "Archivado automático seguro en segundo plano",
+        pipeExtra: "4. Copia Adicional (Disco Externo / Edición / Red)",
+        pipeExtraDesc: "Duplicación automática en una ruta personalizada",
+        btnBrowseExtra: "Examinar",
         btnStart: "INICIAR INGESTA COMPLETA",
         btnCancel: "Cancelar",
         cancelledStatus: "Operación cancelada.",
@@ -1259,17 +1439,17 @@
         nasStatusDisabled: "Desactivada",
         btnDisableSync: "Desactivar Auto-Sync",
         btnEnableSync: "Activar Auto-Sync",
-        btnResumeNow: "▶ Reanudar ahora",
+        btnResumeNow: "Reanudar ahora",
         btnScanPending: "Buscar archivos sin sincronizar",
         pauseLabel: "Pausar por:",
         pendingModalTitle: "Archivos sin sincronizar detectados",
-        pendingModalDesc: "Hemos detectado carpetas y archivos locales en C:\\Lamha-Storage que aún no están respaldados en el NAS. ¿Deseas iniciar la sincronización unidirectionnal (Local ➔ NAS) ahora?",
+        pendingModalDesc: "Hemos detectado carpetas y archivos locales en C:\\Lamha-Storage que aún no están respaldados en el NAS. ¿Deseas iniciar la sincronización unidirectionnal (Local -> NAS) ahora?",
         pendingFilesLabel: "Archivos pendientes",
         pendingSizeLabel: "Tamaño total",
-        btnAcceptPending: "Aceptar y Sincronizar ahora (Local ➔ NAS)",
+        btnAcceptPending: "Aceptar y Sincronizar ahora (Local -> NAS)",
         modalPauseLabel: "O pausar por:",
         btnDismissPending: "Más tarde",
-        allSyncedMsg: "Todas las carpetas y archivos locales ya están sincronizados con el NAS ✓",
+        allSyncedMsg: "Todas las carpetas y archivos locales ya están sincronizados con el NAS ",
         postOpenFolder: "Abrir Carpeta Local SSD",
         postOpenGallery: "Abrir Galería Web",
         postEjectSd: "Expulsar Tarjeta SD seguro",
@@ -1278,25 +1458,25 @@
         btnRecycleAudit: "Comprobar NAS en vivo",
         btnRecycleDelivered: "Reciclar todos los entregados",
         recoverableLabel: "En entregados:",
-        statusDelivered: "Entregado ✓",
-        statusNotDelivered: "No entregado ⚠️",
+        statusDelivered: "Entregado ",
+        statusNotDelivered: "No entregado ",
         statusPlanned: "Planificado",
         statusIngested: "Ingestado",
         statusEditing: "En Edición",
         statusReview: "En Selección",
         statusUnlinked: "Sin vincular",
-        nasSyncedOk: "100% en NAS ✓",
+        nasSyncedOk: "100% en NAS ",
         nasMissingCount: (n) => `Faltan ${n} en NAS (se subirán antes)`,
         btnRecycleOne: "Reciclar",
         noRecycleItems: "No hay carpetas locales para mostrar con este filtro.",
         recycleModalTitle: "Confirmar reciclaje de carpeta local",
-        recycleWarnTitle: "⚠️ ¡ATENCIÓN: PROYECTO AÚN NO ENTREGADO!",
+        recycleWarnTitle: "¡ATENCIÓN: PROYECTO AÚN NO ENTREGADO!",
         recycleWarnDesc: (names) => `El proyecto « ${names} » aún NO figura como Entregado al cliente. ¿Estás seguro de que quieres reciclar su carpeta local en el SSD?`,
         recycleNasShield: "Antes de enviar la carpeta local a la Papelera de Windows, se comprobará la sincronización vía NAS en vivo. Si alguna foto, vídeo o documento aún no está en el NAS, se sincronizará automáticamente al NAS antes de borrar.",
         btnConfirmRecycle: "Comprobar NAS y Reciclar ahora",
-        recycleSuccessMsg: (n, gb, synced) => `♻️ ${n} carpeta(s) enviada(s) a la Papelera (${gb} GB liberados en SSD)${synced ? ` tras sincronizar ${synced} archivo(s) pendientes al NAS.` : "."}`,
-        recycleErrNas: "❌ Reciclaje cancelado: No se pudo conectar con el NAS (192.168.11.1) para verificar las fotos. No se ha borrado ningún archivo local.",
-        recycleErrIncomplete: "❌ Reciclaje cancelado: Algunos archivos no pudieron sincronizarse al NAS. No se ha borrado ningún archivo local.",
+        recycleSuccessMsg: (n, gb, synced) => `${n} carpeta(s) enviada(s) a la Papelera (${gb} GB liberados en SSD)${synced ? ` tras sincronizar ${synced} archivo(s) pendientes al NAS.` : "."}`,
+        recycleErrNas: "Reciclaje cancelado: No se pudo conectar con el NAS (192.168.11.1) para verificar las fotos. No se ha borrado ningún archivo local.",
+        recycleErrIncomplete: "Reciclaje cancelado: Algunos archivos no pudieron sincronizarse al NAS. No se ha borrado ningún archivo local.",
         historyEmpty: "Sin actividad reciente registrada.",
         cfgAutostart: "Iniciar automáticamente con Windows",
         cfgAutostartDesc: "Permanece activo en segundo plano al encender el PC",
@@ -1309,13 +1489,13 @@
         step1Title: "1. Storage Source (SD / USB)",
         step2Title: "2. Real Project / Session",
         step3Title: "3. Full Ingestion Pipeline",
-        step4Title: "4. Unidirectional Automatic Sync (Local SSD ➔ NAS)",
+        step4Title: "4. Unidirectional Automatic Sync (Local SSD -> NAS)",
         step4Desc: "Automatically synchronizes all folders, documents, photos, and videos from C:\\Lamha-Storage to the NAS (01_RAW, 02_Seleccion_Cliente, 03_Edicion_Master, 04_Entregas_Finales) strictly one-way.",
         step5Title: "5. Smart Local Folder Recycling (NAS-Verified)",
         step5Desc: "Free up local SSD space for delivered projects. Before moving a folder to the Windows Recycle Bin, the tool verifies the NAS and automatically uploads any missing photo or video first. Displays a warning if a project is not yet marked as delivered.",
         step6Title: "6. Recent Activity History",
         selectSessionLabel: "Link to session:",
-        searchPlaceholder: "🔍 Filter by client, date, or category...",
+        searchPlaceholder: "Filter by client, date, or category...",
         btnNewSession: "New Project",
         newSessTitle: "+ New Project / Session",
         newSessClient: "Client Name:",
@@ -1328,6 +1508,9 @@
         pipeCloudDesc: "Upload WebP previews and register in database",
         pipeNas: "3. Network Backup to Studio NAS",
         pipeNasDesc: "Secure automatic background archival",
+        pipeExtra: "4. Additional Copy (External Drive / Editing / Network)",
+        pipeExtraDesc: "Automatic duplication to a custom destination",
+        btnBrowseExtra: "Browse",
         btnStart: "START FULL INGESTION",
         btnCancel: "Cancel",
         cancelledStatus: "Operation cancelled.",
@@ -1339,17 +1522,17 @@
         nasStatusDisabled: "Disabled",
         btnDisableSync: "Disable Auto-Sync",
         btnEnableSync: "Enable Auto-Sync",
-        btnResumeNow: "▶ Resume Now",
+        btnResumeNow: "Resume Now",
         btnScanPending: "Scan unsynced files",
         pauseLabel: "Pause for:",
         pendingModalTitle: "Unsynced local files detected",
-        pendingModalDesc: "We detected local folders and files in C:\\Lamha-Storage that are not yet backed up on the NAS. Do you want to start unidirectional synchronization (Local ➔ NAS) now?",
+        pendingModalDesc: "We detected local folders and files in C:\\Lamha-Storage that are not yet backed up on the NAS. Do you want to start unidirectional synchronization (Local -> NAS) now?",
         pendingFilesLabel: "Pending files",
         pendingSizeLabel: "Total size",
-        btnAcceptPending: "Accept & Synchronize Now (Local ➔ NAS)",
+        btnAcceptPending: "Accept & Synchronize Now (Local -> NAS)",
         modalPauseLabel: "Or pause for:",
         btnDismissPending: "Later",
-        allSyncedMsg: "All local folders and files are already synchronized with the NAS ✓",
+        allSyncedMsg: "All local folders and files are already synchronized with the NAS ",
         postOpenFolder: "Open Local SSD Folder",
         postOpenGallery: "Open Web Gallery",
         postEjectSd: "Safely Eject SD Card",
@@ -1358,25 +1541,25 @@
         btnRecycleAudit: "Live NAS Check",
         btnRecycleDelivered: "Recycle All Delivered",
         recoverableLabel: "Delivered:",
-        statusDelivered: "Delivered ✓",
-        statusNotDelivered: "Not Delivered ⚠️",
+        statusDelivered: "Delivered ",
+        statusNotDelivered: "Not Delivered ",
         statusPlanned: "Planned",
         statusIngested: "Ingested",
         statusEditing: "In Editing",
         statusReview: "In Review",
         statusUnlinked: "Unlinked",
-        nasSyncedOk: "100% on NAS ✓",
+        nasSyncedOk: "100% on NAS ",
         nasMissingCount: (n) => `${n} missing on NAS (will auto-sync)`,
         btnRecycleOne: "Recycle",
         noRecycleItems: "No local project folders match this filter.",
         recycleModalTitle: "Confirm Local Folder Recycling",
-        recycleWarnTitle: "⚠️ WARNING: PROJECT NOT YET DELIVERED!",
+        recycleWarnTitle: "WARNING: PROJECT NOT YET DELIVERED!",
         recycleWarnDesc: (names) => `Project "${names}" is NOT yet marked as Delivered to the client. Are you sure you want to recycle its local SSD folder?`,
         recycleNasShield: "Before sending the local folder to the Windows Recycle Bin, a live NAS verification will run. Any photo, video, or document not yet on the NAS will be automatically uploaded to the NAS before local deletion.",
         btnConfirmRecycle: "Verify NAS & Recycle Now",
-        recycleSuccessMsg: (n, gb, synced) => `♻️ ${n} folder(s) moved to Recycle Bin (${gb} GB freed)${synced ? ` after syncing ${synced} pending file(s) to NAS.` : "."}`,
-        recycleErrNas: "❌ Recycling aborted: Could not reach NAS (192.168.11.1) to verify files. No local files were deleted.",
-        recycleErrIncomplete: "❌ Recycling aborted: Some files could not be synced to the NAS. No local files were deleted.",
+        recycleSuccessMsg: (n, gb, synced) => `${n} folder(s) moved to Recycle Bin (${gb} GB freed)${synced ? ` after syncing ${synced} pending file(s) to NAS.` : "."}`,
+        recycleErrNas: "Recycling aborted: Could not reach NAS (192.168.11.1) to verify files. No local files were deleted.",
+        recycleErrIncomplete: "Recycling aborted: Some files could not be synced to the NAS. No local files were deleted.",
         historyEmpty: "No recent activity recorded.",
         cfgAutostart: "Start automatically with Windows",
         cfgAutostartDesc: "Runs in background when PC starts",
@@ -1389,13 +1572,13 @@
         step1Title: "١. مصدر الذاكرة (SD / USB)",
         step2Title: "٢. المشروع / الجلسة الحقيقية",
         step3Title: "٣. مسار التفريغ التلقائي الكامل",
-        step4Title: "٤. المزامنة التلقائية أحادية الاتجاه (القرص المحلي ➔ NAS)",
+        step4Title: "٤. المزامنة التلقائية أحادية الاتجاه (القرص المحلي -> NAS)",
         step4Desc: "مزامنة جميع المجلدات والمستندات والصور والفيديوهات تلقائياً من C:\\Lamha-Storage إلى خادم NAS باتجاه واحد فقط.",
         step5Title: "٥. إعادة التدوير الذكية للمجلدات المحلية (مع التحقق من NAS)",
         step5Desc: "تحرير مساحة قرص SSD للمشاريع المسلّمة. قبل حذف أي مجلد، يتحقق النظام من خادم NAS ويقوم بمزامنة أي صورة غير موجودة تلقائياً قبل النقل لسلة المحذوفات، مع تنبيه إذا لم يتم تسليم المشروع بعد.",
         step6Title: "٦. سجل النشاط الأخير",
         selectSessionLabel: "ربط الصور بالجلسة:",
-        searchPlaceholder: "🔍 بحث باسم العميل أو التاريخ...",
+        searchPlaceholder: "بحث باسم العميل أو التاريخ...",
         btnNewSession: "مشروع جديد",
         newSessTitle: "+ إنشاء مشروع / جلسة جديدة",
         newSessClient: "اسم العميل:",
@@ -1408,6 +1591,9 @@
         pipeCloudDesc: "رفع صور المعاينة والتسجيل في قاعدة البيانات",
         pipeNas: "٣. نسخ احتياطي على شبكة NAS الاستوديو",
         pipeNasDesc: "أرشفة أوتوماتيكية آمنة في الخلفية",
+        pipeExtra: "٤. نسخة إضافية (قرص خارجي / مونتاج / شبكة)",
+        pipeExtraDesc: "نسخ احتياطي تلقائي إلى مسار مخصص من اختيارك",
+        btnBrowseExtra: "استعراض",
         btnStart: "بدء عملية التفريغ الكاملة",
         btnCancel: "إلغاء",
         cancelledStatus: "تم إلغاء العملية.",
@@ -1419,17 +1605,17 @@
         nasStatusDisabled: "معطّلة",
         btnDisableSync: "إيقاف المزامنة التلقائية",
         btnEnableSync: "تفعيل المزامنة التلقائية",
-        btnResumeNow: "▶ استئناف الآن",
+        btnResumeNow: "استئناف الآن",
         btnScanPending: "فحص الملفات غير المتزامنة",
         pauseLabel: "إيقاف مؤقت لمدة:",
         pendingModalTitle: "تم اكتشاف ملفات غير متزامنة",
         pendingModalDesc: "تم العثور على مجلدات وملفات محلية في C:\\Lamha-Storage غير موجودة بعد على خادم NAS. هل ترغب في بدء المزامنة الآن؟",
         pendingFilesLabel: "الملفات بالانتظار",
         pendingSizeLabel: "الحجم الإجمالي",
-        btnAcceptPending: "موافقة وبدء المزامنة الآن (Local ➔ NAS)",
+        btnAcceptPending: "موافقة وبدء المزامنة الآن (Local -> NAS)",
         modalPauseLabel: "أو إيقاف مؤقت:",
         btnDismissPending: "لاحقاً",
-        allSyncedMsg: "جميع المجلدات والملفات المحلية متزامنة بالفعل مع خادم NAS ✓",
+        allSyncedMsg: "جميع المجلدات والملفات المحلية متزامنة بالفعل مع خادم NAS ",
         postOpenFolder: "فتح المجلد المحلي SSD",
         postOpenGallery: "فتح المعرض في الويب",
         postEjectSd: "إخراج بطاقة SD بأمان",
@@ -1438,25 +1624,25 @@
         btnRecycleAudit: "فحص NAS مباشر",
         btnRecycleDelivered: "تدوير جميع المسلّمة",
         recoverableLabel: "المشاريع المسلّمة:",
-        statusDelivered: "تم التسليم ✓",
-        statusNotDelivered: "لم يُسلّم ⚠️",
+        statusDelivered: "تم التسليم ",
+        statusNotDelivered: "لم يُسلّم ",
         statusPlanned: "مخطط",
         statusIngested: "تم التفريغ",
         statusEditing: "قيد المونتاج",
         statusReview: "قيد الاختيار",
         statusUnlinked: "غير مرتبط",
-        nasSyncedOk: "100% في NAS ✓",
+        nasSyncedOk: "100% في NAS ",
         nasMissingCount: (n) => `${n} غير متزامن (سيتم رفعه أولاً)`,
         btnRecycleOne: "تدوير",
         noRecycleItems: "لا توجد مجلدات محلية مطابقة لهذا الفلتر.",
         recycleModalTitle: "تأكيد تدوير المجلد المحلي",
-        recycleWarnTitle: "⚠️ تنبيه: المشروع لم يُسلّم بعد!",
+        recycleWarnTitle: "تنبيه: المشروع لم يُسلّم بعد!",
         recycleWarnDesc: (names) => `المشروع « ${names} » غير مسجل كـ « تم التسليم » للعميل بعد. هل أنت متأكد من تدوير مجلده المحلي؟`,
         recycleNasShield: "قبل نقل المجلد المحلي إلى سلة المحذوفات، سيتم فحص خادم NAS ومزامنة أي صورة أو فيديو مفقود تلقائياً.",
         btnConfirmRecycle: "فحص NAS والتدوير الآن",
-        recycleSuccessMsg: (n, gb, synced) => `♻️ تم نقل ${n} مجلد إلى سلة المحذوفات (توفير ${gb} غيغابايت)${synced ? ` بعد مزامنة ${synced} ملف مع NAS.` : "."}`,
-        recycleErrNas: "❌ تم إلغاء العملية: تعذر الاتصال بخادم NAS للتحقق من الصور. لم يتم حذف أي ملف محلي.",
-        recycleErrIncomplete: "❌ تم إلغاء العملية: تعذر مزامنة بعض الملفات مع NAS. لم يتم حذف أي ملف محلي.",
+        recycleSuccessMsg: (n, gb, synced) => `تم نقل ${n} مجلد إلى سلة المحذوفات (توفير ${gb} غيغابايت)${synced ? ` بعد مزامنة ${synced} ملف مع NAS.` : "."}`,
+        recycleErrNas: "تم إلغاء العملية: تعذر الاتصال بخادم NAS للتحقق من الصور. لم يتم حذف أي ملف محلي.",
+        recycleErrIncomplete: "تم إلغاء العملية: تعذر مزامنة بعض الملفات مع NAS. لم يتم حذف أي ملف محلي.",
         historyEmpty: "لا يوجد نشاط مسجل حديثاً.",
         cfgAutostart: "التشغيل تلقائياً مع Windows",
         cfgAutostartDesc: "يعمل في الخلفية عند تشغيل الكمبيوتر",
@@ -1656,7 +1842,7 @@
           row.style.padding = "4px 6px";
           row.style.borderBottom = "1px solid var(--card-border)";
           const mb = p.mb !== undefined ? p.mb : (p.bytes / (1024 * 1024)).toFixed(1);
-          row.innerHTML = `<span style="color: var(--text-main); font-weight: 600;">📁 ${p.name}</span><span style="color: var(--gold); font-family: monospace;">${p.count} (${mb} MB)</span>`;
+          row.innerHTML = `<span style="color: var(--text-main); font-weight: 600;">${p.name}</span><span style="color: var(--gold); font-family: monospace;">${p.count} (${mb} MB)</span>`;
           listEl.appendChild(row);
         });
       }
@@ -1706,6 +1892,8 @@
     }
 
     document.getElementById("badge-ssd-space").onclick = () => {
+      const acc = document.getElementById("acc-recycle");
+      if (acc && !acc.classList.contains("open")) acc.classList.add("open");
       const el = document.getElementById("recycle-card");
       if (el) el.scrollIntoView({ behavior: "smooth" });
     };
@@ -1786,7 +1974,7 @@
 
         const nasBadgeHtml = p.isFullySynced
           ? `<span style="font-size: 10.5px; padding: 2px 8px; border-radius: 99px; background: rgba(16,185,129,0.1); color: #10b981; border: 1px solid rgba(16,185,129,0.25);">${t.nasSyncedOk}</span>`
-          : `<span style="font-size: 10.5px; padding: 2px 8px; border-radius: 99px; background: rgba(59,130,246,0.12); color: #60a5fa; border: 1px solid rgba(59,130,246,0.35);">☁️ ${t.nasMissingCount(p.unsyncedFiles)}</span>`;
+          : `<span style="font-size: 10.5px; padding: 2px 8px; border-radius: 99px; background: rgba(59,130,246,0.12); color: #60a5fa; border: 1px solid rgba(59,130,246,0.35);">${t.nasMissingCount(p.unsyncedFiles)}</span>`;
 
         const left = document.createElement("div");
         left.style.display = "flex";
@@ -1794,7 +1982,7 @@
         left.style.gap = "4px";
         left.innerHTML = `
           <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-            <strong style="font-size: 13px; color: var(--text-main);">📁 ${p.clientName || p.folderName}</strong>
+            <strong style="font-size: 13px; color: var(--text-main);">${p.clientName || p.folderName}</strong>
             ${statusBadgeHtml}
             ${nasBadgeHtml}
           </div>
@@ -1813,7 +2001,7 @@
         btnOpen.style.width = "30px";
         btnOpen.style.height = "30px";
         btnOpen.title = p.fullPath;
-        btnOpen.textContent = "📂";
+        btnOpen.innerHTML = '<svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>'; btnOpen.title = "Ouvrir dossier";
         btnOpen.onclick = () => window.electronAPI && window.electronAPI.openPath(p.fullPath);
 
         const btnRec = document.createElement("button");
@@ -1825,7 +2013,7 @@
         btnRec.style.fontWeight = "700";
         btnRec.style.borderColor = p.isDelivered ? "#10b981" : "#f59e0b";
         btnRec.style.color = p.isDelivered ? "#10b981" : "#f59e0b";
-        btnRec.innerHTML = `♻️ ${t.btnRecycleOne}`;
+        btnRec.innerHTML = `${t.btnRecycleOne}`;
         btnRec.onclick = () => openRecycleConfirmModal([p]);
 
         right.appendChild(btnOpen);
@@ -1884,7 +2072,7 @@
         item.style.borderBottom = "1px solid var(--card-border)";
         const sizeStr = p.gb >= 1 ? `${p.gb} GB` : `${p.mb} MB`;
         item.innerHTML = `
-          <span>📁 <strong>${p.clientName || p.folderName}</strong> (${p.totalFiles} arch.)</span>
+          <span><strong>${p.clientName || p.folderName}</strong> (${p.totalFiles} arch.)</span>
           <span style="color: var(--gold); font-family: monospace;">${sizeStr}</span>
         `;
         listEl.appendChild(item);
@@ -1938,10 +2126,10 @@
         ) {
           progressSection.classList.remove("visible");
           const offlinePrompts = {
-            fr: `⚠️ Le serveur NAS (${res.host || "192.168.11.1"}) est hors ligne ou injoignable.\n\nLa synchronisation automatique vers le NAS n'a pas pu être effectuée.\n\nVoulez-vous quand même envoyer ce dossier vers la Corbeille de Windows sur ce PC ?\n(Cliquez sur "Annuler" pour conserver le dossier intact jusqu'à ce que le NAS soit connecté)`,
-            es: `⚠️ El servidor NAS (${res.host || "192.168.11.1"}) no está conectado o no responde.\n\nNo se ha podido sincronizar con el NAS.\n\n¿Deseas enviar igualmente la carpeta a la Papelera de Reciclaje de Windows en este PC?\n(Pulsa "Cancelar" para conservar la carpeta intacta hasta conectar el NAS)`,
-            en: `⚠️ The NAS server (${res.host || "192.168.11.1"}) is offline or unreachable.\n\nAutomatic NAS sync could not be completed.\n\nDo you still want to move this folder to the Windows Recycle Bin on this PC?\n(Click "Cancel" to keep the folder until the NAS is connected)`,
-            ar: `⚠️ خادم NAS (${res.host || "192.168.11.1"}) غير متصل حالياً.\n\nتعذرت المزامنة التلقائية مع NAS.\n\nهل تريد نقل هذا المجلد إلى سلة محذوفات Windows على هذا الكمبيوتر على أي حال؟`,
+            fr: `Le serveur NAS (${res.host || "192.168.11.1"}) est hors ligne ou injoignable.\n\nLa synchronisation automatique vers le NAS n'a pas pu être effectuée.\n\nVoulez-vous quand même envoyer ce dossier vers la Corbeille de Windows sur ce PC ?\n(Cliquez sur "Annuler" pour conserver le dossier intact jusqu'à ce que le NAS soit connecté)`,
+            es: `El servidor NAS (${res.host || "192.168.11.1"}) no está conectado o no responde.\n\nNo se ha podido sincronizar con el NAS.\n\n¿Deseas enviar igualmente la carpeta a la Papelera de Reciclaje de Windows en este PC?\n(Pulsa "Cancelar" para conservar la carpeta intacta hasta conectar el NAS)`,
+            en: `The NAS server (${res.host || "192.168.11.1"}) is offline or unreachable.\n\nAutomatic NAS sync could not be completed.\n\nDo you still want to move this folder to the Windows Recycle Bin on this PC?\n(Click "Cancel" to keep the folder until the NAS is connected)`,
+            ar: `خادم NAS (${res.host || "192.168.11.1"}) غير متصل حالياً.\n\nتعذرت المزامنة التلقائية مع NAS.\n\nهل تريد نقل هذا المجلد إلى سلة محذوفات Windows على هذا الكمبيوتر على أي حال؟`,
           };
           const proceedWithoutNas = confirm(offlinePrompts[currentLang] || offlinePrompts.fr);
           if (proceedWithoutNas) {
@@ -1987,7 +2175,7 @@
         row.style.border = "1px solid var(--card-border)";
         row.style.borderRadius = "8px";
         const dt = item.timestamp ? new Date(item.timestamp).toLocaleString([], { dateStyle: "short", timeStyle: "short" }) : "";
-        const icon = item.type === "recycle" ? "♻️" : "📥";
+        const icon = item.type === "recycle" ? "[Recyclage]" : "[Ingestion]";
         row.innerHTML = `
           <div>
             <strong style="color: var(--text-main);">${icon} ${item.client || item.folderName || "Atelier"}</strong>
@@ -1999,7 +2187,7 @@
           btn.className = "btn-icon";
           btn.style.width = "26px";
           btn.style.height = "26px";
-          btn.textContent = "📂";
+          btn.innerHTML = '<svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>'; btn.title = "Ouvrir dossier";
           btn.onclick = () => window.electronAPI.openPath(item.rootDir);
           row.appendChild(btn);
         }
@@ -2037,6 +2225,9 @@
       document.getElementById("txt-pipe-cloud-desc").textContent = t.pipeCloudDesc;
       document.getElementById("txt-pipe-nas").textContent = t.pipeNas;
       document.getElementById("txt-pipe-nas-desc").textContent = t.pipeNasDesc;
+      if (document.getElementById("txt-pipe-extra")) document.getElementById("txt-pipe-extra").textContent = t.pipeExtra;
+      if (document.getElementById("txt-pipe-extra-desc")) document.getElementById("txt-pipe-extra-desc").textContent = t.pipeExtraDesc;
+      if (document.getElementById("txt-btn-browse-extra")) document.getElementById("txt-btn-browse-extra").textContent = t.btnBrowseExtra;
       document.getElementById("txt-btn-start").textContent = t.btnStart;
       document.getElementById("txt-btn-cancel").textContent = t.btnCancel;
       document.getElementById("btn-browse-folder").textContent = t.browseOther;
@@ -2066,10 +2257,10 @@
       const sendWelcomeLbl = document.getElementById("txt-new-sess-send-welcome");
       if (sendWelcomeLbl) {
         const welcomeLbls = {
-          fr: "✉️ Envoyer Email & WhatsApp de bienvenue au client",
-          es: "✉️ Enviar Email y WhatsApp de bienvenida al cliente",
-          en: "✉️ Send Welcome Email & WhatsApp to client",
-          ar: "✉️ إرسال بريد إلكتروني وواتساب ترحيبي للزبون",
+          fr: "Envoyer Email & WhatsApp de bienvenue au client",
+          es: "Enviar Email y WhatsApp de bienvenida al cliente",
+          en: "Send Welcome Email & WhatsApp to client",
+          ar: "إرسال بريد إلكتروني وواتساب ترحيبي للزبون",
         };
         sendWelcomeLbl.textContent = welcomeLbls[l] || welcomeLbls.fr;
       }
@@ -2084,10 +2275,43 @@
     }
 
     // Toggle Theme
+    
+    // Función para renderizar el icono de tema en SVG puro sin emojis
+    function updateThemeIcon(theme) {
+      const btn = document.getElementById("btn-theme");
+      if (!btn) return;
+      if (theme === "dark") {
+        btn.innerHTML = '<svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>';
+      } else {
+        btn.innerHTML = '<svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+      }
+    }
+
+    // Toggle de Acordeones
+    document.querySelectorAll(".accordion-header").forEach((header) => {
+      header.addEventListener("click", (e) => {
+        if (e.target.closest("button") || e.target.closest("select")) return;
+        const item = header.closest(".accordion-item");
+        if (item) item.classList.toggle("open");
+      });
+    });
+
+    // Toggle de Filtros Avanzados en Card 2
+    const btnToggleFilters = document.getElementById("btn-toggle-filters");
+    const wrapFilters = document.getElementById("wrap-advanced-filters");
+    if (btnToggleFilters && wrapFilters) {
+      btnToggleFilters.onclick = () => {
+        const isOpen = wrapFilters.style.display === "grid";
+        wrapFilters.style.display = isOpen ? "none" : "grid";
+        btnToggleFilters.style.color = isOpen ? "var(--text-muted)" : "var(--gold)";
+        btnToggleFilters.style.borderColor = isOpen ? "var(--card-border)" : "var(--gold)";
+      };
+    }
+
     document.getElementById("btn-theme").onclick = () => {
       currentTheme = currentTheme === "dark" ? "light" : "dark";
       document.documentElement.setAttribute("data-theme", currentTheme);
-      document.getElementById("btn-theme").textContent = currentTheme === "dark" ? "☀️" : "🌙";
+      updateThemeIcon(currentTheme);
       if (window.electronAPI) window.electronAPI.notifyThemeChange(currentTheme);
     };
 
@@ -2113,10 +2337,10 @@
       const cats = getEffectiveCategories();
 
       const allCatLabels = {
-        fr: "📂 Toutes les catégories",
-        es: "📂 Todas las categorías",
-        en: "📂 All categories",
-        ar: "📂 جميع الفئات",
+        fr: "Toutes les catégories",
+        es: "Todas las categorías",
+        en: "All categories",
+        ar: "جميع الفئات",
       };
       filterSessCat.innerHTML = `<option value="">${allCatLabels[currentLang] || allCatLabels.fr}</option>`;
       cats.forEach((c) => {
@@ -2135,10 +2359,10 @@
     function updateFilterSubcategoriesDropdown(catSlug, preserveSub = "") {
       if (!filterSessSubcat) return;
       const allSubLabels = {
-        fr: "🏷️ Toutes les sous-catégories",
-        es: "🏷️ Todas las subcategorías",
-        en: "🏷️ All subcategories",
-        ar: "🏷️ جميع الفئات الفرعية",
+        fr: "Toutes les sous-catégories",
+        es: "Todas las subcategorías",
+        en: "All subcategories",
+        ar: "جميع الفئات الفرعية",
       };
       filterSessSubcat.innerHTML = `<option value="">${allSubLabels[currentLang] || allSubLabels.fr}</option>`;
 
@@ -2223,7 +2447,7 @@
         const stLabel = formatSessionStatusLabel(s.status);
         const catLabel = getCategoryLabel(s.category);
         const subLabel = s.subcategory ? ` › ${getSubcategoryLabel(s.subcategory)}` : "";
-        const typeIcon = s.session_type === "video" ? "🎥" : "📷";
+        const typeIcon = s.session_type === "video" ? "[Vidéo]" : "[Photo]";
         opt.textContent = `${typeIcon} ${s.client_name || "Client"} — ${catLabel}${subLabel} (${date}) [${stLabel}]`;
         sessionSelect.appendChild(opt);
       });
@@ -2266,7 +2490,7 @@
           const catLabel = getCategoryLabel(s.category);
           const subLabel = s.subcategory ? ` • ${getSubcategoryLabel(s.subcategory)}` : "";
           const stLabel = formatSessionStatusLabel(s.status);
-          const typeIcon = s.session_type === "video" ? "🎥" : "📷";
+          const typeIcon = s.session_type === "video" ? "[Vidéo]" : "[Photo]";
           const pinBadge = s.portal_pin ? `<span style="font-family:monospace; font-size:10px; padding:1px 5px; border-radius:4px; background:rgba(200,164,90,0.14); color:var(--gold);">PIN ${escapeHtml(s.portal_pin)}</span>` : "";
           return `
             <div class="quick-sess-item" data-id="${escapeHtml(s.id)}" style="padding:8px 12px; border-bottom:1px solid var(--border); cursor:pointer; display:flex; align-items:center; justify-content:space-between; gap:8px; background:${isSelected ? "rgba(200,164,90,0.14)" : "transparent"}; transition:background 0.15s;">
@@ -2275,7 +2499,7 @@
                   ${typeIcon} ${escapeHtml(s.client_name || "Client")}
                 </div>
                 <div style="font-size:10px; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                  ${escapeHtml(catLabel)}${escapeHtml(subLabel)} • ${escapeHtml(s.session_date || "-")} ${s.client_phone ? `• 📞 ${escapeHtml(s.client_phone)}` : ""}
+                  ${escapeHtml(catLabel)}${escapeHtml(subLabel)} • ${escapeHtml(s.session_date || "-")} ${s.client_phone ? `• Tel: ${escapeHtml(s.client_phone)}` : ""}
                 </div>
               </div>
               <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
@@ -2351,8 +2575,8 @@
         box.style.display = "block";
         const catLabel = getCategoryLabel(s.category);
         const subLabel = s.subcategory ? ` › ${getSubcategoryLabel(s.subcategory)}` : "";
-        const typeLabel = s.session_type === "video" ? "🎥 Vidéo" : "📷 Photo";
-        const placeLabel = s.shooting_type === "party" || (Array.isArray(s.tags) && s.tags.includes("place:party")) ? "🎉 Extérieur / Fête" : "🏛️ Studio";
+        const typeLabel = s.session_type === "video" ? "Vidéo" : "Photo";
+        const placeLabel = s.shooting_type === "party" || (Array.isArray(s.tags) && s.tags.includes("place:party")) ? "Extérieur / Fête" : "️ Studio";
         const pinInfo = s.portal_pin ? ` • PIN: ${s.portal_pin}` : "";
         box.textContent = `${s.client_name} • ${typeLabel} (${placeLabel}) • ${catLabel}${subLabel} • Date: ${s.session_date || "-"} • État: ${formatSessionStatusLabel(s.status)}${pinInfo}`;
       } else {
@@ -2795,6 +3019,42 @@
       }
     };
 
+    const chkExtra = document.getElementById("chk-extra");
+    const extraPathRow = document.getElementById("extra-path-row");
+    const inputExtraPath = document.getElementById("input-extra-path");
+    const btnBrowseExtra = document.getElementById("btn-browse-extra");
+
+    if (chkExtra && extraPathRow && inputExtraPath) {
+      const savedExtra = localStorage.getItem("lamha_extra_path");
+      if (savedExtra) inputExtraPath.value = savedExtra;
+
+      const savedExtraChecked = localStorage.getItem("lamha_extra_checked");
+      if (savedExtraChecked === "true") {
+        chkExtra.checked = true;
+        extraPathRow.style.display = "flex";
+      }
+
+      chkExtra.onchange = () => {
+        extraPathRow.style.display = chkExtra.checked ? "flex" : "none";
+        localStorage.setItem("lamha_extra_checked", chkExtra.checked ? "true" : "false");
+      };
+
+      inputExtraPath.onchange = () => {
+        localStorage.setItem("lamha_extra_path", inputExtraPath.value.trim());
+      };
+
+      if (btnBrowseExtra) {
+        btnBrowseExtra.onclick = async () => {
+          if (!window.electronAPI || !window.electronAPI.selectFolder) return;
+          const folder = await window.electronAPI.selectFolder();
+          if (folder) {
+            inputExtraPath.value = folder;
+            localStorage.setItem("lamha_extra_path", folder);
+          }
+        };
+      }
+    }
+
     btnStart.onclick = async () => {
       const sessId = sessionSelect.value;
       if (!sessId) {
@@ -2808,12 +3068,17 @@
       barFill.style.width = "0%";
       txtPct.textContent = "0%";
 
+      const isExtraChecked = chkExtra && chkExtra.checked;
+      const customExtraPath = inputExtraPath ? inputExtraPath.value.trim() : "";
+
       await window.electronAPI.startIngest({
         sourcePath: selectedDrive,
         sessionId: sessId,
         copyLocal: document.getElementById("chk-local").checked,
         uploadSupabase: document.getElementById("chk-supabase").checked,
         syncNas: document.getElementById("chk-nas").checked,
+        copyExtra: isExtraChecked,
+        extraPath: customExtraPath,
       });
     };
 
@@ -2912,7 +3177,7 @@
           mEta.textContent = ev.eta !== null && ev.eta !== undefined ? `${ev.eta}s` : "Calcul...";
           mPhase.textContent =
             ev.isNasMirror
-              ? "Local ➔ NAS"
+              ? "Local -> NAS"
               : ev.phase === "copy"
               ? "Copie SSD"
               : ev.phase === "cloud+nas"
@@ -2968,7 +3233,7 @@
         if (cfg && cfg.theme) {
           currentTheme = cfg.theme;
           document.documentElement.setAttribute("data-theme", currentTheme);
-          document.getElementById("btn-theme").textContent = currentTheme === "dark" ? "☀️" : "🌙";
+          updateThemeIcon(currentTheme);
         }
       });
 
@@ -2990,7 +3255,7 @@
     // ---------------------------------------------------------------------
     const RT = {
       fr: {
-        title: "♻️ Cycle de vie du stockage réseau — Préavis & recyclage automatique",
+        title: "Cycle de vie du stockage réseau — Préavis & recyclage automatique",
         desc: "Quand le stockage dépasse le seuil, les projets LIVRÉS les plus anciens sont sélectionnés jusqu'au volume à libérer. Les clients sont prévenus par Email + WhatsApp (bouton « demander une copie »). Passé le délai, seuls les projets sans demande sont supprimés.",
         lblUnit: "Unité de mesure",
         kpiTotal: "Espace Total",
@@ -3011,8 +3276,8 @@
         save: "Enregistrer",
         notice: "Envoyer les avis maintenant",
         purge: "Supprimer les projets échus maintenant",
-        ok: "✅ Espace OK",
-        over: "🔴 Seuil dépassé",
+        ok: "Espace OK",
+        over: "Seuil dépassé",
         waiting: "En préavis",
         requested: "Copie demandée (bloqués)",
         ready: "Prêts à recycler",
@@ -3022,7 +3287,7 @@
         noNas: "Stockage réseau injoignable ou non configuré.",
         detected: (n, h) => `🟢 Stockage connecté (${h}) — ${n} dossier(s) mesuré(s) :`,
         belowThreshold: (trig, u) => `Espace bien en dessous du seuil (${trig} ${u}) — Fichiers protégés, aucun recyclage nécessaire.`,
-        saved: "✅ Paramètres enregistrés",
+        saved: "Paramètres enregistrés",
         warnTrigger: "Le seuil doit être inférieur à la capacité.",
         warnRelease: "Le volume à libérer doit être inférieur au seuil.",
         confirmNotice: (n, amt, u) => `Envoyer maintenant l'avis de ${n} projet(s) (≈ ${amt} ${u}) ? Rien ne sera supprimé avant la fin du délai.`,
@@ -3031,7 +3296,7 @@
         done: (p, n) => `Terminé : ${n} avis envoyés, ${p} projet(s) supprimés.`,
       },
       es: {
-        title: "♻️ Ciclo de vida del almacenamiento en red — Preaviso y reciclaje automático",
+        title: "Ciclo de vida del almacenamiento en red — Preaviso y reciclaje automático",
         desc: "Cuando la unidad de red supera el umbral, se seleccionan los proyectos ENTREGADOS más antiguos hasta el volumen a liberar. Se avisa a los clientes por Email + WhatsApp (botón «solicitar copia»). Pasado el plazo, solo se borran los proyectos sin solicitud.",
         lblUnit: "Unidad de medida",
         kpiTotal: "Espacio Total",
@@ -3052,8 +3317,8 @@
         save: "Guardar",
         notice: "Enviar avisos ahora",
         purge: "Borrar proyectos vencidos ahora",
-        ok: "✅ Espacio OK",
-        over: "🔴 Umbral superado",
+        ok: "Espacio OK",
+        over: "Umbral superado",
         waiting: "En preaviso",
         requested: "Copia solicitada (bloqueados)",
         ready: "Listos para reciclar",
@@ -3063,7 +3328,7 @@
         noNas: "Unidad de red inaccesible o sin configurar.",
         detected: (n, h) => `🟢 Almacenamiento conectado (${h}) — ${n} carpeta(s) medida(s):`,
         belowThreshold: (trig, u) => `Espacio muy por debajo del umbral (${trig} ${u}) — Archivos protegidos, no requiere reciclaje.`,
-        saved: "✅ Ajustes guardados",
+        saved: "Ajustes guardados",
         warnTrigger: "El umbral debe ser menor que la capacidad.",
         warnRelease: "El volumen a liberar debe ser menor que el umbral.",
         confirmNotice: (n, amt, u) => `¿Enviar ahora el aviso a ${n} proyecto(s) (≈ ${amt} ${u})? No se borrará nada hasta que termine el plazo.`,
@@ -3072,7 +3337,7 @@
         done: (p, n) => `Terminado: ${n} avisos enviados, ${p} proyecto(s) borrados.`,
       },
       en: {
-        title: "♻️ Network storage lifecycle — Notice & automatic recycling",
+        title: "Network storage lifecycle — Notice & automatic recycling",
         desc: "When the network storage exceeds the threshold, the oldest DELIVERED projects are selected up to the volume to free. Clients are notified by Email + WhatsApp (\"request a copy\" button). After the grace period, only projects without a request are deleted.",
         lblUnit: "Measurement unit",
         kpiTotal: "Total Space",
@@ -3093,8 +3358,8 @@
         save: "Save",
         notice: "Send notices now",
         purge: "Delete expired projects now",
-        ok: "✅ Space OK",
-        over: "🔴 Threshold exceeded",
+        ok: "Space OK",
+        over: "Threshold exceeded",
         waiting: "In notice period",
         requested: "Copy requested (locked)",
         ready: "Ready to recycle",
@@ -3104,7 +3369,7 @@
         noNas: "Network storage unreachable or not configured.",
         detected: (n, h) => `🟢 Storage connected (${h}) — ${n} measured folder(s):`,
         belowThreshold: (trig, u) => `Space well below threshold (${trig} ${u}) — Files safe, no recycling needed.`,
-        saved: "✅ Settings saved",
+        saved: "Settings saved",
         warnTrigger: "Threshold must be lower than capacity.",
         warnRelease: "Volume to free must be lower than the threshold.",
         confirmNotice: (n, amt, u) => `Send notices now for ${n} project(s) (≈ ${amt} ${u})? Nothing is deleted until the grace period ends.`,
@@ -3113,7 +3378,7 @@
         done: (p, n) => `Done: ${n} notices sent, ${p} project(s) deleted.`,
       },
       ar: {
-        title: "♻️ دورة حياة التخزين الشبكي — إشعار وإعادة تدوير تلقائية",
+        title: "دورة حياة التخزين الشبكي — إشعار وإعادة تدوير تلقائية",
         desc: "عندما يتجاوز التخزين الحد المحدد، يتم اختيار أقدم المشاريع المُسلَّمة حتى بلوغ الحجم المراد تحريره. يُبلَّغ العملاء عبر البريد وواتساب (زر «طلب نسخة»). بعد انتهاء المهلة تُحذف فقط المشاريع التي لم يُطلب فيها شيء.",
         lblUnit: "وحدة القياس",
         kpiTotal: "المساحة الكلية",
@@ -3134,8 +3399,8 @@
         save: "حفظ",
         notice: "إرسال الإشعارات الآن",
         purge: "حذف المشاريع المنتهية الآن",
-        ok: "✅ المساحة جيدة",
-        over: "🔴 تم تجاوز الحد",
+        ok: "المساحة جيدة",
+        over: "تم تجاوز الحد",
         waiting: "في مهلة الإشعار",
         requested: "طلب نسخة (محمية)",
         ready: "جاهزة لإعادة التدوير",
@@ -3145,7 +3410,7 @@
         noNas: "التخزين غير متاح أو غير مُهيّأ.",
         detected: (n, h) => `🟢 التخزين متصل (${h}) — ${n} مجلدات تم قياسها:`,
         belowThreshold: (trig, u) => `المساحة أقل بكثير من الحد (${trig} ${u}) — الملفات محمية، لا داعي لإعادة التدوير.`,
-        saved: "✅ تم حفظ الإعدادات",
+        saved: "تم حفظ الإعدادات",
         warnTrigger: "يجب أن يكون الحد أقل من السعة.",
         warnRelease: "يجب أن يكون الحجم المراد تحريره أقل من الحد.",
         confirmNotice: (n, amt, u) => `إرسال الإشعار الآن لـ ${n} مشروع (≈ ${amt} ${u})؟ لن يُحذف شيء قبل انتهاء المهلة.`,
@@ -3249,18 +3514,18 @@
       const planAmt = s.plan ? (isGb ? `${s.plan.totalGb || (s.plan.totalTb * 1024).toFixed(1)} GB` : `${s.plan.totalTb} TB`) : `0 ${unit}`;
       rtEl("rt-summary").innerHTML =
         pill(`⏳ ${r.waiting}: ${(s.waiting || []).length}`, "#38bdf8") +
-        pill(`🔒 ${r.requested}: ${(s.requested || []).length}`, "#f59e0b") +
-        pill(`♻️ ${r.ready}: ${(s.expiredReady || []).length}`, "#10b981") +
-        pill(`📦 ${r.plan}: ${(s.plan && s.plan.items ? s.plan.items.length : 0)} (${planAmt})`, "var(--gold)");
+        pill(`${r.requested}: ${(s.requested || []).length}`, "#f59e0b") +
+        pill(`${r.ready}: ${(s.expiredReady || []).length}`, "#10b981") +
+        pill(`${r.plan}: ${(s.plan && s.plan.items ? s.plan.items.length : 0)} (${planAmt})`, "var(--gold)");
 
       const row = (icon, name, extra) =>
         `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 10px;background:var(--input-bg);border:1px solid var(--card-border);border-radius:8px;font-size:12px;"><span>${icon} ${escapeHtml(name)}</span><span style="color:var(--text-muted);font-size:11px;font-family:monospace;">${escapeHtml(extra)}</span></div>`;
       const rows = [];
-      (s.requested || []).forEach((x) => rows.push(row("🔒", x.clientName, x.sessionDate)));
+      (s.requested || []).forEach((x) => rows.push(row("", x.clientName, x.sessionDate)));
       (s.waiting || []).forEach((x) => rows.push(row("⏳", x.clientName, r.daysLeft(x.daysLeft))));
-      (s.expiredReady || []).forEach((x) => rows.push(row("♻️", x.clientName, x.sessionDate)));
+      (s.expiredReady || []).forEach((x) => rows.push(row("", x.clientName, x.sessionDate)));
       if (s.plan && s.plan.items && s.plan.items.length) {
-        s.plan.items.forEach((x) => rows.push(row("📦", x.clientName, `${x.sessionDate} · ${x.gb} GB`)));
+        s.plan.items.forEach((x) => rows.push(row("", x.clientName, `${x.sessionDate} · ${x.gb} GB`)));
       }
 
       if (rows.length) {
@@ -3271,7 +3536,7 @@
           const mb = (p.bytes / 1024 ** 2).toFixed(1);
           const sizeStr = Number(gb) >= 0.1 ? `${gb} GB` : `${mb} MB`;
           const countStr = p.filesCount ? `${p.filesCount} arch. · ` : "";
-          return row("📁", p.folderName, `${countStr}${sizeStr}`);
+          return row("", p.folderName, `${countStr}${sizeStr}`);
         });
         rtEl("rt-lists").innerHTML = `
           <div style="font-size:11px;font-weight:700;color:var(--gold);margin-bottom:6px;">${r.detected(s.projects.length, s.nasHost || "Stockage")}</div>

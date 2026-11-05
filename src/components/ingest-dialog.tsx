@@ -38,7 +38,7 @@ import { useLanguage } from "@/context/language-context"
 import { getExistingClients, ExistingClientOption } from "@/app/actions"
 import { createClient } from "@/lib/supabase"
 import { cn } from "@/lib/utils"
-import { selectNativeFolder, getConnectedCards } from "@/lib/desktop-bridge"
+import { selectNativeFolder, getConnectedCards, triggerIngestCompanion } from "@/lib/desktop-bridge"
 
 interface IngestDialogProps {
   defaultSessionId?: string
@@ -803,6 +803,18 @@ export function IngestDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger 
+        onClick={(e) => {
+          if (typeof window !== "undefined" && (window.desktopAdminAPI?.isDesktopAdmin || window.desktopAdminAPI?.launchIngestCompanion)) {
+            e.preventDefault()
+            e.stopPropagation()
+            triggerIngestCompanion({
+              sessionId: sessionId || defaultSessionId,
+              clientName: clientName || selectedClient?.name || defaultClientName,
+              folderName: projectName || defaultProjectName,
+            })
+            return
+          }
+        }}
         className={triggerClassName || (triggerVariant === "primary"
           ? "inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-[#c69f68] to-[#dfba85] text-[#0b0a09] font-bold text-xs shadow-md hover:shadow-[#c69f68]/20 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer"
           : "inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[#c69f68]/40 hover:bg-[#c69f68]/10 text-[#c69f68] font-medium text-xs transition-colors cursor-pointer"

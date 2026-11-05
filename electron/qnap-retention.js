@@ -10,6 +10,8 @@
  * Seguridad: solo toca carpetas vinculadas a una sesión en estado "delivered". Nunca toca el SSD local.
  * Estado persistente en Supabase (tags de sessions: retention:notified|requested|resent|vip_lock|purged:<ts>).
  */
+const fs = require("fs")
+const path = require("path")
 const EventEmitter = require("events")
 const { getConfig } = require("./config")
 const engine = require("./ingest-engine")
@@ -410,7 +412,7 @@ class QnapRetentionManager extends EventEmitter {
       triggerBytes,
       triggerGb: Number((triggerBytes / GB).toFixed(2)),
       triggerTb: Number((triggerBytes / TB).toFixed(3)),
-      nasHost: cfg.nasHost || "192.168.11.1",
+      nasHost: cfg.nasHost || "192.168.11.200",
       nasBaseDir: cfg.nasBaseDir || "/usb1_1/Lamha-Storage",
       projects: scan && scan.ok ? scan.projects || [] : [],
       overThreshold,
