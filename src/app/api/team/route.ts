@@ -6,44 +6,60 @@ export const dynamic = "force-dynamic"
 
 export async function GET() {
   try {
-    const supabase = createClient()
+    const adminClient = createServiceRoleClient()
 
-    // 1. Obtener perfiles de la tabla team_profiles
-    const { data: profiles, error: profileErr } = await supabase
+    // 1. Obtener perfiles de la tabla team_profiles con Service Role (evita bloqueo RLS en servidor sin cookies)
+    const { data: profiles, error: profileErr } = await adminClient
       .from("team_profiles")
       .select("*")
       .order("created_at", { ascending: false })
 
-    if (!profileErr && profiles && profiles.length > 0) {
-      return NextResponse.json({ success: true, members: profiles })
-    }
-
-    // 2. Si team_profiles está vacía, intentar listar de auth.users como fallback seguro
+    // 2. Sincronizar también con auth.users para que cualquier usuario de Auth (como el admin principal) aparezca siempre
     try {
-      const adminClient = createServiceRoleClient()
       const { data: authData, error: authErr } = await adminClient.auth.admin.listUsers()
 
       if (!authErr && authData && authData.users) {
-        const fallbackMembers = (authData.users || []).map((u) => ({
-          id: u.id,
-          email: u.email || "",
-          full_name: u.user_metadata?.full_name || u.email?.split("@")[0] || "Miembro",
-          role: u.user_metadata?.role || (u.email?.includes("afaf") ? "super_admin" : "assistant"),
-          avatar_url: u.user_metadata?.avatar_url || null,
-          phone: u.phone || null,
-          is_active: true,
-          last_login_at: u.last_sign_in_at,
-          created_at: u.created_at,
-        }))
+        const profileMap = new Map((profiles || []).map((p: any) => [p.id, p]))
+        const mergedMembers: any[] = [...(profiles || [])]
 
-        return NextResponse.json({ success: true, members: fallbackMembers })
+        for (const u of authData.users) {
+          if (!profileMap.has(u.id)) {
+            const defaultRole =
+              u.user_metadata?.role ||
+              (u.email?.includes("admin") || u.email?.includes("afaf") ? "super_admin" : "assistant")
+            const defaultName =
+              u.user_metadata?.full_name ||
+              (u.email?.includes("admin") ? "Admin Lam7a Studio" : u.email?.split("@")[0] || "Miembro")
+
+            const newProfile = {
+              id: u.id,
+              email: u.email || "",
+              full_name: defaultName,
+              role: defaultRole,
+              avatar_url: u.user_metadata?.avatar_url || null,
+              phone: u.phone || null,
+              is_active: true,
+              last_login_at: u.last_sign_in_at,
+              created_at: u.created_at,
+            }
+            mergedMembers.push(newProfile)
+            try {
+              await adminClient.from("team_profiles").upsert(newProfile)
+            } catch {}
+          }
+        }
+
+        return NextResponse.json({ success: true, members: mergedMembers })
       }
     } catch {
       // Ignorar fallo de auth.admin para no bloquear la interfaz
     }
 
-    // Si no hay datos aún, retornar lista vacía con éxito
-    return NextResponse.json({ success: true, members: profiles || [] })
+    if (!profileErr && profiles) {
+      return NextResponse.json({ success: true, members: profiles })
+    }
+
+    return NextResponse.json({ success: true, members: [] })
   } catch (err: any) {
     return NextResponse.json({ success: true, members: [], warning: err.message })
   }

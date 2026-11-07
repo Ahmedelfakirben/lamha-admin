@@ -572,6 +572,12 @@ export function TeamManagementCard() {
             </div>
 
             <form onSubmit={handleCreateMember} className="space-y-3.5 text-xs">
+              {message && message.type === "error" && (
+                <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/40 text-rose-300 text-xs font-semibold flex items-center justify-between">
+                  <span>{message.text}</span>
+                  <button type="button" onClick={() => setMessage(null)} className="opacity-70 hover:opacity-100 ml-2">✕</button>
+                </div>
+              )}
               <div>
                 <label className="block text-[#a89f91] [html.light_&]:text-[#5a4e40] font-semibold mb-1">{strings.fullNameLabel}</label>
                 <div className="relative">
