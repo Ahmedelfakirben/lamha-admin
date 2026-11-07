@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from "next/server"
 import { google } from "googleapis"
 import { createClient } from "@supabase/supabase-js"
 import { getOAuthRedirectUri } from "../oauth-utils"
+import { invalidateDriveClientCache } from "@/lib/gdrive"
 
 export const dynamic = "force-dynamic"
 
 function getSupabaseAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
   return createClient(url, key, { auth: { persistSession: false } })
 }
 
@@ -45,7 +46,7 @@ export async function GET(req: NextRequest) {
 
     const refreshTokenToSave = tokens.refresh_token || tokens.access_token
 
-    // Guardar en Supabase studio_delivery_settings
+    // Guardar en Supabase studio_delivery_settings y limpiar cualquier carpeta raíz de una cuenta anterior
     const supabase = getSupabaseAdmin()
     await supabase
       .from("studio_delivery_settings")
@@ -53,8 +54,11 @@ export async function GET(req: NextRequest) {
         id: 1,
         gdrive_client_email: connectedEmail,
         gdrive_private_key: `oauth_refresh:${refreshTokenToSave}`,
+        gdrive_parent_folder_id: null,
         updated_at: new Date().toISOString(),
       })
+
+    invalidateDriveClientCache()
 
     return NextResponse.redirect(new URL(`${redirectPath}?gdrive=connected&email=${encodeURIComponent(connectedEmail)}`, req.url))
   } catch (err: any) {

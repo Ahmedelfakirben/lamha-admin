@@ -151,15 +151,7 @@ function DualDeliverySettingsCard() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [cleaning, setCleaning] = useState(false)
-  const [storageMode, setStorageMode] = useState<"auto" | "cloud" | "nas">("auto")
-  const [effectiveMode, setEffectiveMode] = useState<string>("cloud")
   const [retentionDays, setRetentionDays] = useState(30)
-  const [isNasOnline, setIsNasOnline] = useState(false)
-  const [hasGDrive, setHasGDrive] = useState(false)
-  const [gdriveEmail, setGdriveEmail] = useState("")
-  const [gdrivePrivateKey, setGdrivePrivateKey] = useState("")
-  const [hasGdrivePrivateKey, setHasGdrivePrivateKey] = useState(false)
-  const [showGdriveCredentials, setShowGdriveCredentials] = useState(false)
   const [testingGDrive, setTestingGDrive] = useState(false)
   const [gdriveTestResult, setGdriveTestResult] = useState<{ success: boolean; message: string; email?: string } | null>(null)
   const [gdriveParentId, setGdriveParentId] = useState("")
@@ -173,16 +165,10 @@ function DualDeliverySettingsCard() {
         const res = await fetch("/api/deliveries/settings")
         const data = await res.json()
         if (data.success && data.settings) {
-          setStorageMode(data.settings.storage_mode || "auto")
           setRetentionDays(data.settings.default_retention_days || 30)
-          setHasGDrive(data.settings.has_gdrive_credentials)
-          setGdriveEmail(data.settings.gdrive_client_email || "")
           setGdriveParentId(data.settings.gdrive_parent_folder_id || "")
-          setHasGdrivePrivateKey(Boolean(data.settings.has_gdrive_private_key))
           setIsOAuthConnected(Boolean(data.settings.isOAuthConnected))
           setOauthEmail(data.settings.oauthEmail || null)
-          setIsNasOnline(data.isNasOnline)
-          setEffectiveMode(data.effectiveMode || "cloud")
         }
       } catch (err) {
         console.error("Error cargando configuración de entregas:", err)
@@ -198,13 +184,9 @@ function DualDeliverySettingsCard() {
       const res = await fetch("/api/auth/google/url")
       const data = await res.json()
       if (data.url) {
-        // En Electron Desktop Admin o webviews embebidos, Google bloquea el inicio de sesión OAuth
-        // ("Acceso bloqueado: error de autorización - Error 400 invalid_request").
-        // Abrir siempre en el navegador externo de Windows (Chrome / Edge) mediante _blank:
         if (typeof window !== "undefined" && (window.desktopAdminAPI || (window as any).electronAPI)) {
           window.open(data.url, "_blank")
         } else {
-          // En navegador web estándar, abrir en pestaña o redirigir
           window.open(data.url, "_blank") || (window.location.href = data.url)
         }
       } else {
@@ -232,8 +214,6 @@ function DualDeliverySettingsCard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           test_gdrive: true,
-          gdrive_client_email: gdriveEmail || undefined,
-          gdrive_private_key: gdrivePrivateKey || undefined,
           gdrive_parent_folder_id: gdriveParentId || undefined,
         }),
       })
@@ -251,13 +231,8 @@ function DualDeliverySettingsCard() {
     setMessage(null)
     try {
       const payload: any = {
-        storage_mode: storageMode,
         default_retention_days: retentionDays,
-        gdrive_parent_folder_id: gdriveParentId,
-        gdrive_client_email: gdriveEmail,
-      }
-      if (gdrivePrivateKey.trim()) {
-        payload.gdrive_private_key = gdrivePrivateKey.trim()
+        gdrive_parent_folder_id: gdriveParentId.trim() || null,
       }
       const res = await fetch("/api/deliveries/settings", {
         method: "POST",
@@ -266,11 +241,7 @@ function DualDeliverySettingsCard() {
       })
       const data = await res.json()
       if (data.success) {
-        setMessage("Configuración guardada correctamente.")
-        if (gdrivePrivateKey.trim()) {
-          setHasGdrivePrivateKey(true)
-          setGdrivePrivateKey("")
-        }
+        setMessage("Preferencias de Google Drive guardadas correctamente.")
       } else {
         setMessage(`Error: ${data.error || "No se pudo guardar"}`)
       }
@@ -310,17 +281,21 @@ function DualDeliverySettingsCard() {
           </div>
           <div>
             <h2 className="text-base font-semibold text-[#f5f2eb] font-serif">
-              {t.dualStorageEnvTitle}
+              Google Drive & Entregas Cloud (OAuth 2.0)
             </h2>
             <p className="text-xs text-[#8c7a6b]">
-              {t.dualStorageEnvSubtitle}
+              Conecta la cuenta oficial de Google Drive del estudio con 1 clic para exportar galerías de entrega a los clientes.
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-[11px] font-mono uppercase px-2.5 py-1 rounded-md border border-[#3a332a] bg-[#181613] text-[#e5c38e]">
-            {t.activeModeLabel} {effectiveMode === "nas" ? t.activeModeNas : t.activeModeCloud}
+          <span className={`text-[11px] font-mono uppercase px-2.5 py-1 rounded-md border ${
+            isOAuthConnected
+              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+              : "border-amber-500/30 bg-amber-500/10 text-amber-400"
+          }`}>
+            {isOAuthConnected ? `Google Drive Activo (${oauthEmail})` : t.unlinked}
           </span>
         </div>
       </div>
@@ -331,87 +306,15 @@ function DualDeliverySettingsCard() {
         </div>
       )}
 
-      {/* Selector de Modos */}
-      <div className="grid gap-4 sm:grid-cols-3">
-        {/* Opción 1: Nube */}
-        <button
-          type="button"
-          onClick={() => setStorageMode("cloud")}
-          className={`p-4 rounded-xl border text-left transition-all ${
-            storageMode === "cloud"
-              ? "bg-[#211b15] border-[#c69f68] ring-1 ring-[#c69f68]"
-              : "bg-[#181613] border-[#26211c] hover:border-[#3d342a]"
-          }`}
-        >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-semibold text-[#f5f2eb]">{t.modeCloudTitle}</span>
-            {storageMode === "cloud" && <span className="w-2 h-2 rounded-full bg-[#c69f68]" />}
-          </div>
-          <p className="text-[11px] text-[#8c7a6b] leading-relaxed">
-            {t.modeCloudDesc}
-          </p>
-        </button>
-
-        {/* Opción 2: Estudio / NAS */}
-        <button
-          type="button"
-          onClick={() => setStorageMode("nas")}
-          className={`p-4 rounded-xl border text-left transition-all ${
-            storageMode === "nas"
-              ? "bg-[#211b15] border-[#c69f68] ring-1 ring-[#c69f68]"
-              : "bg-[#181613] border-[#26211c] hover:border-[#3d342a]"
-          }`}
-        >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-semibold text-[#f5f2eb]">{t.modeNasTitle}</span>
-            {storageMode === "nas" && <span className="w-2 h-2 rounded-full bg-[#c69f68]" />}
-          </div>
-          <p className="text-[11px] text-[#8c7a6b] leading-relaxed">
-            {t.modeNasDesc}
-          </p>
-        </button>
-
-        {/* Opción 3: Auto-Detección */}
-        <button
-          type="button"
-          onClick={() => setStorageMode("auto")}
-          className={`p-4 rounded-xl border text-left transition-all ${
-            storageMode === "auto"
-              ? "bg-[#211b15] border-[#c69f68] ring-1 ring-[#c69f68]"
-              : "bg-[#181613] border-[#26211c] hover:border-[#3d342a]"
-          }`}
-        >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-semibold text-[#f5f2eb]">{t.modeAutoTitle}</span>
-            {storageMode === "auto" && <span className="w-2 h-2 rounded-full bg-[#c69f68]" />}
-          </div>
-          <p className="text-[11px] text-[#8c7a6b] leading-relaxed">
-            {t.modeAutoDesc}
-          </p>
-        </button>
-      </div>
-
-      {/* Estados y Parámetros */}
-      <div className="grid gap-4 sm:grid-cols-3 text-xs pt-2">
-        {/* Diagnóstico NAS */}
-        <div className="p-3.5 rounded-xl bg-[#181613] border border-[#26211c] space-y-1">
-          <span className="text-[#70665a] uppercase tracking-wider text-[10px] block font-semibold">{t.nasServerStatus}</span>
-          <div className="flex items-center gap-2">
-            <span className={`w-2 h-2 rounded-full ${isNasOnline ? "bg-emerald-400" : "bg-amber-500"}`} />
-            <span className={`font-medium ${isNasOnline ? "text-emerald-400" : "text-amber-400"}`}>
-              {isNasOnline ? t.nasOnlineLabel : t.nasOfflineLabel}
-            </span>
-          </div>
-          <p className="text-[11px] text-[#8c7a6b]">
-            {isNasOnline ? t.nasFtpAvailable : t.nasNoConnection}
-          </p>
-        </div>
-
-        {/* Google Drive Status & Conexión OAuth 2.0 */}
-        <div className="p-3.5 rounded-xl bg-[#181613] border border-[#26211c] space-y-2">
+      {/* Conexión OAuth 2.0 + Carpeta Raíz Opcional + Retención */}
+      <div className="grid gap-4 sm:grid-cols-3 text-xs">
+        {/* 1. Cuenta Google Drive OAuth 2.0 */}
+        <div className="p-4 rounded-xl bg-[#181613] border border-[#26211c] space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-[#70665a] uppercase tracking-wider text-[10px] block font-semibold">Google Drive</span>
-            {isOAuthConnected ? (
+            <span className="text-[#70665a] uppercase tracking-wider text-[10px] block font-semibold">
+              Cuenta de Google Drive
+            </span>
+            {isOAuthConnected && (
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -430,32 +333,50 @@ function DualDeliverySettingsCard() {
                   {t.disconnect}
                 </button>
               </div>
-            ) : null}
+            )}
           </div>
 
           {isOAuthConnected ? (
-            <div>
+            <div className="space-y-2">
               <div className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                 <span className="font-semibold text-emerald-400 text-xs">{t.connectedOAuth}</span>
               </div>
-              <p className="text-[11px] text-[#f5f2eb] font-mono truncate mt-0.5" title={oauthEmail || ""}>
+              <p className="text-[11px] text-[#f5f2eb] font-mono truncate" title={oauthEmail || ""}>
                 {oauthEmail}
               </p>
-              <p className="text-[10px] text-[#70665a] mt-0.5">
+              <p className="text-[10px] text-[#70665a]">
                 {t.unlimitedQuotaNote}
               </p>
+              <button
+                type="button"
+                onClick={handleTestGDrive}
+                disabled={testingGDrive}
+                className="w-full mt-1 py-1.5 px-3 rounded-lg border border-[#c69f68]/40 hover:border-[#c69f68] bg-[#c69f68]/10 text-[#c69f68] font-semibold text-[11px] transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {testingGDrive && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                <span>{testingGDrive ? "Comprobando..." : "Probar Conexión con Google Drive"}</span>
+              </button>
+              {gdriveTestResult && (
+                <div className={`text-[11px] flex items-center gap-1.5 pt-1 ${gdriveTestResult.success ? "text-emerald-400" : "text-rose-400"}`}>
+                  {gdriveTestResult.success ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <AlertCircle className="w-3.5 h-3.5 shrink-0" />}
+                  <span className="truncate">{gdriveTestResult.message}</span>
+                </div>
+              )}
             </div>
           ) : (
-            <div>
-              <div className="flex items-center gap-1.5 mb-2">
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-amber-400" />
                 <span className="font-medium text-amber-400 text-xs">{t.unlinked}</span>
               </div>
+              <p className="text-[11px] text-[#8c7a6b]">
+                Inicia sesión con el correo de Google del estudio para habilitar la subida directa a su Google Drive.
+              </p>
               <button
                 type="button"
                 onClick={handleConnectGoogle}
-                className="w-full py-1.5 px-3 rounded-lg bg-gradient-to-r from-[#c69f68] to-[#b38952] text-black font-semibold text-xs shadow hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                className="w-full py-2 px-3 rounded-lg bg-gradient-to-r from-[#c69f68] to-[#b38952] text-black font-semibold text-xs shadow hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <span>{t.connectGoogleDrive}</span>
               </button>
@@ -463,8 +384,25 @@ function DualDeliverySettingsCard() {
           )}
         </div>
 
-        {/* Retención y Reciclaje */}
-        <div className="p-3.5 rounded-xl bg-[#181613] border border-[#26211c] space-y-1">
+        {/* 2. Carpeta Raíz Opcional en Drive */}
+        <div className="p-4 rounded-xl bg-[#181613] border border-[#26211c] space-y-2">
+          <span className="text-[#70665a] uppercase tracking-wider text-[10px] block font-semibold">
+            Carpeta Raíz en Drive (Opcional)
+          </span>
+          <input
+            type="text"
+            value={gdriveParentId}
+            onChange={(e) => setGdriveParentId(e.target.value)}
+            placeholder="Automático (Lam7a Studios - Entregas)"
+            className="w-full px-3 py-1.5 rounded-lg bg-[#100f0d] border border-[#26211c] text-[#f5f2eb] font-mono text-xs focus:outline-none focus:border-[#c69f68]"
+          />
+          <p className="text-[10.5px] text-[#8c7a6b] leading-relaxed">
+            Déjalo en blanco para que el sistema cree y use automáticamente la carpeta <b>Lam7a Studios - Entregas</b> en el Google Drive conectado.
+          </p>
+        </div>
+
+        {/* 3. Retención y Reciclaje */}
+        <div className="p-4 rounded-xl bg-[#181613] border border-[#26211c] space-y-2">
           <span className="text-[#70665a] uppercase tracking-wider text-[10px] block font-semibold">{t.deliveryRetention}</span>
           <div className="flex items-center gap-2">
             <input
@@ -473,134 +411,14 @@ function DualDeliverySettingsCard() {
               max="180"
               value={retentionDays}
               onChange={(e) => setRetentionDays(parseInt(e.target.value, 10) || 30)}
-              className="w-16 px-2 py-0.5 rounded bg-[#100f0d] border border-[#3a332a] text-[#f5f2eb] font-mono text-xs"
+              className="w-16 px-2 py-1 rounded bg-[#100f0d] border border-[#3a332a] text-[#f5f2eb] font-mono text-xs"
             />
             <span className="text-[#c69f68] font-medium">{t.daysInCloud}</span>
           </div>
-          <p className="text-[11px] text-[#8c7a6b]">
+          <p className="text-[10.5px] text-[#8c7a6b] leading-relaxed">
             {t.retentionNotice}
           </p>
         </div>
-      </div>
-
-      {/* Sección Configuración Avanzada Google Drive (Service Account / Raíz) */}
-      <div className="rounded-xl border border-[#26211c] bg-[#100f0d] p-4 space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Key className="w-4 h-4 text-[#c69f68]" />
-            <span className="text-xs font-semibold text-[#f5f2eb]">
-              Credenciales Google Drive y Carpeta Raíz
-            </span>
-            {hasGDrive && (
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium">
-                Configurado
-              </span>
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={() => setShowGdriveCredentials(!showGdriveCredentials)}
-            className="text-xs text-[#c69f68] hover:underline flex items-center gap-1 cursor-pointer"
-          >
-            {showGdriveCredentials ? "Ocultar detalles" : "Editar claves / Carpeta"}
-            {showGdriveCredentials ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-          </button>
-        </div>
-
-        {/* Resumen rápido si está colapsado */}
-        {!showGdriveCredentials && (
-          <div className="text-[11px] text-[#8c7a6b] flex flex-wrap items-center gap-x-6 gap-y-1">
-            <span>
-              <strong className="text-[#a89f91]">Carpeta Raíz:</strong> {gdriveParentId || "No asignada (carpeta raíz de Drive)"}
-            </span>
-            <span>
-              <strong className="text-[#a89f91]">Service Account:</strong> {gdriveEmail || (isOAuthConnected ? "Usando OAuth" : "No configurado")}
-            </span>
-            <span>
-              <strong className="text-[#a89f91]">Clave Privada:</strong> {hasGdrivePrivateKey ? "Almacenada en BD ✅" : "No configurada"}
-            </span>
-          </div>
-        )}
-
-        {/* Campos editables cuando está expandido */}
-        {showGdriveCredentials && (
-          <div className="space-y-3.5 pt-2 border-t border-[#1e1b18]">
-            <div>
-              <label className="text-[11px] font-medium text-[#c69f68] block mb-1">
-                ID Carpeta Raíz de Entregas (Root Folder ID)
-              </label>
-              <input
-                type="text"
-                value={gdriveParentId}
-                onChange={(e) => setGdriveParentId(e.target.value)}
-                placeholder="ej: 1A2b3C4d5E6f_gHiJkLmNoPqRsTuVw"
-                className="w-full px-3 py-1.5 rounded-lg bg-[#181613] border border-[#26211c] text-[#f5f2eb] font-mono text-xs focus:outline-none focus:border-[#c69f68]"
-              />
-              <p className="text-[10px] text-[#70665a] mt-1">
-                ID extraído de la URL de tu carpeta de Google Drive (drive.google.com/drive/folders/<b>[ESTE_ID]</b>).
-              </p>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <label className="text-[11px] font-medium text-[#c69f68] block mb-1">
-                  Email de la Cuenta de Servicio (Service Account)
-                </label>
-                <input
-                  type="text"
-                  value={gdriveEmail}
-                  onChange={(e) => setGdriveEmail(e.target.value)}
-                  placeholder="ej: lamha-drive@proyect.iam.gserviceaccount.com"
-                  className="w-full px-3 py-1.5 rounded-lg bg-[#181613] border border-[#26211c] text-[#f5f2eb] font-mono text-xs focus:outline-none focus:border-[#c69f68]"
-                />
-                <p className="text-[10px] text-[#70665a] mt-1">
-                  Email bot de Google Cloud. Recuerda compartir tu carpeta raíz con este email con permisos de Editor.
-                </p>
-              </div>
-
-              <div>
-                <label className="text-[11px] font-medium text-[#c69f68] block mb-1">
-                  Clave Privada RSA (Service Account Private Key)
-                  {hasGdrivePrivateKey && (
-                    <span className="ml-2 text-emerald-400 text-[10px] font-normal">
-                      (Ya guardada en BD)
-                    </span>
-                  )}
-                </label>
-                <textarea
-                  rows={2}
-                  value={gdrivePrivateKey}
-                  onChange={(e) => setGdrivePrivateKey(e.target.value)}
-                  placeholder={hasGdrivePrivateKey ? "•••••••••• (Dejar en blanco para mantener la clave existente)" : "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgk..."}
-                  className="w-full px-3 py-1.5 rounded-lg bg-[#181613] border border-[#26211c] text-[#f5f2eb] font-mono text-xs focus:outline-none focus:border-[#c69f68] resize-none"
-                />
-                <p className="text-[10px] text-[#70665a] mt-1">
-                  Pega aquí el campo `private_key` del archivo JSON descargado de Google Cloud Console.
-                </p>
-              </div>
-            </div>
-
-            {/* Botón de Prueba */}
-            <div className="pt-2 flex flex-wrap items-center justify-between gap-3">
-              <button
-                type="button"
-                onClick={handleTestGDrive}
-                disabled={testingGDrive}
-                className="px-3.5 py-1.5 rounded-lg border border-[#c69f68]/40 hover:border-[#c69f68] bg-[#c69f68]/10 text-[#c69f68] font-semibold text-xs transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-              >
-                {testingGDrive && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                <span>{testingGDrive ? "Comprobando..." : "Probar Conexión con Google Drive"}</span>
-              </button>
-
-              {gdriveTestResult && (
-                <div className={`text-xs flex items-center gap-1.5 ${gdriveTestResult.success ? "text-emerald-400" : "text-rose-400"}`}>
-                  {gdriveTestResult.success ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-                  <span>{gdriveTestResult.message} {gdriveTestResult.email ? `(${gdriveTestResult.email})` : ""}</span>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Botones de Acción */}
@@ -618,7 +436,7 @@ function DualDeliverySettingsCard() {
           type="button"
           onClick={handleSave}
           disabled={saving}
-          className="px-5 py-2 rounded-xl bg-[#c69f68] hover:bg-[#b58f58] text-[#12100d] font-semibold text-xs transition-colors disabled:opacity-50"
+          className="px-5 py-2 rounded-xl bg-[#c69f68] hover:bg-[#b58f58] text-[#12100d] font-semibold text-xs transition-colors disabled:opacity-50 cursor-pointer"
         >
           {saving ? t.saving : t.saveStoragePreferences}
         </button>

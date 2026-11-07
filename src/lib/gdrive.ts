@@ -4,7 +4,7 @@ import { createClient } from "@supabase/supabase-js"
 
 function getSupabaseAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
   return createClient(url, key, { auth: { persistSession: false } })
 }
 
@@ -18,16 +18,13 @@ export interface GDriveCredentials {
 }
 
 /**
- * Obtiene las credenciales de Google Drive priorizando:
- * 1. Cuenta OAuth conectada por el usuario en studio_delivery_settings
- * 2. Variables de entorno (.env.local) para Service Account
+ * Obtiene las credenciales de Google Drive conectadas mediante OAuth 2.0 en studio_delivery_settings
  */
 export async function resolveGDriveCredentials(custom?: GDriveCredentials): Promise<GDriveCredentials> {
-  if (custom?.oauthRefreshToken || (custom?.clientEmail && custom?.privateKey)) {
+  if (custom?.oauthRefreshToken) {
     return custom
   }
 
-  // 1. Priorizar OAuth 2.0 (cuenta personal del fotógrafo con cuota propia)
   try {
     const supabase = getSupabaseAdmin()
     const { data } = await supabase
@@ -38,30 +35,16 @@ export async function resolveGDriveCredentials(custom?: GDriveCredentials): Prom
 
     if (data?.gdrive_private_key?.startsWith("oauth_refresh:")) {
       const refreshToken = data.gdrive_private_key.replace("oauth_refresh:", "")
-      const envParent = (process.env.GDRIVE_PARENT_FOLDER_ID || "").replace(/"/g, "").trim()
+      const customParent = (custom?.parentFolderId || data.gdrive_parent_folder_id || "").trim()
       return {
         authType: "oauth",
         oauthRefreshToken: refreshToken,
         oauthEmail: data.gdrive_client_email || undefined,
-        parentFolderId: data.gdrive_parent_folder_id || envParent || undefined,
+        parentFolderId: customParent || undefined,
       }
     }
   } catch (err) {
-    console.warn("[GDrive] Error consultando credenciales de Supabase:", err)
-  }
-
-  // 2. Fallback a Service Account en .env.local
-  const envEmail = (process.env.GDRIVE_CLIENT_EMAIL || "").replace(/"/g, "").trim()
-  const envKey = (process.env.GDRIVE_PRIVATE_KEY || "").replace(/"/g, "").trim()
-  const envParent = (process.env.GDRIVE_PARENT_FOLDER_ID || "").replace(/"/g, "").trim()
-
-  if (envEmail && envKey) {
-    return {
-      authType: "service_account",
-      clientEmail: envEmail,
-      privateKey: envKey.replace(/\\n/g, "\n"),
-      parentFolderId: envParent || undefined
-    }
+    console.warn("[GDrive] Error consultando credenciales OAuth de Supabase:", err)
   }
 
   return {}
@@ -208,14 +191,57 @@ export async function testGoogleDriveConnection(custom?: GDriveCredentials): Pro
 }
 
 /**
- * Crea una carpeta para la entrega del cliente en Google Drive
+ * Crea una carpeta para la entrega del cliente en Google Drive.
+ * Si no hay carpeta raíz configurada o si la carpeta raíz configurada pertenece a una cuenta anterior,
+ * busca o crea automáticamente la carpeta raíz "Lam7a Studios - Entregas" en el Drive de la cuenta conectada.
  */
 export async function createDeliveryDriveFolder(
   folderName: string,
   parentFolderId?: string
 ): Promise<{ folderId: string; folderUrl: string }> {
   const { drive, parentFolderId: defaultParent } = await getDriveClient()
-  const targetParent = parentFolderId || defaultParent
+  let targetParent = (parentFolderId || defaultParent || "").trim()
+
+  // Verificar si targetParent existe y es accesible en la cuenta actual; si no, usar/crear "Lam7a Studios - Entregas"
+  if (targetParent) {
+    try {
+      const check = await drive.files.get({
+        fileId: targetParent,
+        fields: "id, trashed",
+        supportsAllDrives: true,
+      })
+      if (check.data.trashed) targetParent = ""
+    } catch {
+      targetParent = ""
+    }
+  }
+
+  if (!targetParent) {
+    try {
+      const rootName = "Lam7a Studios - Entregas"
+      const listRes = await drive.files.list({
+        q: `mimeType='application/vnd.google-apps.folder' and name='${rootName}' and trashed=false`,
+        fields: "files(id, name)",
+        pageSize: 1,
+        supportsAllDrives: true,
+      })
+      if (listRes.data.files && listRes.data.files.length > 0 && listRes.data.files[0].id) {
+        targetParent = listRes.data.files[0].id
+      } else {
+        const createdRoot = await drive.files.create({
+          requestBody: {
+            name: rootName,
+            mimeType: "application/vnd.google-apps.folder",
+          },
+          fields: "id",
+          supportsAllDrives: true,
+        })
+        if (createdRoot.data.id) {
+          targetParent = createdRoot.data.id
+        }
+      }
+    } catch {}
+  }
 
   const fileMetadata: drive_v3.Schema$File = {
     name: folderName,

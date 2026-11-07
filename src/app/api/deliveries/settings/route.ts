@@ -29,12 +29,12 @@ export async function GET(req: NextRequest) {
     let settings = {
       storage_mode: "auto" as "auto" | "lan" | "tailscale",
       default_retention_days: 30,
-      gdrive_parent_folder_id: process.env.GDRIVE_PARENT_FOLDER_ID || "",
-      has_gdrive_credentials: Boolean(process.env.GDRIVE_CLIENT_EMAIL && process.env.GDRIVE_PRIVATE_KEY),
-      gdrive_client_email: process.env.GDRIVE_CLIENT_EMAIL || "",
+      gdrive_parent_folder_id: "",
+      has_gdrive_credentials: false,
+      gdrive_client_email: "",
       isOAuthConnected: false,
       oauthEmail: null as string | null,
-      authType: "service_account" as "oauth" | "service_account",
+      authType: "oauth" as "oauth" | "service_account",
       smb_network_path: "",
       smb_probe_host: "",
       ftp_remote_host: "",
@@ -60,11 +60,9 @@ export async function GET(req: NextRequest) {
         if (data.gdrive_private_key?.startsWith("oauth_refresh:")) {
           settings.isOAuthConnected = true
           settings.oauthEmail = data.gdrive_client_email
+          settings.gdrive_client_email = data.gdrive_client_email || ""
           settings.has_gdrive_credentials = true
           settings.authType = "oauth"
-        } else if (data.gdrive_client_email) {
-          settings.gdrive_client_email = data.gdrive_client_email
-          settings.has_gdrive_credentials = Boolean(data.gdrive_client_email && data.gdrive_private_key)
         }
 
         settings.smb_probe_host = (data.smb_probe_host || "").trim()
