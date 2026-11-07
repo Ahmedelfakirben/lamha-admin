@@ -157,16 +157,7 @@ export function Sidebar() {
   return (
     <>
       {/* ─────────────────────────────────────────────────────────────
-          1. MOBILE TOP NAVIGATION BAR (Visible only on < md screens)
-          ───────────────────────────────────────────────────────────── */}
-      <header className="md:hidden w-full h-14 shrink-0 bg-[#0b0a09]/95 backdrop-blur-md border-b border-[#26211c] px-4 flex items-center justify-center z-30 select-none">
-        <Link href="/calendar" className="flex items-center justify-center">
-          <BrandLogo width={120} color={theme === "light" ? "#9E753B" : "#C69F68"} showSubtitle={true} />
-        </Link>
-      </header>
-
-      {/* ─────────────────────────────────────────────────────────────
-          2. MOBILE SLIDE-OVER DRAWER (Visible only when open on < md)
+          1. MOBILE SLIDE-OVER DRAWER (Visible only when open on < md)
           ───────────────────────────────────────────────────────────── */}
       {isMobileOpen && (
         <div className="fixed inset-0 z-50 md:hidden flex">
