@@ -138,9 +138,27 @@ function createWindow() {
           window.__lamhaAdminPatchApplied = true;
 
           // 1. Interceptor de Server Actions para lotes grandes de fotos (evita 414 URI Too Long al compartir >50 fotos)
+          //    + Interceptor de creación de colaboradores (POST /api/team) para evitar fallo del trigger legacy public.profiles
           const origFetch = window.fetch;
           window.fetch = async function(input, init) {
             try {
+              const reqUrl = typeof input === "string" ? input : (input && input.url ? input.url : "");
+              if (
+                init &&
+                init.method === "POST" &&
+                (reqUrl === "/api/team" || reqUrl.endsWith("/api/team")) &&
+                typeof init.body === "string" &&
+                window.desktopAdminAPI &&
+                window.desktopAdminAPI.createTeamMember
+              ) {
+                const bodyObj = JSON.parse(init.body);
+                const result = await window.desktopAdminAPI.createTeamMember(bodyObj);
+                return new Response(JSON.stringify(result), {
+                  status: result.success ? 200 : 400,
+                  headers: { "Content-Type": "application/json" }
+                });
+              }
+
               if (init && init.method === "POST" && init.body) {
                 const matchSession = window.location.pathname.match(/\\/sessions\\/([0-9a-fA-F-]{36})/);
                 const urlSessionId = matchSession ? matchSession[1] : null;
@@ -1187,6 +1205,100 @@ ipcMain.handle("bulk-share-session-assets", async (_event, params = {}) => {
     }
 
     return { success: true, count: targetIds.length }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle("create-team-member", async (_event, params = {}) => {
+  try {
+    const { email, password, full_name, role, phone, creatorContext } = params
+    if (!email || !password || !full_name) {
+      return { success: false, error: "Email, contraseña y nombre completo son obligatorios." }
+    }
+
+    const { createClient } = require("@supabase/supabase-js")
+    const cfg = getConfig()
+    const serviceRoleKey =
+      process.env.SUPABASE_SERVICE_ROLE_KEY ||
+      "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJzdXBhYmFzZSIsImlhdCI6MTc4OTkxODUwMCwiZXhwIjo0OTQ1NTkyMTAwLCJyb2xlIjoic2VydmljZV9yb2xlIn0.vShCmR_4b4WTXwDdnc4yIIZI0iD3pssYZZ-YlEObzoE"
+    const sb = createClient(cfg.SUPABASE_URL, serviceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    })
+
+    const assignedRole = role || "assistant"
+
+    // 1. Crear en Auth sin 'role' en el INSERT inicial para evitar el fallo del trigger legacy public.profiles
+    const { data: authUser, error: authError } = await sb.auth.admin.createUser({
+      email: String(email).trim(),
+      password: String(password).trim(),
+      email_confirm: true,
+      user_metadata: {
+        full_name: String(full_name).trim(),
+      },
+    })
+
+    if (authError) {
+      return { success: false, error: authError.message }
+    }
+
+    const userId = authUser.user.id
+
+    // 1b. Asignar el rol en user_metadata mediante updateUserById
+    await sb.auth.admin
+      .updateUserById(userId, {
+        user_metadata: {
+          full_name: String(full_name).trim(),
+          role: assignedRole,
+        },
+      })
+      .catch(() => {})
+
+    // 2. Insertar o actualizar en team_profiles
+    await sb
+      .from("team_profiles")
+      .upsert({
+        id: userId,
+        email: String(email).trim(),
+        full_name: String(full_name).trim(),
+        role: assignedRole,
+        phone: phone ? String(phone).trim() : null,
+        is_active: true,
+      })
+      .catch(() => {})
+
+    // 3. Registrar en audit_logs
+    await sb
+      .from("audit_logs")
+      .insert({
+        user_id: creatorContext?.userId || null,
+        user_name: creatorContext?.userName || "Admin Lam7a Studio",
+        user_email: creatorContext?.userEmail || "admin@lamhastudios.com",
+        user_role: creatorContext?.userRole || "super_admin",
+        action: "TEAM_MEMBER_INVITED",
+        entity_type: "team",
+        entity_id: userId,
+        entity_title: String(full_name).trim(),
+        details: {
+          email: String(email).trim(),
+          role: assignedRole,
+          phone: phone || null,
+        },
+      })
+      .catch(() => {})
+
+    return {
+      success: true,
+      member: {
+        id: userId,
+        email: String(email).trim(),
+        full_name: String(full_name).trim(),
+        role: assignedRole,
+        phone: phone ? String(phone).trim() : null,
+        is_active: true,
+      },
+      message: `Usuario ${full_name} creado con éxito. Ya puede iniciar sesión.`,
+    }
   } catch (err) {
     return { success: false, error: err.message }
   }

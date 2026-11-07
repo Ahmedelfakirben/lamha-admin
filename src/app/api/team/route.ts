@@ -81,13 +81,15 @@ export async function POST(req: Request) {
     const assignedRole = role || "assistant"
 
     // 1. Crear el usuario en Supabase Auth
+    // Nota: No pasamos `role` en el INSERT inicial de auth.users porque existe un trigger legacy
+    // hacia `public.profiles` cuya restricción CHECK solo acepta 'admin'. Asignamos `role` en
+    // user_metadata justo después mediante updateUserById y en `team_profiles`.
     const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
       email: email.trim(),
       password: password.trim(),
       email_confirm: true,
       user_metadata: {
         full_name: full_name.trim(),
-        role: assignedRole,
       },
     })
 
@@ -96,6 +98,16 @@ export async function POST(req: Request) {
     }
 
     const userId = authUser.user.id
+
+    // 1b. Actualizar user_metadata con el rol del atelier (sin disparar el trigger AFTER INSERT de profiles)
+    await supabase.auth.admin
+      .updateUserById(userId, {
+        user_metadata: {
+          full_name: full_name.trim(),
+          role: assignedRole,
+        },
+      })
+      .catch(() => {})
 
     // 2. Insertar o actualizar en la tabla team_profiles
     try {

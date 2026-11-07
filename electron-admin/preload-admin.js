@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld("desktopAdminAPI", {
   launchIngestCompanion: (params) => ipcRenderer.invoke("launch-ingest-companion", params),
   copyClientSelection: (params) => ipcRenderer.invoke("copy-client-selection", params),
   bulkShareSessionAssets: (params) => ipcRenderer.invoke("bulk-share-session-assets", params),
+  createTeamMember: (params) => ipcRenderer.invoke("create-team-member", params),
   retry: () => ipcRenderer.send("retry-connect"),
   connectTo: (targetUrl) => ipcRenderer.send("connect-to-url", targetUrl),
   getServerStatus: () => ipcRenderer.invoke("get-server-status"),
