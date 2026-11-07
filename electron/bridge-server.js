@@ -6,13 +6,21 @@
  */
 const http = require("http")
 const url = require("url")
+const {
+  getConfig,
+  probeTcpPort,
+  resolveActiveNasRoute,
+  findAvailableSmbShareAsync,
+  syncConfigFromSupabase,
+} = require("./config")
 
 const BRIDGE_PORT = 41890
 
 class LamhaBridgeServer {
-  constructor({ onStartIngest, onShowMain, getStatus, getCards, getRetentionStatus }) {
+  constructor({ onStartIngest, onShowMain, onConfigReloaded, getStatus, getCards, getRetentionStatus }) {
     this.onStartIngest = onStartIngest
     this.onShowMain = onShowMain
+    this.onConfigReloaded = onConfigReloaded
     this.getStatus = getStatus
     this.getCards = getCards
     this.getRetentionStatus = getRetentionStatus
@@ -61,33 +69,65 @@ class LamhaBridgeServer {
         return
       }
 
-      // GET /check-nas — Comprobar si el NAS local (192.168.11.200) responde por Socket TCP
-      if (req.method === "GET" && pathname === "/check-nas") {
-        const net = require("net")
-        const targetHost = parsedUrl.query.host || "192.168.11.200"
-        const targetPort = parseInt(parsedUrl.query.port, 10) || 21
-        const socket = new net.Socket()
-        socket.setTimeout(1500)
-        socket.once("connect", () => {
-          socket.destroy()
-          res.writeHead(200)
-          res.end(JSON.stringify({ reachable: true, host: targetHost, port: targetPort }))
-        })
-        socket.once("timeout", () => {
-          socket.destroy()
-          res.writeHead(200)
-          res.end(JSON.stringify({ reachable: false, host: targetHost, port: targetPort, error: "Timeout" }))
-        })
-        socket.once("error", (err) => {
-          socket.destroy()
-          res.writeHead(200)
-          res.end(JSON.stringify({ reachable: false, host: targetHost, port: targetPort, error: err.message }))
-        })
-        socket.connect(targetPort, targetHost)
+      // POST /reload-config — Recargar la configuración centralizada de Supabase inmediatamente
+      if (req.method === "POST" && pathname === "/reload-config") {
+        syncConfigFromSupabase()
+          .then((cfg) => {
+            if (this.onConfigReloaded) this.onConfigReloaded(cfg)
+            res.writeHead(200)
+            res.end(JSON.stringify({ ok: true, message: "Configuración recargada desde Supabase" }))
+          })
+          .catch((err) => {
+            res.writeHead(500)
+            res.end(JSON.stringify({ ok: false, error: err.message }))
+          })
         return
       }
 
-      // GET /project-nas — Estado y conteo exacto de un proyecto en el NAS (vía SMB o FTP)
+      // GET /check-nas — Comprobar estado híbrido del NAS (Red Local LAN + Tailscale VPN)
+      if (req.method === "GET" && pathname === "/check-nas") {
+        const customHost = parsedUrl.query.host ? String(parsedUrl.query.host).trim() : ""
+        const customPort = parseInt(parsedUrl.query.port, 10) || 21
+        if (customHost) {
+          probeTcpPort(customHost, customPort, 1200).then((r) => {
+            res.writeHead(200)
+            res.end(
+              JSON.stringify({
+                reachable: r.reachable,
+                activeHost: customHost,
+                host: customHost,
+                port: customPort,
+                latencyMs: r.latencyMs,
+              })
+            )
+          })
+          return
+        }
+
+        resolveActiveNasRoute({ force: true })
+          .then((route) => {
+            res.writeHead(200)
+            res.end(
+              JSON.stringify({
+                reachable: route.activeRoute !== "offline",
+                activeRoute: route.activeRoute,
+                activeHost: route.activeHost,
+                host: route.activeHost,
+                port: getConfig().nasPort || 21,
+                latencyMs: route.latencyMs,
+                lan: route.lan,
+                tailscale: route.tailscale,
+              })
+            )
+          })
+          .catch((err) => {
+            res.writeHead(200)
+            res.end(JSON.stringify({ reachable: false, error: err.message }))
+          })
+        return
+      }
+
+      // GET /project-nas — Estado y conteo exacto de un proyecto en el NAS (vía SMB o FTP de forma asíncrona)
       if (req.method === "GET" && pathname === "/project-nas") {
         const folderName = parsedUrl.query.folder
         if (!folderName) {
@@ -96,89 +136,76 @@ class LamhaBridgeServer {
           return
         }
 
-        const fs = require("fs")
-        const path = require("path")
-        const smbCandidates = [
-          path.join("Z:\\", folderName),
-          `\\\\192.168.11.200\\Lamha-Storage\\${folderName}`,
-        ]
-
-        let foundPath = null
-        for (const c of smbCandidates) {
-          try {
-            if (fs.existsSync(c)) {
-              foundPath = c
-              break
-            }
-          } catch {}
-        }
-
-        if (foundPath) {
-          try {
-            let filesCount = 0
-            let totalSizeBytes = 0
-            const walk = (dir) => {
-              const entries = fs.readdirSync(dir, { withFileTypes: true })
-              for (const e of entries) {
-                if (e.name.startsWith(".")) continue
-                const full = path.join(dir, e.name)
-                if (e.isDirectory()) walk(full)
-                else if (e.isFile()) {
-                  filesCount++
-                  try { totalSizeBytes += fs.statSync(full).size } catch {}
+        ;(async () => {
+          const fs = require("fs")
+          const path = require("path")
+          const smbRoot = await findAvailableSmbShareAsync()
+          if (smbRoot) {
+            const foundPath = path.join(smbRoot, folderName)
+            try {
+              await fs.promises.access(foundPath)
+              let filesCount = 0
+              let totalSizeBytes = 0
+              const walk = async (dir) => {
+                const entries = await fs.promises.readdir(dir, { withFileTypes: true })
+                for (const e of entries) {
+                  if (e.name.startsWith(".")) continue
+                  const full = path.join(dir, e.name)
+                  if (e.isDirectory()) await walk(full)
+                  else if (e.isFile()) {
+                    filesCount++
+                    try {
+                      const st = await fs.promises.stat(full)
+                      totalSizeBytes += st.size
+                    } catch {}
+                  }
                 }
               }
-            }
-            walk(foundPath)
-            res.writeHead(200)
-            res.end(JSON.stringify({
-              ok: true,
-              exists: true,
-              folderName,
-              path: foundPath,
-              filesCount,
-              bytes: totalSizeBytes,
-              sizeMB: Number((totalSizeBytes / (1024 * 1024)).toFixed(1)),
-              sizeGB: Number((totalSizeBytes / (1024 * 1024 * 1024)).toFixed(2)),
-              source: "smb",
-            }))
-            return
-          } catch (smbErr) {
-            console.warn("[BRIDGE] Error leyendo carpeta SMB:", smbErr.message)
-          }
-        }
-
-        // Si no está por SMB local o falló, buscar en el scan de retención
-        if (this.getRetentionStatus) {
-          Promise.resolve(this.getRetentionStatus(false))
-            .then((status) => {
-              const p = status && status.projects ? status.projects.find((x) => x.folderName === folderName) : null
-              if (p) {
-                res.writeHead(200)
-                res.end(JSON.stringify({
+              await walk(foundPath)
+              res.writeHead(200)
+              res.end(
+                JSON.stringify({
                   ok: true,
                   exists: true,
                   folderName,
-                  filesCount: p.filesCount || 0,
-                  bytes: p.bytes || 0,
-                  sizeMB: Number(((p.bytes || 0) / (1024 * 1024)).toFixed(1)),
-                  sizeGB: Number(((p.bytes || 0) / (1024 * 1024 * 1024)).toFixed(2)),
-                  source: status.source || "retention_scan",
-                }))
-              } else {
-                res.writeHead(200)
-                res.end(JSON.stringify({ ok: true, exists: false, folderName, filesCount: 0, bytes: 0 }))
-              }
-            })
-            .catch((err) => {
-              res.writeHead(500)
-              res.end(JSON.stringify({ ok: false, error: err.message }))
-            })
-          return
-        }
+                  path: foundPath,
+                  filesCount,
+                  bytes: totalSizeBytes,
+                  sizeMB: Number((totalSizeBytes / (1024 * 1024)).toFixed(1)),
+                  sizeGB: Number((totalSizeBytes / (1024 * 1024 * 1024)).toFixed(2)),
+                  source: "smb",
+                })
+              )
+              return
+            } catch {}
+          }
 
-        res.writeHead(200)
-        res.end(JSON.stringify({ ok: true, exists: false, folderName, filesCount: 0, bytes: 0 }))
+          if (this.getRetentionStatus) {
+            try {
+              const status = await Promise.resolve(this.getRetentionStatus(false))
+              const p = status && status.projects ? status.projects.find((x) => x.folderName === folderName) : null
+              if (p) {
+                res.writeHead(200)
+                res.end(
+                  JSON.stringify({
+                    ok: true,
+                    exists: true,
+                    folderName,
+                    filesCount: p.filesCount || 0,
+                    bytes: p.bytes || 0,
+                    sizeMB: Number(((p.bytes || 0) / (1024 * 1024)).toFixed(1)),
+                    sizeGB: Number(((p.bytes || 0) / (1024 * 1024 * 1024)).toFixed(2)),
+                    source: status.source || "retention_scan",
+                  })
+                )
+                return
+              }
+            } catch {}
+          }
+
+          res.writeHead(200)
+          res.end(JSON.stringify({ ok: true, exists: false, folderName, filesCount: 0, bytes: 0 }))
+        })()
         return
       }
 
@@ -274,29 +301,33 @@ class LamhaBridgeServer {
             let filePath = params.path || ""
 
             if (target === "nas") {
-              const cleanRel = filePath.replace(/^[\\\/]+/, "").replace(/^Lamha-Storage[\\\/]/i, "")
-              const smbCandidates = [
-                path.join("Z:\\", cleanRel),
-                `\\\\192.168.11.200\\Lamha-Storage\\${cleanRel}`,
-                "Z:\\",
-                "\\\\192.168.11.200\\Lamha-Storage",
-              ]
-              for (const cand of smbCandidates) {
+              const cleanRel = filePath
+                .replace(/^ftp:\/\/[^/]+/, "")
+                .replace(/^[\\\/]+/, "")
+                .replace(/^Lamha-Storage[\\\/]/i, "")
+              const smbBase = await findAvailableSmbShareAsync()
+              if (smbBase) {
+                const cand = cleanRel ? path.join(smbBase, cleanRel) : smbBase
                 try {
-                  if (fs.existsSync(cand)) {
-                    console.log("[BRIDGE] Abriendo ubicación NAS SMB:", cand)
-                    await shell.openPath(cand)
-                    res.writeHead(200)
-                    res.end(JSON.stringify({ ok: true, message: "Ubicación de red NAS abierta vía SMB", target: "nas", path: cand }))
-                    return
-                  }
-                } catch {}
+                  await fs.promises.access(cand)
+                  console.log("[BRIDGE] Abriendo ubicación NAS SMB:", cand)
+                  await shell.openPath(cand)
+                  res.writeHead(200)
+                  res.end(JSON.stringify({ ok: true, message: "Ubicación de red NAS abierta vía SMB", target: "nas", path: cand }))
+                  return
+                } catch {
+                  await shell.openPath(smbBase)
+                  res.writeHead(200)
+                  res.end(JSON.stringify({ ok: true, message: "Raíz de red NAS abierta vía SMB", target: "nas", path: smbBase }))
+                  return
+                }
               }
 
-              // Fallback a URL FTP si SMB no está montado
-              const nasUrl = filePath.startsWith("ftp://") 
-                ? filePath 
-                : `ftp://192.168.11.200/${cleanRel}`
+              const route = await resolveActiveNasRoute()
+              const activeHost = route.activeHost || getConfig().nasHost
+              const nasUrl = filePath.startsWith("ftp://")
+                ? filePath
+                : `ftp://${activeHost}/${cleanRel.replace(/\\/g, "/")}`
               console.log("[BRIDGE] Abriendo ubicación NAS FTP:", nasUrl)
               await shell.openExternal(nasUrl)
               res.writeHead(200)

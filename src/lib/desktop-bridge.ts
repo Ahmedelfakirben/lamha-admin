@@ -248,31 +248,51 @@ export async function createLocalProjectStructure(folderName: string): Promise<{
 }
 
 /**
- * Comprueba la conexión local con el servidor NAS QNAP (192.168.11.200)
+ * Comprueba la conexión con el servidor NAS QNAP desde el PC físico (LAN o Tailscale)
  */
-export async function checkStudioNas(host: string = "192.168.11.200", port: number = 21): Promise<{ reachable: boolean; host: string; port: number; error?: string }> {
-  // 1. Si estamos dentro de la app de escritorio Panel Administrador
-  if (typeof window !== "undefined" && window.desktopAdminAPI?.checkNasConnection) {
+export async function checkStudioNas(host: string = "", port: number = 21): Promise<{ reachable: boolean; host: string; port: number; error?: string }> {
+  // 1. Si estamos dentro de la app de escritorio Panel Administrador y se especificó un host
+  if (host && typeof window !== "undefined" && window.desktopAdminAPI?.checkNasConnection) {
     try {
       const res = await window.desktopAdminAPI.checkNasConnection(host, port)
       if (res.reachable) return res
     } catch {}
   }
 
-  // 2. Si estamos en un navegador web y el Ingest Companion está corriendo en el PC
-  try {
-    const res = await fetch(`http://127.0.0.1:41890/check-nas?host=${encodeURIComponent(host)}&port=${port}`, {
-      signal: AbortSignal.timeout(1500),
-    })
-    if (res.ok) {
-      const data = await res.json()
-      if (data.reachable) {
-        return { reachable: true, host, port }
+  // 2. Si estamos en un navegador web o sin host explícito, consultar al Ingest Companion local (:41890)
+  for (const bridgePort of [41890, 41891]) {
+    try {
+      const query = host ? `?host=${encodeURIComponent(host)}&port=${port}` : `?port=${port}`
+      const res = await fetch(`http://127.0.0.1:${bridgePort}/check-nas${query}`, {
+        signal: AbortSignal.timeout(1200),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data.reachable) {
+          return { reachable: true, host: data.host || host, port: data.port || port }
+        }
       }
-    }
-  } catch {}
+    } catch {}
+  }
 
   return { reachable: false, host, port, error: "Desktop bridge no disponible" }
+}
+
+/**
+ * Notifica a la herramienta Ingest Companion local (:41890) para que recargue al instante
+ * la configuración centralizada de red (LAN + Tailscale) desde Supabase
+ */
+export async function notifyCompanionConfigReload(): Promise<boolean> {
+  for (const port of [41890, 41891]) {
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/reload-config`, {
+        method: "POST",
+        signal: AbortSignal.timeout(1500),
+      })
+      if (res.ok) return true
+    } catch {}
+  }
+  return false
 }
 
 /**

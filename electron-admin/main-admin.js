@@ -4,6 +4,13 @@ const fs = require("fs")
 const http = require("http")
 const net = require("net")
 const { spawn, exec } = require("child_process")
+const {
+  getConfig,
+  probeTcpPort,
+  resolveActiveNasRoute,
+  findAvailableSmbShareAsync,
+  syncConfigFromSupabase,
+} = require("../electron/config")
 
 let mainWindow = null
 const STUDIO_PANEL_URL = process.env.LAMHA_PANEL_URL || "https://admin.lam7a.ma"
@@ -192,44 +199,44 @@ ipcMain.handle("open-local-path", async (_event, targetPath, target = "local") =
   }
 
   try {
-    // A) MODO NAS: Abrir recurso compartido SMB o FTP en el Explorador de Windows
+    // A) MODO NAS: Abrir recurso compartido SMB o FTP en el Explorador de Windows (Rutas híbridas LAN + Tailscale)
     if (target === "nas" || targetPath.startsWith("ftp://") || targetPath.startsWith("\\\\") || targetPath.startsWith("Z:") || targetPath.startsWith("z:")) {
       const cleanRel = targetPath
         .replace(/^ftp:\/\/[^/]+/, "")
         .replace(/^\/?usb1_1\/Lamha-Storage\/?/i, "")
         .replace(/^usb1_1[\\\/]Lamha-Storage[\\\/]?/i, "")
         .replace(/^[zZ]:[\\\/]?/i, "")
+        .replace(/^\\\\[^\\]+\\[^\\]+[\\\/]?/i, "")
         .replace(/^[\\\/]+/, "")
         .replace(/\//g, "\\")
 
-      // 1. Probar unidad montada Z:\ (QNAP)
-      const zCandidate = path.join("Z:\\", cleanRel)
-      if (fs.existsSync(zCandidate)) {
-        if (fs.statSync(zCandidate).isDirectory()) {
-          await shell.openPath(zCandidate)
-        } else {
-          shell.showItemInFolder(zCandidate)
+      // 1. Probar recurso SMB verificado previamente con sondeo TCP 445 (evita congelamientos de Windows)
+      const smbBase = await findAvailableSmbShareAsync()
+      if (smbBase) {
+        const smbCandidate = cleanRel ? path.join(smbBase, cleanRel) : smbBase
+        try {
+          await fs.promises.access(smbCandidate)
+          const st = await fs.promises.stat(smbCandidate)
+          if (st.isDirectory()) {
+            await shell.openPath(smbCandidate)
+          } else {
+            shell.showItemInFolder(smbCandidate)
+          }
+          return { success: true, resolvedPath: smbCandidate }
+        } catch {
+          await shell.openPath(smbBase)
+          return { success: true, resolvedPath: smbBase }
         }
-        return { success: true, resolvedPath: zCandidate }
       }
 
-      // 2. Probar ruta UNC SMB directa \\192.168.11.200\Lamha-Storage
-      const smbCandidate = path.join("\\\\192.168.11.200\\Lamha-Storage", cleanRel)
-      if (fs.existsSync(smbCandidate)) {
-        if (fs.statSync(smbCandidate).isDirectory()) {
-          await shell.openPath(smbCandidate)
-        } else {
-          shell.showItemInFolder(smbCandidate)
-        }
-        return { success: true, resolvedPath: smbCandidate }
-      }
-
-      // 3. Probar URL FTP directa en explorer.exe
+      // 2. Fallback a URL FTP directa en explorer.exe usando la ruta activa (LAN o Tailscale)
+      const route = await resolveActiveNasRoute()
+      const activeHost = route.activeHost || getConfig().nasHost
       let cleanUrlPart = cleanRel.replace(/\\/g, "/")
       if (/\.[a-zA-Z0-9]{2,5}$/.test(cleanUrlPart)) {
         cleanUrlPart = cleanUrlPart.substring(0, cleanUrlPart.lastIndexOf("/"))
       }
-      const ftpUrl = `ftp://192.168.11.200/${cleanUrlPart}`
+      const ftpUrl = `ftp://${activeHost}/${cleanUrlPart}`
       spawn("explorer.exe", [ftpUrl], { detached: true, stdio: "ignore" }).unref()
       return { success: true, resolvedPath: ftpUrl }
     }
@@ -366,20 +373,18 @@ function resolveLocalProjectFolder(folderName) {
   return path.join("C:\\Lamha-Storage", folderName)
 }
 
-// Función auxiliar para localizar la carpeta del proyecto en el QNAP NAS (Z:\ o SMB)
-function resolveNasProjectFolder(folderName) {
+// Función auxiliar asíncrona para localizar la carpeta del proyecto en el QNAP NAS (SMB LAN o Tailscale con TCP 445 verificado)
+async function resolveNasProjectFolderAsync(folderName) {
   if (!folderName) return null
-  const candidates = [
-    path.join("Z:\\", folderName),
-    path.join("Z:\\Lamha-Storage", folderName),
-    `\\\\192.168.11.200\\Lamha-Storage\\${folderName}`,
-  ]
-  for (const candidate of candidates) {
-    try {
-      if (fs.existsSync(candidate)) return candidate
-    } catch {}
+  const smbBase = await findAvailableSmbShareAsync()
+  if (!smbBase) return null
+  const candidate = path.join(smbBase, folderName)
+  try {
+    await fs.promises.access(candidate)
+    return candidate
+  } catch {
+    return null
   }
-  return null
 }
 
 // Escanea recursivamente una carpeta y desglosa por subcarpetas (01_RAW, etc.)
@@ -429,7 +434,7 @@ ipcMain.handle("scan-project-storage", async (_event, folderName) => {
   if (!folderName) return { exists: false, error: "Nombre de carpeta no especificado" }
   try {
     const localDirPath = resolveLocalProjectFolder(folderName)
-    const nasDirPath = resolveNasProjectFolder(folderName)
+    const nasDirPath = await resolveNasProjectFolderAsync(folderName)
 
     const localScan = scanFolderRecursive(localDirPath)
     const nasScan = scanFolderRecursive(nasDirPath)
@@ -563,29 +568,23 @@ ipcMain.handle("create-project-folders", async (_event, folderName) => {
   }
 })
 
-// 10. Comprobar conectividad local con NAS (IP/puerto)
-ipcMain.handle("check-nas-connection", async (_event, host = "192.168.11.1", port = 21, timeoutMs = 1500) => {
-  return new Promise((resolve) => {
-    const socket = new net.Socket()
-    socket.setTimeout(timeoutMs)
-
-    socket.on("connect", () => {
-      socket.destroy()
-      resolve({ reachable: true, host, port })
-    })
-
-    socket.on("timeout", () => {
-      socket.destroy()
-      resolve({ reachable: false, host, port, error: "Timeout" })
-    })
-
-    socket.on("error", (err) => {
-      socket.destroy()
-      resolve({ reachable: false, host, port, error: err.message })
-    })
-
-    socket.connect(port, host)
-  })
+// 10. Comprobar conectividad con NAS (Rutas Híbridas LAN Local + Tailscale VPN)
+ipcMain.handle("check-nas-connection", async (_event, host = "", port = 21, timeoutMs = 1200) => {
+  if (host && typeof host === "string" && host.trim()) {
+    const res = await probeTcpPort(host.trim(), port, timeoutMs)
+    return { reachable: res.reachable, activeHost: host.trim(), host: host.trim(), port, latencyMs: res.latencyMs }
+  }
+  const route = await resolveActiveNasRoute({ force: true })
+  return {
+    reachable: route.activeRoute !== "offline",
+    activeRoute: route.activeRoute,
+    activeHost: route.activeHost,
+    host: route.activeHost,
+    port: getConfig().nasPort || 21,
+    latencyMs: route.latencyMs,
+    lan: route.lan,
+    tailscale: route.tailscale,
+  }
 })
 
 // 11. Iniciar o comunicar con Ingest Companion en local (solo preselecciona el proyecto, sin arrancar la copia)
@@ -887,7 +886,8 @@ if (!gotTheLock) {
     }
   })
 
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
+    await syncConfigFromSupabase().catch(() => {})
     startAdminLocalFileBridge(41891)
     startAdminLocalFileBridge(41890)
     createWindow()

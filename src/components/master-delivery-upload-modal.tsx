@@ -100,7 +100,7 @@ export function MasterDeliveryUploadModal({
       if (!data.online) setReplicateNas(false)
       else setReplicateNas(true)
     } catch {
-      setNasStatus({ online: false, latencyMs: -1, host: "192.168.11.200" })
+      setNasStatus({ online: false, latencyMs: -1, host: "" })
       setReplicateNas(false)
     } finally {
       setIsCheckingNas(false)
@@ -176,7 +176,7 @@ export function MasterDeliveryUploadModal({
 
     addLog("info", `🚀 ${t.tabUploadNewFiles}: ${totalFiles} ${t.filesCountStr} (${totalMb} MB) ➔ ${targetFolder}`)
     if (replicateNas) {
-      addLog("info", `📡 ${t.replicaNasActivated}: ${nasStatus?.host || "192.168.11.200"}`)
+      addLog("info", `📡 ${t.replicaNasActivated}: ${nasStatus?.host || "NAS"}`)
     } else {
       addLog("warn", `⚠️ ${t.localOnly}`)
     }
@@ -638,7 +638,7 @@ export function MasterDeliveryUploadModal({
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px]">
                     <span className="text-[#a89f91] font-sans font-medium">{t.nasDestLabel}</span>
                     <span className="text-[#c69f68] bg-[#0f0e0c] px-2 py-0.5 rounded border border-[#262420] break-all">
-                      \\\\192.168.11.200\\Lamha-Storage\\{folderName}\\{targetFolder}
+                      \\\\{nasStatus?.host || "NAS"}\\Lamha-Storage\\{folderName}\\{targetFolder}
                     </span>
                   </div>
                 </div>

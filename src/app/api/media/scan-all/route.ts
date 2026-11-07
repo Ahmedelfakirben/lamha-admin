@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import * as ftp from "basic-ftp"
 import fs from "fs"
 import path from "path"
-import { getStorageConfig, NAS_FTP_CONFIG, classifyMediaFile } from "@/lib/storage-config"
+import { getStorageConfig, NAS_FTP_CONFIG, classifyMediaFile, resolveActiveNasRoute } from "@/lib/storage-config"
 import { createClient } from "@/lib/supabase"
 
 export interface ScannedProject {
@@ -43,15 +43,19 @@ export async function GET() {
     let storageType = "local"
     let isOnline = false
 
-    // 1. Intentar escanear NAS por FTP
+    // 1. Intentar escanear NAS por FTP usando la ruta activa (Red Local LAN o Tailscale VPN)
     try {
+      const route = await resolveActiveNasRoute()
+      if (route.activeRoute === "offline" || !route.activeHost) {
+        throw new Error("NAS offline")
+      }
       const client = new ftp.Client(3000)
       client.ftp.verbose = false
       await client.access({
-        host: NAS_FTP_CONFIG.host,
-        user: NAS_FTP_CONFIG.user,
-        password: NAS_FTP_CONFIG.password,
-        port: 21,
+        host: route.activeHost,
+        user: route.user,
+        password: route.password,
+        port: route.ftpPort || 21,
       })
 
       const IGNORED_ROOT_DIRS = new Set([

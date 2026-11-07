@@ -13,7 +13,7 @@
 const fs = require("fs")
 const path = require("path")
 const EventEmitter = require("events")
-const { getConfig } = require("./config")
+const { getConfig, resolveActiveNasRoute, findAvailableSmbShareAsync } = require("./config")
 const engine = require("./ingest-engine")
 
 const TB = 1024 ** 4
@@ -175,18 +175,28 @@ class QnapRetentionManager extends EventEmitter {
 
   async _ftp() {
     const cfg = getConfig()
+    const route = await resolveActiveNasRoute()
+    const host = route.activeHost || cfg.nasHost
     const ftp = require("basic-ftp")
     const client = new ftp.Client(20000)
-    await client.access({ host: cfg.nasHost, user: cfg.nasUser, password: cfg.nasPassword, port: 21 })
+    await client.access({
+      host,
+      user: cfg.nasUser,
+      password: cfg.nasPassword,
+      port: Number(cfg.nasPort) || 21,
+    })
     return client
   }
 
-  /** Mide el QNAP: tamaño por proyecto y cuánto ocupan los 04_Entregas_Finales. */
+  /** Mide el QNAP de forma 100% asíncrona (sin bloquear la UI): tamaño por proyecto y cuánto ocupan los 04_Entregas_Finales. */
   async scanUsage(opts = {}) {
     const force = typeof opts === "boolean" ? opts : Boolean(opts && opts.force)
     if (!force && this.lastScan && Date.now() - this.lastScan.at < 60 * 1000) return this.lastScan
     const cfg = getConfig()
-    if (!cfg.nasHost || !cfg.nasPassword) return { ok: false, error: "NAS_NOT_CONFIGURED" }
+    const route = await resolveActiveNasRoute({ force })
+    if (route.activeRoute === "offline" || !route.activeHost) {
+      return { ok: false, error: "NAS_UNREACHABLE" }
+    }
 
     const IGNORED_ROOT_DIRS = new Set([
       "@recycle",
@@ -198,25 +208,13 @@ class QnapRetentionManager extends EventEmitter {
       ".@qdrive",
     ])
 
-    // ── 1. INTENTO DE ESCANEO ULTRA-RÁPIDO POR SMB (Z:\ o \\192.168.11.200\Lamha-Storage) ──
-    const smbCandidates = [
-      "Z:\\",
-      `\\\\${cfg.nasHost}\\Lamha-Storage`,
-    ]
-    let smbRoot = null
-    for (const cand of smbCandidates) {
-      try {
-        if (fs.existsSync(cand)) {
-          smbRoot = cand
-          break
-        }
-      } catch {}
-    }
-
+    // ── 1. INTENTO DE ESCANEO ASÍNCRONO POR SMB (Verificado previamente por TCP 445 en <= 350ms) ──
+    const smbRoot = await findAvailableSmbShareAsync(cfg)
     if (smbRoot) {
       try {
-        const rootEntries = fs.readdirSync(smbRoot, { withFileTypes: true })
+        const rootEntries = await fs.promises.readdir(smbRoot, { withFileTypes: true })
         const projects = []
+        let ops = 0
         for (const dir of rootEntries) {
           if (!dir.isDirectory() || dir.name.startsWith(".")) continue
           if (IGNORED_ROOT_DIRS.has(dir.name.toLowerCase())) continue
@@ -225,10 +223,10 @@ class QnapRetentionManager extends EventEmitter {
           let finals = 0
           let filesCount = 0
 
-          const walkFs = (currentDir, inFinals) => {
+          const walkFs = async (currentDir, inFinals) => {
             let entries = []
             try {
-              entries = fs.readdirSync(currentDir, { withFileTypes: true })
+              entries = await fs.promises.readdir(currentDir, { withFileTypes: true })
             } catch {
               return
             }
@@ -236,24 +234,28 @@ class QnapRetentionManager extends EventEmitter {
               if (it.name.startsWith(".")) continue
               const full = path.join(currentDir, it.name)
               if (it.isDirectory()) {
-                walkFs(full, inFinals || it.name === FINALS_FOLDER)
+                await walkFs(full, inFinals || it.name === FINALS_FOLDER)
               } else if (it.isFile()) {
                 try {
-                  const st = fs.statSync(full)
+                  const st = await fs.promises.stat(full)
                   bytes += st.size
                   filesCount++
                   if (inFinals) finals += st.size
                 } catch {}
+                ops++
+                if (ops % 60 === 0) {
+                  await new Promise((r) => setImmediate(r))
+                }
               }
             }
           }
 
-          walkFs(path.join(smbRoot, dir.name), false)
+          await walkFs(path.join(smbRoot, dir.name), false)
           projects.push({ folderName: dir.name, bytes, finalsBytes: finals, filesCount })
         }
 
         const usedBytes = projects.reduce((a, p) => a + p.bytes, 0)
-        this.lastScan = { ok: true, at: Date.now(), projects, usedBytes, source: "smb" }
+        this.lastScan = { ok: true, at: Date.now(), projects, usedBytes, source: "smb", activeRoute: route.activeRoute, activeHost: route.activeHost }
         return this.lastScan
       } catch (smbErr) {
         console.warn("[Retention] SMB scan failed, falling back to FTP:", smbErr.message)
@@ -261,6 +263,7 @@ class QnapRetentionManager extends EventEmitter {
     }
 
     // ── 2. FALLBACK POR FTP ──
+    if (!cfg.nasPassword) return { ok: false, error: "NAS_NOT_CONFIGURED" }
     let client
     try {
       client = await this._ftp()
@@ -412,8 +415,8 @@ class QnapRetentionManager extends EventEmitter {
       triggerBytes,
       triggerGb: Number((triggerBytes / GB).toFixed(2)),
       triggerTb: Number((triggerBytes / TB).toFixed(3)),
-      nasHost: cfg.nasHost || "192.168.11.200",
-      nasBaseDir: cfg.nasBaseDir || "/usb1_1/Lamha-Storage",
+      nasHost: cfg.nasHost || cfg.nasLanHost || cfg.nasTailscaleHost || "NAS",
+      nasBaseDir: cfg.nasBaseDir || "/",
       projects: scan && scan.ok ? scan.projects || [] : [],
       overThreshold,
       waiting: [],

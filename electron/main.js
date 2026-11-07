@@ -40,7 +40,14 @@ process.on("unhandledRejection", (err) => logToFile("UNHANDLED_REJECTION:", err 
 
 const { LamhaSystemTray } = require("./tray")
 const { WindowsDriveWatcher, MasterFolderWatcher } = require("./watcher")
-const { getConfig, getPublicSettings, updateSettings } = require("./config")
+const {
+  getConfig,
+  getPublicSettings,
+  updateSettings,
+  resolveActiveNasRoute,
+  syncConfigFromSupabase,
+  saveConfigToSupabase,
+} = require("./config")
 const { LamhaBridgeServer } = require("./bridge-server")
 const { NasSyncManager } = require("./nas-sync-manager")
 const { QnapRetentionManager } = require("./qnap-retention")
@@ -57,6 +64,7 @@ let retentionManager = null
 let bridgeServer = null
 let currentLanguage = "fr"
 let hasShownMinimizeBalloon = false
+let hasNotifiedPendingThisSession = false
 let lastIngestState = null // último evento relevante, para pintar la mini ventana al abrirse
 
 logToFile("--- INICIANDO PROCESO ELECTRON (PID:", process.pid, ") ---")
@@ -351,8 +359,20 @@ const NAS_SYNC_DONE_NOTIFY = {
 // ---------------------------------------------------------------------------
 // Arranque
 // ---------------------------------------------------------------------------
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  await syncConfigFromSupabase().catch(() => {})
   const initialCfg = getConfig()
+  // Sincronización periódica con Supabase para reflejar cambios hechos desde el Panel Admin web
+  setInterval(() => {
+    syncConfigFromSupabase()
+      .then(() => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send("settings-updated", getPublicSettings())
+        }
+      })
+      .catch(() => {})
+  }, 60 * 1000)
+
   // Respetar preferencia de inicio automático con Windows en entorno empaquetado de producción
   if (!process.defaultApp) {
     try {
@@ -404,14 +424,17 @@ app.whenReady().then(() => {
 
   nasSyncManager.on("pending-detected", (summary) => {
     logToFile("[NAS_SYNC] Archivos pendientes detectados:", summary.totalFiles, "peso GB:", summary.totalGb)
-    showMain()
+    // Enviar el evento al renderer sin robar foco de ventana automáticamente
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send("nas-pending-prompt", summary)
     }
-    const lang = getConfig().language || currentLanguage || "fr"
-    const fn = NAS_PENDING_NOTIFY[lang] || NAS_PENDING_NOTIFY.fr
-    const [title, body] = fn(summary.totalFiles, summary.totalGb)
-    notify(title, body)
+    if (!hasNotifiedPendingThisSession) {
+      hasNotifiedPendingThisSession = true
+      const lang = getConfig().language || currentLanguage || "fr"
+      const fn = NAS_PENDING_NOTIFY[lang] || NAS_PENDING_NOTIFY.fr
+      const [title, body] = fn(summary.totalFiles, summary.totalGb)
+      notify(title, body)
+    }
   })
 
   nasSyncManager.on("sync-progress", (ev) => {
@@ -532,13 +555,26 @@ app.whenReady().then(() => {
   })
 
   // --- IPC: ajustes y salud del sistema ------------------------------------
-  ipcMain.handle("get-settings", () => getPublicSettings())
-  ipcMain.handle("save-settings", (_e, data) => {
-    const res = updateSettings(data || {})
+  ipcMain.handle("get-settings", async () => {
+    await syncConfigFromSupabase().catch(() => {})
+    return getPublicSettings()
+  })
+  ipcMain.handle("save-settings", async (_e, data) => {
+    const res = await saveConfigToSupabase(data || {})
     if (data && data.openAtLogin !== undefined && !process.defaultApp) {
       try {
         app.setLoginItemSettings({ openAtLogin: Boolean(data.openAtLogin) })
       } catch {}
+    }
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("settings-updated", res)
+    }
+    return res
+  })
+  ipcMain.handle("set-network-mode", async (_e, mode) => {
+    const res = await saveConfigToSupabase({ networkMode: mode })
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("settings-updated", res)
     }
     return res
   })
@@ -560,40 +596,21 @@ app.whenReady().then(() => {
       }
     } catch {}
 
-    let nasOnline = false
-    if (cfg.nasHost) {
-      nasOnline = await new Promise((resolve) => {
-        const net = require("net")
-        const sock = new net.Socket()
-        let settled = false
-        const done = (val) => {
-          if (settled) return
-          settled = true
-          try {
-            sock.destroy()
-          } catch {}
-          resolve(val)
-        }
-        sock.setTimeout(1800)
-        sock.once("connect", () => done(true))
-        sock.once("timeout", () => done(false))
-        sock.once("error", () => done(false))
-        try {
-          sock.connect(21, cfg.nasHost)
-        } catch {
-          done(false)
-        }
-      })
-    }
-
+    const route = await resolveActiveNasRoute()
+    const nasOnline = route.activeRoute !== "offline"
     const retryItems = engine.getRetryQueue ? engine.getRetryQueue() : []
+
     return {
       ssdPath: cfg.ssdPath || "C:\\Lamha-Storage",
       ssdFreeGb,
       ssdTotalGb,
       ssdUsedPct,
-      nasHost: cfg.nasHost || "192.168.11.1",
+      nasHost: route.activeHost || cfg.nasLanHost || cfg.nasTailscaleHost || "",
       nasOnline,
+      activeRoute: route.activeRoute,
+      networkMode: route.networkMode,
+      lan: route.lan,
+      tailscale: route.tailscale,
       retryCount: retryItems.length,
     }
   })
@@ -713,6 +730,11 @@ app.whenReady().then(() => {
   bridgeServer = new LamhaBridgeServer({
     onStartIngest: (params) => triggerIngestWorkflow(params),
     onShowMain: () => showMain(),
+    onConfigReloaded: () => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send("settings-updated", getPublicSettings())
+      }
+    },
     getStatus: () => ({
       isIngesting: Boolean(lastIngestState && lastIngestState.type !== "done" && lastIngestState.type !== "error"),
       lastProgress: lastIngestState,

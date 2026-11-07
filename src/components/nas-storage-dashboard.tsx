@@ -28,7 +28,8 @@ import {
   FolderPlus
 } from "lucide-react"
 import { useLanguage } from "@/context/language-context"
-import { openLocalFolderOrFile, selectNativeFolder, checkStudioNas } from "@/lib/desktop-bridge"
+import { openLocalFolderOrFile, checkStudioNas } from "@/lib/desktop-bridge"
+import { NasConfigCard } from "@/components/nas-config-card"
 import Link from "next/link"
 
 interface StorageConfigData {
@@ -36,8 +37,12 @@ interface StorageConfigData {
   activeType: "nas_ftp" | "local" | "network_share"
   isNetworkReachable: boolean
   activeBasePath: string
+  activeRoute?: "lan" | "tailscale" | "offline"
+  storageMode?: "auto" | "lan" | "tailscale"
   ftp: {
     host: string
+    lanHost?: string
+    tailscaleHost?: string
     user: string
     baseDir: string
     isOnline: boolean
@@ -103,16 +108,8 @@ export function NasStorageDashboard({ initialSessions = [] }: { initialSessions?
   const [scanData, setScanData] = useState<ScanResult | null>(null)
   const [isLoadingScan, setIsLoadingScan] = useState(true)
 
-  // Root path editing form state
+  // Root path editing form state (delegated to centralized NasConfigCard)
   const [isEditingPath, setIsEditingPath] = useState(false)
-  const [ftpHost, setFtpHost] = useState("192.168.11.200")
-  const [ftpUser, setFtpUser] = useState("Lam7aStudio")
-  const [ftpPassword, setFtpPassword] = useState("Admin2016@")
-  const [ftpBaseDir, setFtpBaseDir] = useState("/")
-  const [localPath, setLocalPath] = useState("C:\\Lamha-Storage")
-  const [isTesting, setIsTesting] = useState(false)
-  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
-  const [isSaving, setIsSaving] = useState(false)
   const [saveFeedback, setSaveFeedback] = useState<string | null>(null)
 
   // UI state
@@ -125,54 +122,47 @@ export function NasStorageDashboard({ initialSessions = [] }: { initialSessions?
   const fetchConfig = useCallback(async () => {
     setIsLoadingConfig(true)
     try {
-      const res = await fetch("/api/media/storage-config")
+      const res = await fetch("/api/media/storage-config", { cache: "no-store" })
       const data: StorageConfigData = await res.json()
       if (data.success) {
-        const targetHost = data.ftp.host || ftpHost || "192.168.11.200"
+        const targetHost = data.ftp.host || ""
         const targetBaseDir = data.ftp.baseDir || "/"
 
-        // Si el servidor de la nube no puede alcanzar el NAS local privado (192.168.11.200), probar desde el PC local del estudio
-        if (!data.ftp.isOnline) {
+        if (!data.ftp.isOnline && targetHost) {
           const probe = await checkStudioNas(targetHost)
           if (probe.reachable) {
             data.ftp.isOnline = true
             data.isNetworkReachable = true
             data.activeType = "nas_ftp"
-            data.activeBasePath = `ftp://${targetHost}${targetBaseDir}`
+            data.activeBasePath = `ftp://${probe.host || targetHost}${targetBaseDir}`
           } else {
-            // Si el servidor devolvió una ruta Linux interna (/home/nextjs/...) y estamos en cliente local, normalizar a C:\Lamha-Storage
             if (data.activeBasePath.startsWith("/home/nextjs") || data.activeBasePath.startsWith("/home/")) {
               data.activeBasePath = "C:\\Lamha-Storage"
               data.local.basePath = "C:\\Lamha-Storage"
             }
           }
-        } else {
+        } else if (data.ftp.isOnline && targetHost) {
           data.activeType = "nas_ftp"
           data.activeBasePath = `ftp://${targetHost}${targetBaseDir}`
         }
 
         setConfig(data)
-        setFtpHost(data.ftp.host || "192.168.11.200")
-        setFtpUser(data.ftp.user || "Lam7aStudio")
-        setFtpBaseDir(data.ftp.baseDir || "/")
-        setLocalPath(data.local.basePath || "C:\\Lamha-Storage")
       }
     } catch {
-      // Intento de rescate nativo
-      const probe = await checkStudioNas(ftpHost || "192.168.11.200")
-      if (probe.reachable) {
+      const probe = await checkStudioNas()
+      if (probe.reachable && probe.host) {
         setConfig(prev => prev ? { 
           ...prev, 
           isNetworkReachable: true, 
           activeType: "nas_ftp",
-          activeBasePath: `ftp://${ftpHost || "192.168.11.200"}${ftpBaseDir || "/"}`,
-          ftp: { ...prev.ftp, isOnline: true } 
+          activeBasePath: `ftp://${probe.host}/`,
+          ftp: { ...prev.ftp, host: probe.host, isOnline: true } 
         } : prev)
       }
     } finally {
       setIsLoadingConfig(false)
     }
-  }, [ftpHost, ftpBaseDir])
+  }, [])
 
   // Scan all projects on storage
   const fetchScan = useCallback(async () => {
@@ -245,105 +235,11 @@ export function NasStorageDashboard({ initialSessions = [] }: { initialSessions?
   }
 
   const handleOpenExplorer = async (filePath?: string) => {
-    const target = filePath || config?.activeBasePath
+    const target = filePath || config?.networkShare?.uncPath || config?.activeBasePath
     if (!target) return
     try {
       await openLocalFolderOrFile(target, "reveal")
     } catch {}
-  }
-
-  const handlePickLocalPath = async () => {
-    const picked = await selectNativeFolder("Seleccionar Carpeta Raíz de Almacenamiento Local (SSD / Lamha-Storage)")
-    if (picked) {
-      setLocalPath(picked)
-    }
-  }
-
-  const handleTestConnection = async () => {
-    setIsTesting(true)
-    setTestResult(null)
-    try {
-      const res = await fetch("/api/media/storage-config", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          host: ftpHost,
-          user: ftpUser,
-          password: ftpPassword,
-          baseDir: ftpBaseDir,
-          localBasePath: localPath,
-          testOnly: true,
-        }),
-      })
-      const data = await res.json()
-      if (data.success) {
-        setTestResult({
-          success: true,
-          message: data.message || "Conexión exitosa"
-        })
-      } else {
-        // Fallback: Si el servidor cloud no tiene acceso a la IP privada, verificar desde el PC físico
-        const probe = await checkStudioNas(ftpHost)
-        if (probe.reachable) {
-          setTestResult({
-            success: true,
-            message: `Conexión verificada con éxito desde el PC local hacia el NAS en ${ftpHost}:21`
-          })
-          setConfig(prev => prev ? { ...prev, isNetworkReachable: true, ftp: { ...prev.ftp, isOnline: true } } : prev)
-        } else {
-          setTestResult({
-            success: false,
-            message: data.error || "Fallo de conexión"
-          })
-        }
-      }
-    } catch (e: any) {
-      const probe = await checkStudioNas(ftpHost)
-      if (probe.reachable) {
-        setTestResult({
-          success: true,
-          message: `Conexión verificada con éxito desde el PC local hacia el NAS en ${ftpHost}:21`
-        })
-        setConfig(prev => prev ? { ...prev, isNetworkReachable: true, ftp: { ...prev.ftp, isOnline: true } } : prev)
-      } else {
-        setTestResult({ success: false, message: e.message || "Error al conectar" })
-      }
-    } finally {
-      setIsTesting(false)
-    }
-  }
-
-  const handleSaveConfig = async () => {
-    setIsSaving(true)
-    setSaveFeedback(null)
-    try {
-      const res = await fetch("/api/media/storage-config", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          host: ftpHost,
-          user: ftpUser,
-          password: ftpPassword,
-          baseDir: ftpBaseDir,
-          localBasePath: localPath,
-          testOnly: false,
-        }),
-      })
-      const data = await res.json()
-      if (data.success) {
-        setSaveFeedback("Ruta raíz guardada y aplicada correctamente.")
-        setIsEditingPath(false)
-        await fetchConfig()
-        await fetchScan()
-        setTimeout(() => setSaveFeedback(null), 5000)
-      } else {
-        setTestResult({ success: false, message: data.error || "Error al guardar configuración" })
-      }
-    } catch (e: any) {
-      setTestResult({ success: false, message: e.message || "Error de red al guardar" })
-    } finally {
-      setIsSaving(false)
-    }
   }
 
   const toggleProject = (folderName: string) => {
@@ -383,13 +279,17 @@ export function NasStorageDashboard({ initialSessions = [] }: { initialSessions?
           {config && (
             <span className={`inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full font-medium border ${
               config.isNetworkReachable
-                ? "bg-emerald-950/40 text-emerald-400 border-emerald-800/40"
+                ? config.activeRoute === "tailscale"
+                  ? "bg-sky-950/40 text-sky-400 border-sky-800/40"
+                  : "bg-emerald-950/40 text-emerald-400 border-emerald-800/40"
                 : "bg-amber-950/40 text-amber-400 border-amber-800/40"
             }`}>
               {config.isNetworkReachable ? (
                 <>
                   <Wifi className="w-3.5 h-3.5" />
-                  <span>{t.routerZteOnline} ({config.ftp.latencyMs}ms)</span>
+                  <span>
+                    {config.activeRoute === "tailscale" ? "Tailscale VPN" : "Red Local LAN"} • {config.ftp.host} ({config.ftp.latencyMs}ms)
+                  </span>
                 </>
               ) : (
                 <>
@@ -583,169 +483,16 @@ export function NasStorageDashboard({ initialSessions = [] }: { initialSessions?
           </button>
         </div>
 
-        {/* Editing Drawer / Form */}
+        {/* Editing Drawer / Centralized Hybrid NAS Config */}
         {isEditingPath && (
-          <div className="p-6 bg-[#0f0e0c] border-b border-[#26211c] space-y-6 animate-in fade-in slide-in-from-top-2 duration-200">
-            {/* Quick Presets */}
-            <div className="space-y-2">
-              <span className="text-[11px] uppercase tracking-wider text-[#70665a] font-semibold">
-                Presets:
-              </span>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFtpHost("192.168.11.200")
-                    setFtpUser("Lam7aStudio")
-                    setFtpPassword("Admin2016@")
-                    setFtpBaseDir("/")
-                  }}
-                  className="px-3 py-1.5 rounded-xl bg-[#181613] hover:bg-[#24201b] border border-[#26211c] hover:border-[#c69f68]/40 text-xs text-[#f5f2eb] transition-all flex items-center gap-2"
-                >
-                  <Wifi className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>NAS QNAP TS-433 (192.168.11.200)</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLocalPath("C:\\Lamha-Storage")
-                  }}
-                  className="px-3 py-1.5 rounded-xl bg-[#181613] hover:bg-[#24201b] border border-[#26211c] hover:border-[#c69f68]/40 text-xs text-[#f5f2eb] transition-all flex items-center gap-2"
-                >
-                  <HardDrive className="w-3.5 h-3.5 text-amber-400" />
-                  <span>{t.presetLocal}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFtpHost("192.168.11.200")
-                    setFtpUser("Lam7aStudio")
-                    setFtpPassword("Admin2016@")
-                    setFtpBaseDir("/Lamha-Storage")
-                  }}
-                  className="px-3 py-1.5 rounded-xl bg-[#181613] hover:bg-[#24201b] border border-[#26211c] hover:border-[#c69f68]/40 text-xs text-[#a89f91] transition-all flex items-center gap-2"
-                >
-                  <Folder className="w-3.5 h-3.5 text-sky-400" />
-                  <span>{t.presetBackup}</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Inputs Grid */}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="space-y-1.5">
-                <label className="text-xs text-[#a89f91]">{t.hostIpLabel}</label>
-                <input
-                  type="text"
-                  value={ftpHost}
-                  onChange={(e) => setFtpHost(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-[#141210] border border-[#26211c] focus:border-[#c69f68] text-xs font-mono text-[#f5f2eb] outline-none"
-                  placeholder="192.168.11.200"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs text-[#a89f91]">{t.ftpUserLabel}</label>
-                <input
-                  type="text"
-                  value={ftpUser}
-                  onChange={(e) => setFtpUser(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-[#141210] border border-[#26211c] focus:border-[#c69f68] text-xs font-mono text-[#f5f2eb] outline-none"
-                  placeholder="Lam7aStudio"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs text-[#a89f91]">{t.ftpPasswordLabel}</label>
-                <input
-                  type="password"
-                  value={ftpPassword}
-                  onChange={(e) => setFtpPassword(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-[#141210] border border-[#26211c] focus:border-[#c69f68] text-xs font-mono text-[#f5f2eb] outline-none"
-                  placeholder="••••••••"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs text-[#a89f91]">{t.ftpBaseFolderLabel}</label>
-                <input
-                  type="text"
-                  value={ftpBaseDir}
-                  onChange={(e) => setFtpBaseDir(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-[#141210] border border-[#26211c] focus:border-[#c69f68] text-xs font-mono text-[#f5f2eb] outline-none"
-                  placeholder="/usb1_1/Lamha-Storage"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs text-[#a89f91] flex items-center justify-between">
-                <span>{t.localFallbackPathLabel}</span>
-                <button
-                  type="button"
-                  onClick={handlePickLocalPath}
-                  className="text-[11px] text-[#c69f68] hover:underline flex items-center gap-1 font-sans"
-                >
-                  <FolderOpen className="w-3 h-3" />
-                  <span>Examinar en este PC...</span>
-                </button>
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={localPath}
-                  onChange={(e) => setLocalPath(e.target.value)}
-                  className="flex-1 px-3 py-2 rounded-xl bg-[#141210] border border-[#26211c] focus:border-[#c69f68] text-xs font-mono text-[#f5f2eb] outline-none"
-                  placeholder="C:\Lamha-Storage"
-                />
-                <button
-                  type="button"
-                  onClick={handlePickLocalPath}
-                  className="px-3 py-2 rounded-xl bg-[#1c1915] hover:bg-[#25201b] border border-[#26211c] hover:border-[#c69f68]/40 text-xs text-[#c69f68] flex items-center gap-1.5 shrink-0"
-                  title="Seleccionar carpeta en Windows"
-                >
-                  <FolderOpen className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Examinar</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Test connection feedback */}
-            {testResult && (
-              <div className={`p-3 rounded-xl border text-xs flex items-center gap-2 ${
-                testResult.success
-                  ? "bg-emerald-950/30 text-emerald-400 border-emerald-800/40"
-                  : "bg-rose-950/30 text-rose-400 border-rose-800/40"
-              }`}>
-                {testResult.success ? <Check className="w-4 h-4 shrink-0" /> : <AlertTriangle className="w-4 h-4 shrink-0" />}
-                <span>{testResult.message}</span>
-              </div>
-            )}
-
-            {/* Action buttons */}
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={handleTestConnection}
-                disabled={isTesting}
-                className="px-4 py-2 rounded-xl bg-[#181613] hover:bg-[#201c18] border border-[#26211c] hover:border-[#c69f68]/40 text-xs font-medium text-[#c69f68] transition-all flex items-center gap-2"
-              >
-                {isTesting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wifi className="w-3.5 h-3.5" />}
-                <span>{isTesting ? t.testingConn : t.testConnBtn}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleSaveConfig}
-                disabled={isSaving}
-                className="px-5 py-2 rounded-xl bg-gradient-to-r from-[#c69f68] to-[#dfba89] text-black font-semibold text-xs shadow-lg hover:opacity-95 active:scale-95 transition-all flex items-center gap-2"
-              >
-                {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                <span>{isSaving ? t.savingConfig : t.saveActivePathBtn}</span>
-              </button>
-            </div>
+          <div className="p-6 bg-[#0f0e0c] border-b border-[#26211c] animate-in fade-in slide-in-from-top-2 duration-200">
+            <NasConfigCard
+              onSaved={() => {
+                setSaveFeedback("Configuración híbrida (LAN + Tailscale) guardada en Supabase y aplicada.")
+                fetchConfig()
+                fetchScan()
+              }}
+            />
           </div>
         )}
       </div>

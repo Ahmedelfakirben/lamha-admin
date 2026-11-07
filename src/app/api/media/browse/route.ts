@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import fs from "fs"
 import path from "path"
 import * as ftp from "basic-ftp"
-import { getStorageConfig, NAS_FTP_CONFIG, classifyMediaFile } from "@/lib/storage-config"
+import { getStorageConfig, NAS_FTP_CONFIG, classifyMediaFile, resolveActiveNasRoute } from "@/lib/storage-config"
 
 export interface BrowseEntry {
   name: string
@@ -27,14 +27,16 @@ export interface BrowseResult {
  * Intenta explorar el NAS del router Orange ZTE mediante FTP
  */
 async function browseFtp(relativePath: string): Promise<BrowseResult | null> {
+  const route = await resolveActiveNasRoute()
+  if (route.activeRoute === "offline" || !route.activeHost) return null
   const client = new ftp.Client(2500)
   client.ftp.verbose = false
   try {
     await client.access({
-      host: NAS_FTP_CONFIG.host,
-      user: NAS_FTP_CONFIG.user,
-      password: NAS_FTP_CONFIG.password,
-      port: 21,
+      host: route.activeHost,
+      user: route.user,
+      password: route.password,
+      port: route.ftpPort || 21,
     })
 
     const cleanRel = relativePath.replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+$/, "")

@@ -258,7 +258,7 @@ export function ProjectStorageHub({
               status: (localScan.nasFilesCount || 0) > 0 ? "synced" : "pending_sync",
               isReachable: true,
               exists: Boolean(localScan.nasExists),
-              path: localScan.nasPath || `\\\\192.168.11.200\\Lamha-Storage\\${projectFolder}`,
+              path: localScan.nasPath || `NAS:\\Lamha-Storage\\${projectFolder}`,
               filesCount: localScan.nasFilesCount || 0,
               sizeMB: localScan.nasSizeMB || 0,
               sizeGB: localScan.nasSizeGB || 0,
@@ -296,7 +296,7 @@ export function ProjectStorageHub({
               status: "synced",
               isReachable: true,
               exists: true,
-              path: localScan.nasPath || `\\\\192.168.11.200\\Lamha-Storage\\${projectFolder}`,
+              path: localScan.nasPath || json.step3Nas?.path || `NAS:\\Lamha-Storage\\${projectFolder}`,
               filesCount: localScan.nasFilesCount,
               sizeMB: localScan.nasSizeMB || 0,
               sizeGB: localScan.nasSizeGB || 0,
@@ -327,7 +327,7 @@ export function ProjectStorageHub({
             json.step3Nas.filesCount = nasProject.filesCount
             json.step3Nas.sizeMB = nasProject.sizeMB
             json.step3Nas.sizeGB = nasProject.sizeGB
-            json.step3Nas.path = nasProject.path || `\\\\192.168.11.200\\Lamha-Storage\\${projectFolder}`
+            json.step3Nas.path = nasProject.path || json.step3Nas.path || `NAS:\\Lamha-Storage\\${projectFolder}`
             json.step3Nas.isSynced = json.step1Local ? json.step3Nas.filesCount >= json.step1Local.filesCount : true
             json.step3Nas.pendingFiles = Math.max(0, (json.step1Local?.filesCount || 0) - json.step3Nas.filesCount)
             if (json.step3Nas.isSynced) {
@@ -1077,7 +1077,9 @@ export function ProjectStorageHub({
           <Server className="w-3.5 h-3.5 text-[#c69f68]" />
           <span>
             {isFr ? "Serveur NAS :" : "Servidor NAS:"}{" "}
-            <span className="font-mono text-[#a89f91]">192.168.11.200 (SMB / FTP)</span>
+            <span className="font-mono text-[#a89f91]">
+              {data?.step3Nas?.path ? data.step3Nas.path.replace(/[\\/][^\\/]+$/, "") : "NAS QNAP Híbrido (LAN / Tailscale)"}
+            </span>
           </span>
           <span className="text-[#3d362f]">·</span>
           <span>

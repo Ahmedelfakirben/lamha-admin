@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import fs from "fs"
 import path from "path"
 import * as ftp from "basic-ftp"
-import { getStorageConfig, NAS_FTP_CONFIG, classifyMediaFile, resolveProjectLocalPath } from "@/lib/storage-config"
+import { getStorageConfig, NAS_FTP_CONFIG, classifyMediaFile, resolveProjectLocalPath, resolveActiveNasRoute } from "@/lib/storage-config"
 import { createClient } from "@supabase/supabase-js"
 
 export const dynamic = "force-dynamic"
@@ -164,25 +164,27 @@ export async function GET(req: NextRequest) {
       console.error("Error consultando Supabase:", err)
     }
 
-    // ── 3. Estado RED (NAS: Primero SMB local Z:\ o \\192.168.11.200, luego FTP) ──
+    // ── 3. Estado RED (NAS: Primero SMB con sonda TCP previa, luego FTP) ──
+    const route = await resolveActiveNasRoute()
     let nasReachable = false
     let nasFolderExists = false
     let totalNasFiles = 0
     let totalNasSizeBytes = 0
 
-    // 3.1 Prioridad SMB ultra-rápido si estamos en Windows con la unidad montada
-    const smbCandidates = [
-      path.join("Z:\\", folderName),
-      `\\\\${NAS_FTP_CONFIG.host}\\Lamha-Storage\\${folderName}`,
-    ]
     let smbProjectPath: string | null = null
-    for (const cand of smbCandidates) {
-      try {
-        if (fs.existsSync(cand)) {
-          smbProjectPath = cand
-          break
-        }
-      } catch {}
+    if (process.platform === "win32" && route.activeSmbReachable && route.activeHost) {
+      const smbCandidates = [
+        path.join("Z:\\", folderName),
+        `\\\\${route.activeHost}\\${route.shareName || "Lamha-Storage"}\\${folderName}`,
+      ]
+      for (const cand of smbCandidates) {
+        try {
+          if (fs.existsSync(cand)) {
+            smbProjectPath = cand
+            break
+          }
+        } catch {}
+      }
     }
 
     if (smbProjectPath) {
@@ -286,7 +288,9 @@ export async function GET(req: NextRequest) {
             : "pending_sync",
       isReachable: nasReachable,
       exists: nasFolderExists,
-      path: `ftp://${NAS_FTP_CONFIG.host}${NAS_FTP_CONFIG.baseDir}/${folderName}`,
+      path: route.activeSmbPath ? `${route.activeSmbPath}\\${folderName}` : `ftp://${NAS_FTP_CONFIG.host}${NAS_FTP_CONFIG.baseDir}/${folderName}`,
+      activeHost: route.activeHost,
+      activeRoute: route.activeRoute,
       filesCount: totalNasFiles,
       sizeMB: Number((totalNasSizeBytes / (1024 * 1024)).toFixed(1)),
       sizeGB: Number((totalNasSizeBytes / (1024 * 1024 * 1024)).toFixed(2)),
@@ -448,6 +452,7 @@ async function runProjectNasSync(
   const job = syncJobs.get(folderName)
   if (!job) return
 
+  const route = await resolveActiveNasRoute()
   const t = getProjectSyncStrings(lang)
   const conn: { current: ftp.Client | null } = { current: null }
 
@@ -464,10 +469,10 @@ async function runProjectNasSync(
     const newClient = new ftp.Client(90000)
     newClient.ftp.verbose = false
     await newClient.access({
-      host: NAS_FTP_CONFIG.host,
-      user: NAS_FTP_CONFIG.user,
-      password: NAS_FTP_CONFIG.password,
-      port: 21,
+      host: route.activeHost || NAS_FTP_CONFIG.host,
+      user: route.user || NAS_FTP_CONFIG.user,
+      password: route.password || NAS_FTP_CONFIG.password,
+      port: route.ftpPort || 21,
     })
     conn.current = newClient
     return newClient

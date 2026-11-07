@@ -597,10 +597,17 @@
         <span id="txt-ssd-free">SSD: -- GB</span>
       </div>
 
-      <div id="badge-nas-ping" class="auth-badge" style="cursor: default;" title="Estado de red del servidor NAS">
+      <div id="badge-nas-ping" class="auth-badge" style="cursor: pointer;" title="Ruta activa del NAS (Clic para abrir configuración de Red Híbrida)">
         <span class="status-dot" id="dot-nas-ping"></span>
         <span id="txt-nas-ping">NAS</span>
       </div>
+
+      <!-- Selector rápido de Red Híbrida (Auto / LAN Local / Tailscale VPN) -->
+      <select id="header-net-mode" class="select-input" style="width: auto; padding: 6px 10px; font-size: 11.5px; font-weight: 600;" title="Modo de Red NAS (Sincronizado con Panel Admin)">
+        <option value="auto">Auto (LAN → Tailscale)</option>
+        <option value="lan">Red Local (LAN)</option>
+        <option value="tailscale">Tailscale VPN</option>
+      </select>
 
       <!-- Selector de idioma -->
       <select id="lang-select" class="select-input" style="width: auto; padding: 6px 10px;">
@@ -1211,37 +1218,70 @@
 
 
 
-  <!-- Modal de Ajustes -->
+  <!-- Modal de Ajustes Centralizados (Sincronizado con Supabase & Panel Admin) -->
   <div id="modal-settings" class="modal-backdrop">
-    <div class="modal-card">
+    <div class="modal-card" style="max-width: 540px;">
       <div style="display: flex; justify-content: space-between; align-items: center;">
-        <h3 style="color: var(--gold);">Paramètres de l'Atelier</h3>
+        <div>
+          <h3 style="color: var(--gold);">Paramètres Centralisés (LAN + Tailscale)</h3>
+          <p style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Synchronisé automatiquement avec le Panel Admin (Supabase)</p>
+        </div>
         <button class="btn-icon" id="btn-close-settings" style="border:none;"><svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
+
       <div class="form-group">
-        <label>URL du Dashboard :</label>
-        <input type="text" id="cfg-dashboard-url" class="text-input">
+        <label>Mode Réseau Hybride (NAS QNAP) :</label>
+        <select id="cfg-network-mode" class="select-input">
+          <option value="auto">Automatique Intelligent (Priorité LAN Local → Bascule Tailscale VPN)</option>
+          <option value="lan">Forcer Réseau Local (LAN Bureau uniquement)</option>
+          <option value="tailscale">Forcer Tailscale VPN (Accès distant extérieur)</option>
+        </select>
       </div>
-      <div class="form-group">
-        <label>Dossier SSD Local de travail :</label>
-        <input type="text" id="cfg-ssd-path" class="text-input">
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <div class="form-group">
+          <label>Route 1 · IP Réseau Local (LAN) :</label>
+          <input type="text" id="cfg-nas-lan-host" class="text-input" placeholder="Ex: IP locale du NAS">
+        </div>
+        <div class="form-group">
+          <label>Route 2 · IP Tailscale VPN :</label>
+          <input type="text" id="cfg-nas-tailscale-host" class="text-input" placeholder="Ex: IP Tailscale (100.x.y.z)">
+        </div>
       </div>
-      <div class="form-group">
-        <label>Hôte NAS / IP (QNAP) :</label>
-        <input type="text" id="cfg-nas-host" class="text-input" placeholder="192.168.1.150">
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <div class="form-group">
+          <label>Nom du Partage SMB (QNAP) :</label>
+          <input type="text" id="cfg-nas-share-name" class="text-input" placeholder="Lamha-Storage">
+        </div>
+        <div class="form-group">
+          <label>Dossier Racine FTP :</label>
+          <input type="text" id="cfg-nas-dir" class="text-input" placeholder="/">
+        </div>
       </div>
-      <div class="form-group">
-        <label>Utilisateur NAS (QNAP) :</label>
-        <input type="text" id="cfg-nas-user" class="text-input" placeholder="admin">
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <div class="form-group">
+          <label>Utilisateur NAS (SMB & FTP) :</label>
+          <input type="text" id="cfg-nas-user" class="text-input" placeholder="Lam7aStudio">
+        </div>
+        <div class="form-group">
+          <label>Mot de passe NAS (SMB & FTP) :</label>
+          <input type="password" id="cfg-nas-pass" class="text-input" placeholder="(Laisser vide pour conserver)">
+        </div>
       </div>
-      <div class="form-group">
-        <label>Mot de passe NAS :</label>
-        <input type="password" id="cfg-nas-pass" class="text-input" placeholder="(Laisser vide pour ne pas modifier)">
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <div class="form-group">
+          <label>Dossier SSD Local de travail :</label>
+          <input type="text" id="cfg-ssd-path" class="text-input">
+        </div>
+        <div class="form-group">
+          <label>URL du Dashboard Web :</label>
+          <input type="text" id="cfg-dashboard-url" class="text-input">
+        </div>
       </div>
-      <div class="form-group">
-        <label>Dossier Racine / Partage NAS :</label>
-        <input type="text" id="cfg-nas-dir" class="text-input" placeholder="/Lamha-Storage">
-      </div>
+
       <label class="pipeline-step" style="padding: 10px 12px;">
         <input type="checkbox" id="cfg-open-at-login" checked>
         <div class="pipeline-step-text">
@@ -1250,7 +1290,7 @@
         </div>
       </label>
       <div style="display: flex; justify-content: flex-end; gap: 8px;">
-        <button id="btn-save-settings" class="btn-primary" style="padding: 10px 18px; font-size: 13px;">Enregistrer</button>
+        <button id="btn-save-settings" class="btn-primary" style="padding: 10px 18px; font-size: 13px;">Enregistrer dans le Cloud & Local</button>
       </div>
     </div>
   </div>
@@ -1392,7 +1432,7 @@
         recycleNasShield: "Avant de déplacer le dossier local vers la Corbeille Windows, une vérification en direct sera effectuée sur le NAS. Si une photo, vidéo ou document n'est pas encore sur le NAS, il sera synchronisé automatiquement vers le NAS avant la suppression locale.",
         btnConfirmRecycle: "Vérifier NAS & Recycler maintenant",
         recycleSuccessMsg: (n, gb, synced) => `${n} dossier(s) envoyé(s) à la Corbeille (${gb} Go libérés)${synced ? ` après synchronisation de ${synced} fichier(s) vers le NAS.` : "."}`,
-        recycleErrNas: "Opération annulée : Impossible de vérifier ou joindre le NAS (192.168.11.1). Aucun fichier local n'a été supprimé.",
+        recycleErrNas: "Opération annulée : Impossible de vérifier ou joindre le NAS (LAN / Tailscale). Aucun fichier local n'a été supprimé.",
         recycleErrIncomplete: "Opération annulée : Certains fichiers n'ont pas pu être copiés sur le NAS. Aucun fichier local n'a été supprimé.",
         historyEmpty: "Aucune activité récente enregistrée.",
         cfgAutostart: "Démarrer automatiquement avec Windows",
@@ -1475,7 +1515,7 @@
         recycleNasShield: "Antes de enviar la carpeta local a la Papelera de Windows, se comprobará la sincronización vía NAS en vivo. Si alguna foto, vídeo o documento aún no está en el NAS, se sincronizará automáticamente al NAS antes de borrar.",
         btnConfirmRecycle: "Comprobar NAS y Reciclar ahora",
         recycleSuccessMsg: (n, gb, synced) => `${n} carpeta(s) enviada(s) a la Papelera (${gb} GB liberados en SSD)${synced ? ` tras sincronizar ${synced} archivo(s) pendientes al NAS.` : "."}`,
-        recycleErrNas: "Reciclaje cancelado: No se pudo conectar con el NAS (192.168.11.1) para verificar las fotos. No se ha borrado ningún archivo local.",
+        recycleErrNas: "Reciclaje cancelado: No se pudo conectar con el NAS (LAN / Tailscale) para verificar las fotos. No se ha borrado ningún archivo local.",
         recycleErrIncomplete: "Reciclaje cancelado: Algunos archivos no pudieron sincronizarse al NAS. No se ha borrado ningún archivo local.",
         historyEmpty: "Sin actividad reciente registrada.",
         cfgAutostart: "Iniciar automáticamente con Windows",
@@ -1558,7 +1598,7 @@
         recycleNasShield: "Before sending the local folder to the Windows Recycle Bin, a live NAS verification will run. Any photo, video, or document not yet on the NAS will be automatically uploaded to the NAS before local deletion.",
         btnConfirmRecycle: "Verify NAS & Recycle Now",
         recycleSuccessMsg: (n, gb, synced) => `${n} folder(s) moved to Recycle Bin (${gb} GB freed)${synced ? ` after syncing ${synced} pending file(s) to NAS.` : "."}`,
-        recycleErrNas: "Recycling aborted: Could not reach NAS (192.168.11.1) to verify files. No local files were deleted.",
+        recycleErrNas: "Recycling aborted: Could not reach NAS (LAN / Tailscale) to verify files. No local files were deleted.",
         recycleErrIncomplete: "Recycling aborted: Some files could not be synced to the NAS. No local files were deleted.",
         historyEmpty: "No recent activity recorded.",
         cfgAutostart: "Start automatically with Windows",
@@ -1872,9 +1912,14 @@
         }
         const dotNas = document.getElementById("dot-nas-ping");
         const txtNas = document.getElementById("txt-nas-ping");
+        const selNetMode = document.getElementById("header-net-mode");
+        if (selNetMode && h.networkMode && document.activeElement !== selNetMode) {
+          selNetMode.value = h.networkMode;
+        }
         if (h.nasOnline) {
           dotNas.className = "status-dot connected";
-          txtNas.textContent = `NAS (${h.nasHost})`;
+          const routeTag = h.activeRoute === "tailscale" ? "Tailscale" : "LAN";
+          txtNas.textContent = `NAS ${routeTag} (${h.nasHost})`;
         } else {
           dotNas.className = "status-dot";
           txtNas.textContent = `NAS Offline`;
@@ -2126,10 +2171,10 @@
         ) {
           progressSection.classList.remove("visible");
           const offlinePrompts = {
-            fr: `Le serveur NAS (${res.host || "192.168.11.1"}) est hors ligne ou injoignable.\n\nLa synchronisation automatique vers le NAS n'a pas pu être effectuée.\n\nVoulez-vous quand même envoyer ce dossier vers la Corbeille de Windows sur ce PC ?\n(Cliquez sur "Annuler" pour conserver le dossier intact jusqu'à ce que le NAS soit connecté)`,
-            es: `El servidor NAS (${res.host || "192.168.11.1"}) no está conectado o no responde.\n\nNo se ha podido sincronizar con el NAS.\n\n¿Deseas enviar igualmente la carpeta a la Papelera de Reciclaje de Windows en este PC?\n(Pulsa "Cancelar" para conservar la carpeta intacta hasta conectar el NAS)`,
-            en: `The NAS server (${res.host || "192.168.11.1"}) is offline or unreachable.\n\nAutomatic NAS sync could not be completed.\n\nDo you still want to move this folder to the Windows Recycle Bin on this PC?\n(Click "Cancel" to keep the folder until the NAS is connected)`,
-            ar: `خادم NAS (${res.host || "192.168.11.1"}) غير متصل حالياً.\n\nتعذرت المزامنة التلقائية مع NAS.\n\nهل تريد نقل هذا المجلد إلى سلة محذوفات Windows على هذا الكمبيوتر على أي حال؟`,
+            fr: `Le serveur NAS (${res.host || "LAN / Tailscale"}) est hors ligne ou injoignable.\n\nLa synchronisation automatique vers le NAS n'a pas pu être effectuée.\n\nVoulez-vous quand même envoyer ce dossier vers la Corbeille de Windows sur ce PC ?\n(Cliquez sur "Annuler" pour conserver le dossier intact jusqu'à ce que le NAS soit connecté)`,
+            es: `El servidor NAS (${res.host || "LAN / Tailscale"}) no está conectado o no responde.\n\nNo se ha podido sincronizar con el NAS.\n\n¿Deseas enviar igualmente la carpeta a la Papelera de Reciclaje de Windows en este PC?\n(Pulsa "Cancelar" para conservar la carpeta intacta hasta conectar el NAS)`,
+            en: `The NAS server (${res.host || "LAN / Tailscale"}) is offline or unreachable.\n\nAutomatic NAS sync could not be completed.\n\nDo you still want to move this folder to the Windows Recycle Bin on this PC?\n(Click "Cancel" to keep the folder until the NAS is connected)`,
+            ar: `خادم NAS (${res.host || "LAN / Tailscale"}) غير متصل حالياً.\n\nتعذرت المزامنة التلقائية مع NAS.\n\nهل تريد نقل هذا المجلد إلى سلة محذوفات Windows على هذا الكمبيوتر على أي حال؟`,
           };
           const proceedWithoutNas = confirm(offlinePrompts[currentLang] || offlinePrompts.fr);
           if (proceedWithoutNas) {
@@ -2945,35 +2990,72 @@
     const btnRefSessions = document.getElementById("btn-refresh-sessions");
     if (btnRefSessions) btnRefSessions.onclick = () => loadRealSessions();
 
-    // Ajustes
+    // Ajustes Centralizados (LAN + Tailscale + Supabase)
     const modalSettings = document.getElementById("modal-settings");
-    document.getElementById("btn-settings").onclick = async () => {
+    const headerNetMode = document.getElementById("header-net-mode");
+
+    async function openSettingsModal() {
       const cfg = await window.electronAPI.getSettings();
-      document.getElementById("cfg-dashboard-url").value = cfg.dashboardUrl || "";
+      document.getElementById("cfg-network-mode").value = cfg.networkMode || "auto";
+      document.getElementById("cfg-nas-lan-host").value = cfg.nasLanHost || "";
+      document.getElementById("cfg-nas-tailscale-host").value = cfg.nasTailscaleHost || "";
+      document.getElementById("cfg-nas-share-name").value = cfg.nasShareName || "Lamha-Storage";
+      document.getElementById("cfg-nas-user").value = cfg.nasUser || "";
+      document.getElementById("cfg-nas-pass").value = "";
+      document.getElementById("cfg-nas-dir").value = cfg.nasBaseDir || "/";
       document.getElementById("cfg-ssd-path").value = cfg.ssdPath || "";
-      document.getElementById("cfg-nas-host").value = cfg.nasHost || "";
-      document.getElementById("cfg-nas-user").value = cfg.nasUser || "admin";
-      document.getElementById("cfg-nas-dir").value = cfg.nasBaseDir || "/Lamha-Storage";
+      document.getElementById("cfg-dashboard-url").value = cfg.dashboardUrl || "";
       document.getElementById("cfg-open-at-login").checked = cfg.openAtLogin !== false;
       modalSettings.classList.add("open");
-    };
+    }
+
+    document.getElementById("btn-settings").onclick = openSettingsModal;
+    document.getElementById("badge-nas-ping").onclick = openSettingsModal;
     document.getElementById("btn-close-settings").onclick = () => modalSettings.classList.remove("open");
-    document.getElementById("btn-save-settings").onclick = async () => {
-      const patch = {
-        dashboardUrl: document.getElementById("cfg-dashboard-url").value,
-        ssdPath: document.getElementById("cfg-ssd-path").value,
-        nasHost: document.getElementById("cfg-nas-host").value,
-        nasUser: document.getElementById("cfg-nas-user").value,
-        nasBaseDir: document.getElementById("cfg-nas-dir").value,
-        openAtLogin: document.getElementById("cfg-open-at-login").checked,
+
+    if (headerNetMode) {
+      headerNetMode.onchange = async () => {
+        if (!window.electronAPI || !window.electronAPI.setNetworkMode) return;
+        const mode = headerNetMode.value;
+        await window.electronAPI.setNetworkMode(mode);
+        await refreshSystemHealth();
       };
-      const p = document.getElementById("cfg-nas-pass").value;
-      if (p) patch.nasPassword = p;
-      await window.electronAPI.saveSettings(patch);
-      modalSettings.classList.remove("open");
-      refreshSystemHealth();
-      loadRecycleProjects(false);
+    }
+
+    document.getElementById("btn-save-settings").onclick = async () => {
+      const btnSave = document.getElementById("btn-save-settings");
+      btnSave.disabled = true;
+      try {
+        const patch = {
+          networkMode: document.getElementById("cfg-network-mode").value || "auto",
+          nasLanHost: document.getElementById("cfg-nas-lan-host").value.trim(),
+          nasTailscaleHost: document.getElementById("cfg-nas-tailscale-host").value.trim(),
+          nasShareName: document.getElementById("cfg-nas-share-name").value.trim() || "Lamha-Storage",
+          nasUser: document.getElementById("cfg-nas-user").value.trim(),
+          nasBaseDir: document.getElementById("cfg-nas-dir").value.trim() || "/",
+          ssdPath: document.getElementById("cfg-ssd-path").value.trim(),
+          dashboardUrl: document.getElementById("cfg-dashboard-url").value.trim(),
+          openAtLogin: document.getElementById("cfg-open-at-login").checked,
+        };
+        const p = document.getElementById("cfg-nas-pass").value;
+        if (p) patch.nasPassword = p;
+        await window.electronAPI.saveSettings(patch);
+        modalSettings.classList.remove("open");
+        refreshSystemHealth();
+        loadRecycleProjects(false);
+      } finally {
+        btnSave.disabled = false;
+      }
     };
+
+    if (window.electronAPI && window.electronAPI.onSettingsUpdated) {
+      window.electronAPI.onSettingsUpdated((cfg) => {
+        if (headerNetMode && cfg && cfg.networkMode) {
+          headerNetMode.value = cfg.networkMode;
+        }
+        refreshSystemHealth();
+      });
+    }
 
     document.getElementById("link-open-web").onclick = async (e) => {
       e.preventDefault();

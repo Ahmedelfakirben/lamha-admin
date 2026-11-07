@@ -1,20 +1,24 @@
 import { NextResponse } from "next/server"
-import { NAS_FTP_CONFIG } from "@/lib/storage-config"
+import { NAS_FTP_CONFIG, resolveActiveNasRoute } from "@/lib/storage-config"
 import ftp from "basic-ftp"
 
 export const dynamic = "force-dynamic"
 
 export async function GET() {
+  const route = await resolveActiveNasRoute()
   const start = Date.now()
   const client = new ftp.Client(2000)
   client.ftp.verbose = false
 
   try {
+    if (route.activeRoute === "offline" || !route.activeHost) {
+      throw new Error("NAS offline")
+    }
     await client.access({
-      host: NAS_FTP_CONFIG.host,
-      user: NAS_FTP_CONFIG.user,
-      password: NAS_FTP_CONFIG.password,
-      port: 21,
+      host: route.activeHost,
+      user: route.user,
+      password: route.password,
+      port: route.ftpPort || 21,
     })
     const latencyMs = Date.now() - start
     client.close()

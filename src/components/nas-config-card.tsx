@@ -1,346 +1,419 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { 
-  Server, 
-  HardDrive, 
-  Wifi, 
-  WifiOff, 
-  Key, 
-  User, 
-  Folder, 
-  Check, 
-  AlertCircle, 
-  RefreshCw, 
-  Eye, 
-  EyeOff, 
+import { useState, useEffect, useCallback } from "react"
+import {
+  Server,
+  Wifi,
+  WifiOff,
+  Key,
+  User,
+  Folder,
+  Check,
+  AlertCircle,
+  RefreshCw,
+  Eye,
+  EyeOff,
   Save,
   Globe,
   Network,
   Zap,
-  ShieldCheck
+  ShieldCheck,
+  HardDrive,
 } from "lucide-react"
 import { useLanguage } from "@/context/language-context"
 import { cn } from "@/lib/utils"
-import { checkStudioNas } from "@/lib/desktop-bridge"
+import { checkStudioNas, notifyCompanionConfigReload } from "@/lib/desktop-bridge"
 
 const NAS_CARD_I18N = {
   fr: {
-    title: "Stockage Atelier Dual-Access (SMB Local & Tailscale FTP)",
-    subtitle: "Routage intelligent : SMB ultra-rapide au studio avec bascule transparente vers Tailscale hors ligne",
-    tabSmb: "1. Réseau Local (SMB)",
-    tabFtp: "2. Accès Distant (Tailscale FTP)",
-    smbPathLabel: "Chemin d'Accès Réseau SMB Local :",
-    smbPathHint: "Ex: \\\\192.168.1.220\\Proyectos ou Z:\\Proyectos (Accès ultra-rapide 1Gbps/10Gbps)",
-    smbProbeHostLabel: "Hôte de Sonde Anti-Gel TCP 445 :",
-    smbProbeHostHint: "IP testée en < 500ms pour éviter tout blocage hors du studio (Ex: 192.168.1.220)",
-    ftpHostLabel: "Hôte / IP Tailscale VPN (Secours Distant) :",
-    ftpHostHint: "Ex: 100.x.y.z (IP privée Tailscale de votre NAS accessible de partout)",
+    title: "Centre Réseau & Stockage NAS Unifié (LAN Local & Tailscale VPN)",
+    subtitle: "Configuration centralisée partagée entre le Panel Admin, le VPS et l'outil d'Ingestion (Zéro identifiant dans le code)",
+    modeTitle: "Mode de Routage Réseau :",
+    modeAuto: "Auto (Priorité LAN → Tailscale)",
+    modeLan: "Forcer Réseau Local (LAN)",
+    modeTailscale: "Forcer Tailscale VPN",
+    route1Title: "Route 1 · Réseau Local (LAN Studio)",
+    route2Title: "Route 2 · Réseau Tailscale (VPN Distant & VPS)",
+    lanIpLabel: "IP Réseau Local (LAN) :",
+    lanIpHint: "Utilisée automatiquement au studio pour une vitesse maximale (1Gbps)",
+    tsIpLabel: "IP Tailscale VPN (NAS) :",
+    tsIpHint: "Utilisée hors du studio et par le VPS cloud (admin.lam7a.com)",
+    shareNameLabel: "Nom du Partage SMB (Share) :",
+    shareNameHint: "Génère automatiquement \\\\IP_LAN\\Partage et \\\\IP_TAILSCALE\\Partage",
+    credsTitle: "Identifiants NAS Unifiés (Partagés SMB & FTP)",
     ftpPortLabel: "Port FTP :",
-    ftpUserLabel: "Utilisateur NAS / FTP :",
-    ftpUserHint: "Utilisateur avec permissions de lecture/écriture",
-    ftpPassLabel: "Mot de passe FTP :",
-    passPlaceholder: "(Laisser vide pour ne pas modifier)",
-    ftpDirLabel: "Dossier Racine Distant :",
-    ftpDirHint: "Ex: /usb1_1/Lamha-Storage ou /Proyectos",
-    btnTestSmb: "Tester Sonde SMB (< 500ms)",
-    btnTestFtp: "Tester FTP Tailscale",
-    btnSave: "Enregistrer la Configuration",
-    testing: "Test en cours...",
+    ftpUserLabel: "Utilisateur NAS :",
+    ftpPassLabel: "Mot de passe NAS :",
+    passPlaceholder: "(Laisser vide pour conserver le mot de passe actuel)",
+    ftpDirLabel: "Dossier Racine FTP :",
+    btnTestLan: "Tester LAN",
+    btnTestTs: "Tester Tailscale",
+    btnSave: "Enregistrer & Synchroniser Partout",
+    testing: "Test...",
     saving: "Enregistrement...",
-    statusSmbOnline: "Connecté : Réseau Local (SMB)",
-    statusFtpOnline: "Connecté : Distant (Tailscale FTP)",
-    statusOffline: "Stockage Déconnecté",
-    saveSuccess: "Configuration double accès enregistrée avec succès !",
+    statusActiveLan: "Actif : Réseau Local (LAN)",
+    statusActiveTs: "Actif : Tailscale VPN",
+    statusOffline: "NAS Hors Ligne",
+    onlineBadge: "En ligne",
+    offlineBadge: "Hors ligne",
+    saveSuccess: "Configuration centralisée enregistrée dans Supabase et synchronisée avec Ingest Companion !",
     saveError: "Erreur lors de l'enregistrement",
-    testSuccess: (ms: number) => `Connexion réussie (${ms}ms)`,
+    testSuccess: (ms: number) => `Connexion vérifiée (${ms}ms)`,
     testError: (err: string) => `Échec : ${err}`,
   },
   es: {
-    title: "Almacenamiento Atelier Dual-Access (SMB Local & Tailscale FTP)",
-    subtitle: "Enrutamiento inteligente: SMB local a máxima velocidad con salto transparente a Tailscale en remoto",
-    tabSmb: "1. Red Local (SMB)",
-    tabFtp: "2. Acceso Remoto (Tailscale FTP)",
-    smbPathLabel: "Ruta de Red SMB Local (Principal):",
-    smbPathHint: "Ej: \\\\192.168.1.220\\Proyectos o unidad mapeada Z:\\Proyectos",
-    smbProbeHostLabel: "Host de Sondeo Anti-Congelamiento TCP 445:",
-    smbProbeHostHint: "IP verificada en < 500ms por socket para evitar el congelamiento de Windows (Ej: 192.168.1.220)",
-    ftpHostLabel: "Host / IP Tailscale VPN (Respaldo Remoto):",
-    ftpHostHint: "Ej: 100.x.y.z (IP privada Tailscale del NAS accesible desde cualquier lugar)",
+    title: "Centro Unificado de Red y NAS (Red Local LAN & Tailscale VPN)",
+    subtitle: "Configuración centralizada compartida entre Panel Admin, VPS e Ingest Companion (Cero credenciales en código o .env)",
+    modeTitle: "Modo de Enrutamiento de Red:",
+    modeAuto: "Auto (Prioridad LAN → Tailscale)",
+    modeLan: "Forzar Red Local (LAN)",
+    modeTailscale: "Forzar Tailscale VPN",
+    route1Title: "Ruta 1 · Red Local (Estudio LAN)",
+    route2Title: "Ruta 2 · Red Tailscale (Fuera de Oficina y VPS)",
+    lanIpLabel: "IP Red Local (LAN):",
+    lanIpHint: "Se usa automáticamente en el estudio a máxima velocidad local",
+    tsIpLabel: "IP Tailscale VPN (NAS):",
+    tsIpHint: "Se usa automáticamente fuera de la oficina y desde el VPS (admin.lam7a.com)",
+    shareNameLabel: "Nombre del Recurso Compartido SMB:",
+    shareNameHint: "Genera automáticamente las rutas \\\\IP_LAN\\Recurso y \\\\IP_TAILSCALE\\Recurso",
+    credsTitle: "Credenciales Únicas del NAS (Compartidas para LAN y Tailscale)",
     ftpPortLabel: "Puerto FTP:",
-    ftpUserLabel: "Usuario NAS / FTP:",
-    ftpUserHint: "Usuario con permisos de lectura y escritura",
-    ftpPassLabel: "Contraseña FTP:",
-    passPlaceholder: "(Dejar en blanco para no modificar)",
-    ftpDirLabel: "Carpeta Base / Compartida:",
-    ftpDirHint: "Ej: /usb1_1/Lamha-Storage o /Proyectos",
-    btnTestSmb: "Probar Red Local (< 500ms)",
-    btnTestFtp: "Probar FTP Tailscale",
-    btnSave: "Guardar Configuración Dual",
+    ftpUserLabel: "Usuario NAS (SMB / FTP):",
+    ftpPassLabel: "Contraseña NAS:",
+    passPlaceholder: "(Dejar en blanco para mantener la contraseña actual)",
+    ftpDirLabel: "Carpeta Raíz FTP:",
+    btnTestLan: "Probar LAN",
+    btnTestTs: "Probar Tailscale",
+    btnSave: "Guardar y Sincronizar Centralizado",
     testing: "Probando...",
     saving: "Guardando...",
-    statusSmbOnline: "Conectado: Red Local (SMB)",
-    statusFtpOnline: "Conectado: Remoto (Tailscale FTP)",
-    statusOffline: "Almacenamiento Desconectado",
-    saveSuccess: "¡Configuración de almacenamiento dual guardada con éxito!",
+    statusActiveLan: "Activo: Red Local (LAN)",
+    statusActiveTs: "Activo: Tailscale VPN",
+    statusOffline: "NAS Desconectado",
+    onlineBadge: "En línea",
+    offlineBadge: "Sin conexión",
+    saveSuccess: "¡Configuración centralizada guardada en Supabase y sincronizada con la herramienta de Ingesta!",
     saveError: "Error al guardar la configuración",
-    testSuccess: (ms: number) => `Conexión exitosa (${ms}ms)`,
+    testSuccess: (ms: number) => `Conexión verificada (${ms}ms)`,
     testError: (err: string) => `Fallo: ${err}`,
   },
   en: {
-    title: "Dual-Access Atelier Storage (Local SMB & Tailscale FTP)",
-    subtitle: "Smart routing: full-speed local SMB at studio with seamless fallback to Tailscale when remote",
-    tabSmb: "1. Local Network (SMB)",
-    tabFtp: "2. Remote Access (Tailscale FTP)",
-    smbPathLabel: "Local SMB Network Path (Primary):",
-    smbPathHint: "Ex: \\\\192.168.1.220\\Proyectos or mapped drive Z:\\Proyectos",
-    smbProbeHostLabel: "Anti-Freeze TCP 445 Probe Host:",
-    smbProbeHostHint: "IP checked in < 500ms via socket to prevent Windows thread hangs (Ex: 192.168.1.220)",
-    ftpHostLabel: "Tailscale VPN Host / IP (Remote Fallback):",
-    ftpHostHint: "Ex: 100.x.y.z (Private Tailscale IP reachable from outside the studio)",
+    title: "Unified Network & NAS Hub (Local LAN & Tailscale VPN)",
+    subtitle: "Centralized configuration shared across Admin Panel, Cloud VPS, and Ingest Companion (Zero credentials in code/.env)",
+    modeTitle: "Network Routing Mode:",
+    modeAuto: "Auto (LAN Priority → Tailscale)",
+    modeLan: "Force Local Network (LAN)",
+    modeTailscale: "Force Tailscale VPN",
+    route1Title: "Route 1 · Local Network (Studio LAN)",
+    route2Title: "Route 2 · Tailscale Network (Remote & VPS)",
+    lanIpLabel: "Local LAN IP:",
+    lanIpHint: "Used automatically in the studio for full Gigabit speed",
+    tsIpLabel: "Tailscale VPN IP (NAS):",
+    tsIpHint: "Used automatically outside the office and by the Cloud VPS",
+    shareNameLabel: "SMB Share Name:",
+    shareNameHint: "Automatically builds \\\\LAN_IP\\Share and \\\\TAILSCALE_IP\\Share",
+    credsTitle: "Unified NAS Credentials (Shared across SMB & FTP)",
     ftpPortLabel: "FTP Port:",
-    ftpUserLabel: "NAS / FTP Username:",
-    ftpUserHint: "User account with read/write access",
-    ftpPassLabel: "FTP Password:",
+    ftpUserLabel: "NAS Username:",
+    ftpPassLabel: "NAS Password:",
     passPlaceholder: "(Leave blank to keep existing password)",
-    ftpDirLabel: "Remote Base Directory:",
-    ftpDirHint: "Ex: /usb1_1/Lamha-Storage or /Proyectos",
-    btnTestSmb: "Test Local SMB (< 500ms)",
-    btnTestFtp: "Test Tailscale FTP",
-    btnSave: "Save Dual Configuration",
+    ftpDirLabel: "FTP Root Directory:",
+    btnTestLan: "Test LAN",
+    btnTestTs: "Test Tailscale",
+    btnSave: "Save & Sync Everywhere",
     testing: "Testing...",
     saving: "Saving...",
-    statusSmbOnline: "Connected: Local Network (SMB)",
-    statusFtpOnline: "Connected: Remote (Tailscale FTP)",
-    statusOffline: "Storage Disconnected",
-    saveSuccess: "Dual storage configuration saved successfully!",
+    statusActiveLan: "Active: Local Network (LAN)",
+    statusActiveTs: "Active: Tailscale VPN",
+    statusOffline: "NAS Offline",
+    onlineBadge: "Online",
+    offlineBadge: "Offline",
+    saveSuccess: "Centralized configuration saved to Supabase and synced with Ingest Companion!",
     saveError: "Error saving configuration",
-    testSuccess: (ms: number) => `Connection successful (${ms}ms)`,
+    testSuccess: (ms: number) => `Connection verified (${ms}ms)`,
     testError: (err: string) => `Failed: ${err}`,
   },
   ar: {
-    title: "نظام التخزين المزدوج للاستوديو (SMB المحلي و Tailscale FTP)",
-    subtitle: "توجيه ذكي: اتصال SMB فائق السرعة داخل الاستوديو مع انتقال سلس لـ Tailscale عند العمل عن بعد",
-    tabSmb: "1. الشبكة المحلية (SMB)",
-    tabFtp: "2. الاتصال عن بعد (Tailscale FTP)",
-    smbPathLabel: "مسار شبكة SMB المحلية (الأساسي):",
-    smbPathHint: "مثال: \\\\192.168.1.220\\Proyectos أو محرك الأقراص Z:\\Proyectos",
-    smbProbeHostLabel: "عنوان فحص TCP 445 السريع لمنع التجميد:",
-    smbProbeHostHint: "فحص يتم في أقل من 500ms لمنع تجمد نظام ويندوز (مثال: 192.168.1.220)",
-    ftpHostLabel: "مضيف أو عنوان Tailscale VPN (الاحتياطي عن بعد):",
-    ftpHostHint: "مثال: 100.x.y.z (عنوان Tailscale الخاص بوحدة NAS للوصول من أي مكان)",
+    title: "المركز الموحد للشبكة والتخزين NAS (الشبكة المحلية LAN و Tailscale VPN)",
+    subtitle: "إعدادات مركزية مشتركة بين لوحة التحكم والخادم السحابي وأداة التفريغ (بدون كلمات مرور في الكود)",
+    modeTitle: "وضع توجيه الشبكة:",
+    modeAuto: "تلقائي (الأولوية للمحلي ثم Tailscale)",
+    modeLan: "فرض الشبكة المحلية (LAN)",
+    modeTailscale: "فرض شبكة Tailscale VPN",
+    route1Title: "المسار 1 · الشبكة المحلية (LAN الاستوديو)",
+    route2Title: "المسار 2 · شبكة Tailscale (عن بُعد والخادم السحابي)",
+    lanIpLabel: "عنوان IP للشبكة المحلية:",
+    lanIpHint: "يُستخدم تلقائياً داخل الاستوديو بأقصى سرعة",
+    tsIpLabel: "عنوان IP لشبكة Tailscale:",
+    tsIpHint: "يُستخدم تلقائياً خارج المكتب ومن الخادم السحابي",
+    shareNameLabel: "اسم المجلد المشترك (SMB Share):",
+    shareNameHint: "ينشئ المسارات تلقائياً للشبكتين",
+    credsTitle: "بيانات اعتماد NAS الموحدة (مشتركة لـ SMB و FTP)",
     ftpPortLabel: "منفذ FTP:",
-    ftpUserLabel: "اسم مستخدم NAS / FTP:",
-    ftpUserHint: "حساب يملك صلاحيات القراءة والكتابة",
-    ftpPassLabel: "كلمة مرور FTP:",
+    ftpUserLabel: "اسم مستخدم NAS:",
+    ftpPassLabel: "كلمة مرور NAS:",
     passPlaceholder: "(اتركه فارغاً للإبقاء على كلمة المرور الحالية)",
-    ftpDirLabel: "المجلد الرئيسي المشترك:",
-    ftpDirHint: "مثال: /usb1_1/Lamha-Storage أو /Proyectos",
-    btnTestSmb: "فحص شبكة SMB المحلية (< 500ms)",
-    btnTestFtp: "اختبار اتصال Tailscale FTP",
-    btnSave: "حفظ الإعدادات المزدوجة",
+    ftpDirLabel: "المجلد الرئيسي FTP:",
+    btnTestLan: "فحص LAN",
+    btnTestTs: "فحص Tailscale",
+    btnSave: "حفظ ومزامنة الإعدادات المركزية",
     testing: "جاري الاختبار...",
     saving: "جاري الحفظ...",
-    statusSmbOnline: "متصل: الشبكة المحلية (SMB)",
-    statusFtpOnline: "متصل: عن بعد (Tailscale FTP)",
+    statusActiveLan: "نشط: الشبكة المحلية (LAN)",
+    statusActiveTs: "نشط: شبكة Tailscale VPN",
     statusOffline: "وحدة التخزين غير متصلة",
-    saveSuccess: "تم حفظ الإعدادات المزدوجة بنجاح!",
-    saveError: "حدث خطأ أثناء حفظ الإعدادات",
-    testSuccess: (ms: number) => `تم الاتصال بنجاح (${ms} ملي ثانية)`,
-    testError: (err: string) => `فشل الاتصال: ${err}`,
+    onlineBadge: "متصل",
+    offlineBadge: "غير متصل",
+    saveSuccess: "تم حفظ الإعدادات المركزية ومزامنتها بنجاح!",
+    saveError: "حدث خطأ أثناء الحفظ",
+    testSuccess: (ms: number) => `تم التحقق من الاتصال (${ms}ms)`,
+    testError: (err: string) => `فشل: ${err}`,
   },
 } as const
 
-export function NasConfigCard() {
+export function NasConfigCard({ onSaved }: { onSaved?: () => void } = {}) {
   const { language, dir } = useLanguage()
   const isRtl = dir === "rtl"
-  const activeLang = (language === "ar" || language === "en" || language === "es" || language === "fr")
-    ? language
-    : "es"
+  const activeLang = language === "ar" || language === "en" || language === "es" || language === "fr" ? language : "es"
   const texts = NAS_CARD_I18N[activeLang]
 
-  const [activeTab, setActiveTab] = useState<"smb" | "ftp">("smb")
+  // Modo de red: 'auto' | 'lan' | 'tailscale'
+  const [networkMode, setNetworkMode] = useState<"auto" | "lan" | "tailscale">("auto")
 
-  // Estado SMB Local
-  const [smbNetworkPath, setSmbNetworkPath] = useState("\\\\192.168.1.220\\Proyectos")
-  const [smbProbeHost, setSmbProbeHost] = useState("192.168.1.220")
+  // Ruta 1 (LAN) & Ruta 2 (Tailscale) + Share común
+  const [lanHost, setLanHost] = useState("")
+  const [tailscaleHost, setTailscaleHost] = useState("")
+  const [shareName, setShareName] = useState("Lamha-Storage")
 
-  // Estado FTP Tailscale
-  const [ftpRemoteHost, setFtpRemoteHost] = useState("")
-  const [ftpRemotePort, setFtpRemotePort] = useState(21)
-  const [ftpRemoteUser, setFtpRemoteUser] = useState("admin")
-  const [ftpRemotePassword, setFtpRemotePassword] = useState("")
-  const [ftpRemoteBaseDir, setFtpRemoteBaseDir] = useState("/usb1_1/Lamha-Storage")
+  // Credenciales compartidas
+  const [ftpPort, setFtpPort] = useState(21)
+  const [nasUser, setNasUser] = useState("")
+  const [nasPassword, setNasPassword] = useState("")
+  const [nasBaseDir, setNasBaseDir] = useState("/")
   const [hasPassword, setHasPassword] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
 
-  // Estados de conexión
-  const [isSmbOnline, setIsSmbOnline] = useState<boolean | null>(null)
-  const [isFtpOnline, setIsFtpOnline] = useState<boolean | null>(null)
-  const [connectionMode, setConnectionMode] = useState<"smb_local" | "tailscale_ftp" | "offline">("offline")
-  const [latencyMs, setLatencyMs] = useState<number | null>(null)
+  // Estados en vivo
+  const [activeRoute, setActiveRoute] = useState<"lan" | "tailscale" | "offline">("offline")
+  const [lanOnline, setLanOnline] = useState<boolean>(false)
+  const [lanLatency, setLanLatency] = useState<number>(-1)
+  const [tsOnline, setTsOnline] = useState<boolean>(false)
+  const [tsLatency, setTsLatency] = useState<number>(-1)
 
   const [loading, setLoading] = useState(true)
-  const [testingSmb, setTestingSmb] = useState(false)
-  const [testingFtp, setTestingFtp] = useState(false)
+  const [switchingMode, setSwitchingMode] = useState(false)
+  const [testingLan, setTestingLan] = useState(false)
+  const [testingTs, setTestingTs] = useState(false)
   const [saving, setSaving] = useState(false)
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null)
 
-  // Cargar configuración actual desde API
-  const loadConfig = async () => {
+  const loadConfig = useCallback(async (force = false) => {
+    setLoading(true)
     try {
-      const res = await fetch("/api/deliveries/settings")
+      const res = await fetch(`/api/deliveries/settings${force ? "?force=true" : ""}`, { cache: "no-store" })
       const data = await res.json()
-      let isSmb = Boolean(data.isSmbOnline)
-      let isFtp = Boolean(data.isNasOnline)
-      let mode = data.connectionMode || "offline"
+
+      let nextLanHost = ""
+      let nextTsHost = ""
+      let nextPort = 21
+      let nextMode: "auto" | "lan" | "tailscale" = "auto"
 
       if (data.settings) {
-        if (data.settings.smb_network_path) setSmbNetworkPath(data.settings.smb_network_path)
-        if (data.settings.smb_probe_host) setSmbProbeHost(data.settings.smb_probe_host)
-        if (data.settings.ftp_remote_host !== undefined) setFtpRemoteHost(data.settings.ftp_remote_host)
-        if (data.settings.ftp_remote_port) setFtpRemotePort(data.settings.ftp_remote_port)
-        if (data.settings.ftp_remote_user) setFtpRemoteUser(data.settings.ftp_remote_user)
-        if (data.settings.ftp_remote_base_dir) setFtpRemoteBaseDir(data.settings.ftp_remote_base_dir)
-        setHasPassword(Boolean(data.settings.ftp_remote_password))
+        nextMode = data.settings.storage_mode || "auto"
+        nextLanHost = data.settings.smb_probe_host || ""
+        nextTsHost = data.settings.ftp_remote_host || ""
+        nextPort = Number(data.settings.ftp_remote_port) || 21
+
+        setNetworkMode(nextMode)
+        setLanHost(nextLanHost)
+        setTailscaleHost(nextTsHost)
+        setShareName(data.settings.share_name || "Lamha-Storage")
+        setFtpPort(nextPort)
+        setNasUser(data.settings.ftp_remote_user || "")
+        setNasBaseDir(data.settings.ftp_remote_base_dir || "/")
+        setHasPassword(Boolean(data.settings.has_nas_password))
       }
 
-      // Si la nube marca offline pero estamos en la red local del estudio, verificar directamente por socket TCP
-      if (!isSmb && !isFtp) {
-        const testHost = data.settings?.ftp_remote_host || "192.168.11.1"
-        const testPort = Number(data.settings?.ftp_remote_port) || 21
-        const localCheck = await checkStudioNas(testHost, testPort)
+      let isLanOk = Boolean(data.lanOnline)
+      let lanMs = Number(data.lanLatencyMs) || -1
+      let isTsOk = Boolean(data.tailscaleOnline)
+      let tsMs = Number(data.tailscaleLatencyMs) || -1
+
+      // Si estamos en el navegador del PC del estudio y el servidor cloud no ve la LAN privada, comprobar vía puente local
+      if (!isLanOk && nextLanHost) {
+        const localCheck = await checkStudioNas(nextLanHost, nextPort)
         if (localCheck.reachable) {
-          isFtp = true
-          mode = "ftp"
+          isLanOk = true
+          lanMs = 5
+        }
+      }
+      if (!isTsOk && nextTsHost) {
+        const tsCheck = await checkStudioNas(nextTsHost, nextPort)
+        if (tsCheck.reachable) {
+          isTsOk = true
+          tsMs = 12
         }
       }
 
-      setIsSmbOnline(isSmb)
-      setIsFtpOnline(isFtp)
-      setConnectionMode(mode)
+      setLanOnline(isLanOk)
+      setLanLatency(lanMs)
+      setTsOnline(isTsOk)
+      setTsLatency(tsMs)
+
+      if (nextMode === "lan") {
+        setActiveRoute(isLanOk ? "lan" : "offline")
+      } else if (nextMode === "tailscale") {
+        setActiveRoute(isTsOk ? "tailscale" : "offline")
+      } else {
+        setActiveRoute(isLanOk ? "lan" : isTsOk ? "tailscale" : "offline")
+      }
     } catch {
-      setIsSmbOnline(false)
-      setIsFtpOnline(false)
-      setConnectionMode("offline")
+      setActiveRoute("offline")
     } finally {
       setLoading(false)
     }
-  }
-
-  useEffect(() => {
-    loadConfig()
   }, [])
 
-  // Probar Socket TCP 445 en < 500ms
-  const handleTestSmb = async () => {
-    setTestingSmb(true)
-    setFeedback(null)
-    const host = smbProbeHost || "192.168.11.1"
-    try {
-      // 1. Probar localmente desde el PC
-      const localCheck = await checkStudioNas(host, 445)
-      if (localCheck.reachable) {
-        setIsSmbOnline(true)
-        setLatencyMs(15)
-        setFeedback({ type: "success", msg: texts.testSuccess(15) + ` [SMB Local: ${host}:445]` })
-        setTestingSmb(false)
-        return
-      }
+  useEffect(() => {
+    loadConfig(false)
+  }, [loadConfig])
 
-      // 2. Consulta API backend
+  // Cambiar modo de red al instante (Auto / LAN / Tailscale)
+  const handleQuickModeSwitch = async (mode: "auto" | "lan" | "tailscale") => {
+    setNetworkMode(mode)
+    setSwitchingMode(true)
+    setFeedback(null)
+    try {
       const res = await fetch("/api/deliveries/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ test_smb: true, smb_probe_host: host }),
+        body: JSON.stringify({ network_mode: mode }),
       })
       const data = await res.json()
-      if (data.reachable) {
-        setIsSmbOnline(true)
-        setLatencyMs(data.latencyMs)
-        setFeedback({ type: "success", msg: texts.testSuccess(data.latencyMs) + ` [${host}:445]` })
-      } else {
-        setIsSmbOnline(false)
-        setFeedback({ type: "error", msg: texts.testError(data.message || "Timeout 500ms") })
+      if (data.success) {
+        await notifyCompanionConfigReload()
+        await loadConfig(true)
+        onSaved?.()
       }
-    } catch (err: any) {
-      setIsSmbOnline(false)
-      setFeedback({ type: "error", msg: texts.testError(err.message) })
-    } finally {
-      setTestingSmb(false)
+    } catch {} finally {
+      setSwitchingMode(false)
     }
   }
 
-  // Probar FTP Tailscale
-  const handleTestFtp = async () => {
-    setTestingFtp(true)
+  // Probar Ruta 1 (LAN)
+  const handleTestLan = async () => {
+    if (!lanHost.trim()) return
+    setTestingLan(true)
     setFeedback(null)
-    const targetHost = ftpRemoteHost || "192.168.11.1"
-    const targetPort = Number(ftpRemotePort) || 21
-
+    const host = lanHost.trim()
     try {
-      // 1. Probar localmente desde el PC (app de escritorio o Ingest Companion)
-      const localCheck = await checkStudioNas(targetHost, targetPort)
+      const localCheck = await checkStudioNas(host, 445)
       if (localCheck.reachable) {
-        setIsFtpOnline(true)
-        setFeedback({ type: "success", msg: texts.testSuccess(15) + ` [FTP Local Verificado: ${targetHost}:${targetPort}]` })
-        setTestingFtp(false)
+        setLanOnline(true)
+        setLanLatency(5)
+        setFeedback({ type: "success", msg: `${texts.testSuccess(5)} [LAN SMB: \\\\${host}\\${shareName}]` })
+        setTestingLan(false)
         return
       }
 
-      // 2. Probar mediante la API de backend (si es Tailscale con IP accesible desde la nube)
-      const res = await fetch("/api/settings/nas", {
+      const res = await fetch("/api/deliveries/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          host: targetHost, 
-          user: ftpRemoteUser, 
-          password: ftpRemotePassword, 
-          baseDir: ftpRemoteBaseDir, 
-          testOnly: true 
-        }),
+        body: JSON.stringify({ test_smb: true, smb_probe_host: host, ftp_remote_port: ftpPort }),
       })
       const data = await res.json()
-      if (data.online) {
-        setIsFtpOnline(true)
-        setFeedback({ type: "success", msg: texts.testSuccess(data.latencyMs) + ` [FTP]` })
+      if (data.reachable) {
+        setLanOnline(true)
+        setLanLatency(data.latencyMs || 5)
+        setFeedback({ type: "success", msg: data.message || texts.testSuccess(data.latencyMs) })
       } else {
-        setIsFtpOnline(false)
-        setFeedback({ type: "error", msg: texts.testError(data.error || "Timeout") })
+        setLanOnline(false)
+        setFeedback({ type: "error", msg: texts.testError(data.message || "Sin respuesta en LAN") })
       }
     } catch (err: any) {
-      setIsFtpOnline(false)
+      setLanOnline(false)
       setFeedback({ type: "error", msg: texts.testError(err.message) })
     } finally {
-      setTestingFtp(false)
+      setTestingLan(false)
     }
   }
 
-  // Guardar configuración dual
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setSaving(true)
+  // Probar Ruta 2 (Tailscale)
+  const handleTestTailscale = async () => {
+    if (!tailscaleHost.trim()) return
+    setTestingTs(true)
     setFeedback(null)
+    const host = tailscaleHost.trim()
     try {
       const res = await fetch("/api/deliveries/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          smb_network_path: smbNetworkPath,
-          smb_probe_host: smbProbeHost,
-          ftp_remote_host: ftpRemoteHost,
-          ftp_remote_port: ftpRemotePort,
-          ftp_remote_user: ftpRemoteUser,
-          ftp_remote_password: ftpRemotePassword,
-          ftp_remote_base_dir: ftpRemoteBaseDir,
+          test_ftp: true,
+          ftp_remote_host: host,
+          ftp_remote_port: ftpPort,
+          ftp_remote_user: nasUser,
+          ftp_remote_password: nasPassword,
+          ftp_remote_base_dir: nasBaseDir,
+        }),
+      })
+      const data = await res.json()
+      if (data.reachable || data.online) {
+        setTsOnline(true)
+        setTsLatency(data.latencyMs || 10)
+        setFeedback({ type: "success", msg: data.message || `${texts.testSuccess(data.latencyMs)} [Tailscale: ${host}]` })
+      } else {
+        const localCheck = await checkStudioNas(host, ftpPort)
+        if (localCheck.reachable) {
+          setTsOnline(true)
+          setTsLatency(10)
+          setFeedback({ type: "success", msg: `${texts.testSuccess(10)} [Tailscale: ${host}:${ftpPort}]` })
+        } else {
+          setTsOnline(false)
+          setFeedback({ type: "error", msg: texts.testError(data.message || "Tailscale inalcanzable") })
+        }
+      }
+    } catch (err: any) {
+      setTsOnline(false)
+      setFeedback({ type: "error", msg: texts.testError(err.message) })
+    } finally {
+      setTestingTs(false)
+    }
+  }
+
+  // Guardar todo en Supabase + sincronizar Ingest Companion
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSaving(true)
+    setFeedback(null)
+    try {
+      const cleanShare = shareName.trim().replace(/^[\\/]+|[\\/]+$/g, "") || "Lamha-Storage"
+      const cleanLan = lanHost.trim()
+      const cleanTs = tailscaleHost.trim()
+
+      const res = await fetch("/api/deliveries/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          network_mode: networkMode,
+          smb_probe_host: cleanLan,
+          ftp_remote_host: cleanTs,
+          share_name: cleanShare,
+          smb_network_path: cleanLan ? `\\\\${cleanLan}\\${cleanShare}` : "",
+          ftp_remote_port: ftpPort,
+          ftp_remote_user: nasUser.trim(),
+          ftp_remote_password: nasPassword,
+          ftp_remote_base_dir: nasBaseDir.trim() || "/",
         }),
       })
       const data = await res.json()
       if (data.success) {
+        if (nasPassword) setHasPassword(true)
+        setNasPassword("")
+        await notifyCompanionConfigReload()
+        await loadConfig(true)
+        onSaved?.()
         setFeedback({ type: "success", msg: texts.saveSuccess })
-        if (ftpRemotePassword) setHasPassword(true)
-        setFtpRemotePassword("")
-        loadConfig()
       } else {
         setFeedback({ type: "error", msg: data.error || texts.saveError })
       }
@@ -351,11 +424,15 @@ export function NasConfigCard() {
     }
   }
 
+  const cleanSharePreview = shareName.trim().replace(/^[\\/]+|[\\/]+$/g, "") || "Lamha-Storage"
+
   return (
-    <div className={cn(
-      "rounded-2xl border border-[#26211c] bg-[#141210] p-6 shadow-xl space-y-6 md:col-span-2",
-      isRtl && "text-right"
-    )}>
+    <div
+      className={cn(
+        "rounded-2xl border border-[#26211c] bg-[#141210] p-6 shadow-xl space-y-6 md:col-span-2",
+        isRtl && "text-right"
+      )}
+    >
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-[#26211c] gap-3">
         <div className="flex items-center gap-3">
@@ -363,251 +440,329 @@ export function NasConfigCard() {
             <Server className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-base font-semibold text-[#f5f2eb] font-serif">
-              {texts.title}
-            </h2>
+            <h2 className="text-base font-semibold text-[#f5f2eb] font-serif">{texts.title}</h2>
             <p className="text-xs text-[#8c7a6b]">{texts.subtitle}</p>
           </div>
         </div>
 
-        {/* Live Status Badge */}
+        {/* Estado Activo en Vivo */}
         <div className="flex items-center gap-2 self-start sm:self-auto">
-          {loading ? (
+          {loading || switchingMode ? (
             <span className="text-[11px] text-[#70665a] flex items-center gap-1.5 font-mono">
-              <RefreshCw className="w-3 h-3 animate-spin text-[#c69f68]" />
+              <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#c69f68]" />
             </span>
-          ) : isSmbOnline ? (
-            <div className="flex items-center gap-2 text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-3 py-1 rounded-xl text-xs font-semibold shadow-sm">
+          ) : activeRoute === "lan" ? (
+            <div className="flex items-center gap-2 text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-3 py-1.5 rounded-xl text-xs font-semibold shadow-sm">
               <Zap className="w-3.5 h-3.5" />
-              <span>{texts.statusSmbOnline}</span>
-              {latencyMs !== null && latencyMs > 0 && (
-                <span className="text-[10px] text-emerald-300 font-mono">({latencyMs}ms)</span>
-              )}
+              <span>{texts.statusActiveLan}</span>
+              <span className="text-[10px] text-emerald-300 font-mono">({lanHost})</span>
             </div>
-          ) : isFtpOnline ? (
-            <div className="flex items-center gap-2 text-purple-400 bg-purple-500/10 border border-purple-500/30 px-3 py-1 rounded-xl text-xs font-semibold shadow-sm">
+          ) : activeRoute === "tailscale" ? (
+            <div className="flex items-center gap-2 text-sky-400 bg-sky-500/10 border border-sky-500/30 px-3 py-1.5 rounded-xl text-xs font-semibold shadow-sm">
               <Globe className="w-3.5 h-3.5" />
-              <span>{texts.statusFtpOnline}</span>
+              <span>{texts.statusActiveTs}</span>
+              <span className="text-[10px] text-sky-300 font-mono">({tailscaleHost})</span>
             </div>
           ) : (
-            <div className="flex items-center gap-2 text-rose-400 bg-rose-500/10 border border-rose-500/30 px-3 py-1 rounded-xl text-xs font-semibold">
+            <div className="flex items-center gap-2 text-rose-400 bg-rose-500/10 border border-rose-500/30 px-3 py-1.5 rounded-xl text-xs font-semibold">
               <WifiOff className="w-3.5 h-3.5" />
               <span>{texts.statusOffline}</span>
             </div>
           )}
+
+          <button
+            type="button"
+            onClick={() => loadConfig(true)}
+            className="p-2 rounded-xl bg-[#181613] hover:bg-[#221e19] border border-[#26211c] text-[#a89f91] hover:text-[#f5f2eb] transition-colors cursor-pointer"
+            title="Refrescar estado de red"
+          >
+            <RefreshCw className={cn("w-3.5 h-3.5", loading && "animate-spin")} />
+          </button>
         </div>
       </div>
 
-      {/* Tabs Selector */}
-      <div className="flex items-center gap-2 p-1 rounded-xl bg-[#0f0e0c] border border-[#26211c] w-fit">
-        <button
-          type="button"
-          onClick={() => setActiveTab("smb")}
-          className={cn(
-            "px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer",
-            activeTab === "smb"
-              ? "bg-[#c69f68] text-[#0b0a09] shadow-sm font-bold"
-              : "text-[#8c7a6b] hover:text-[#f5f2eb]"
-          )}
-        >
-          <Network className="w-3.5 h-3.5" />
-          <span>{texts.tabSmb}</span>
-          {isSmbOnline && <span className="w-2 h-2 rounded-full bg-emerald-950 animate-pulse" />}
-        </button>
+      {/* Selector de Modo de Red (Switch Instantáneo Auto / LAN / Tailscale) */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-[#0f0e0c] border border-[#26211c]">
+        <div className="flex items-center gap-2 text-xs font-semibold text-[#d5cfc5]">
+          <ShieldCheck className="w-4 h-4 text-[#c69f68]" />
+          <span>{texts.modeTitle}</span>
+        </div>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab("ftp")}
-          className={cn(
-            "px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer",
-            activeTab === "ftp"
-              ? "bg-purple-600 text-white shadow-sm font-bold"
-              : "text-[#8c7a6b] hover:text-[#f5f2eb]"
-          )}
-        >
-          <Globe className="w-3.5 h-3.5" />
-          <span>{texts.tabFtp}</span>
-          {isFtpOnline && <span className="w-2 h-2 rounded-full bg-purple-200 animate-pulse" />}
-        </button>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => handleQuickModeSwitch("auto")}
+            disabled={switchingMode}
+            className={cn(
+              "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer",
+              networkMode === "auto"
+                ? "bg-[#c69f68] text-[#0b0a09] shadow-sm font-bold"
+                : "bg-[#181613] text-[#a89f91] hover:text-[#f5f2eb] border border-[#26211c]"
+            )}
+          >
+            <Zap className="w-3.5 h-3.5" />
+            <span>{texts.modeAuto}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleQuickModeSwitch("lan")}
+            disabled={switchingMode}
+            className={cn(
+              "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer",
+              networkMode === "lan"
+                ? "bg-emerald-500 text-[#0b0a09] shadow-sm font-bold"
+                : "bg-[#181613] text-[#a89f91] hover:text-[#f5f2eb] border border-[#26211c]"
+            )}
+          >
+            <Network className="w-3.5 h-3.5" />
+            <span>{texts.modeLan}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleQuickModeSwitch("tailscale")}
+            disabled={switchingMode}
+            className={cn(
+              "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer",
+              networkMode === "tailscale"
+                ? "bg-sky-500 text-[#0b0a09] shadow-sm font-bold"
+                : "bg-[#181613] text-[#a89f91] hover:text-[#f5f2eb] border border-[#26211c]"
+            )}
+          >
+            <Globe className="w-3.5 h-3.5" />
+            <span>{texts.modeTailscale}</span>
+          </button>
+        </div>
       </div>
 
-      {/* Form */}
-      <form onSubmit={handleSave} className="space-y-4 text-xs">
-        {activeTab === "smb" ? (
-          /* TAB 1: SMB Local */
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in duration-150">
-            {/* SMB Path */}
-            <div className="space-y-1.5 md:col-span-2">
-              <label className="text-[#a89f91] font-semibold block">
-                {texts.smbPathLabel}
-              </label>
-              <div className="relative">
-                <Network className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#70665a]" />
-                <input
-                  type="text"
-                  value={smbNetworkPath}
-                  onChange={(e) => setSmbNetworkPath(e.target.value)}
-                  placeholder="\\\\192.168.1.220\\Proyectos"
-                  className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#181613] border border-[#29241f] text-[#f5f2eb] focus:border-[#c69f68] outline-none font-mono text-xs transition-colors"
-                  required
-                />
+      {/* Formulario Centralizado */}
+      <form onSubmit={handleSave} className="space-y-5 text-xs">
+        {/* Tarjetas Gemelas: Ruta 1 (LAN Local) y Ruta 2 (Tailscale VPN) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* RUTA 1: RED LOCAL LAN */}
+          <div
+            className={cn(
+              "p-4 rounded-xl border space-y-3 transition-all",
+              activeRoute === "lan"
+                ? "bg-emerald-950/10 border-emerald-500/40"
+                : "bg-[#100f0d] border-[#26211c]"
+            )}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 font-semibold text-[#f5f2eb]">
+                <Network className="w-4 h-4 text-emerald-400" />
+                <span>{texts.route1Title}</span>
               </div>
-              <span className="text-[10px] text-[#70665a] block">{texts.smbPathHint}</span>
+              <span
+                className={cn(
+                  "text-[10px] px-2 py-0.5 rounded-full font-mono border",
+                  lanOnline
+                    ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
+                    : "bg-[#1c1915] text-[#70665a] border-[#26211c]"
+                )}
+              >
+                {lanOnline ? `● ${texts.onlineBadge}${lanLatency > 0 ? ` (${lanLatency}ms)` : ""}` : `○ ${texts.offlineBadge}`}
+              </span>
             </div>
 
-            {/* Probe Host */}
-            <div className="space-y-1.5 md:col-span-2">
-              <label className="text-[#a89f91] font-semibold flex items-center justify-between">
-                <span>{texts.smbProbeHostLabel}</span>
-                <span className="text-[10px] text-sky-400 font-mono font-normal">Puerto 445 • Timeout 500ms</span>
-              </label>
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <Server className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#70665a]" />
-                  <input
-                    type="text"
-                    value={smbProbeHost}
-                    onChange={(e) => setSmbProbeHost(e.target.value)}
-                    placeholder="192.168.1.220"
-                    className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#181613] border border-[#29241f] text-[#f5f2eb] focus:border-[#c69f68] outline-none font-mono text-xs transition-colors"
-                    required
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={handleTestSmb}
-                  disabled={testingSmb || saving}
-                  className="px-4 py-2.5 rounded-xl bg-[#1f1a15] hover:bg-[#28211b] border border-[#c69f68]/30 text-[#c69f68] font-semibold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 shrink-0"
-                >
-                  {testingSmb ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
-                  <span>{testingSmb ? texts.testing : texts.btnTestSmb}</span>
-                </button>
-              </div>
-              <span className="text-[10px] text-[#70665a] block">{texts.smbProbeHostHint}</span>
-            </div>
-          </div>
-        ) : (
-          /* TAB 2: Tailscale FTP */
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in duration-150">
-            {/* Tailscale IP */}
             <div className="space-y-1.5">
-              <label className="text-[#a89f91] font-semibold block">
-                {texts.ftpHostLabel}
-              </label>
-              <div className="relative">
-                <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#70665a]" />
+              <label className="text-[#a89f91] font-medium block">{texts.lanIpLabel}</label>
+              <div className="flex gap-2">
                 <input
                   type="text"
-                  value={ftpRemoteHost}
-                  onChange={(e) => setFtpRemoteHost(e.target.value)}
-                  placeholder="100.64.0.5"
-                  className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#181613] border border-[#29241f] text-[#f5f2eb] focus:border-purple-500 outline-none font-mono text-xs transition-colors"
+                  value={lanHost}
+                  onChange={(e) => setLanHost(e.target.value)}
+                  placeholder="Ej: 192.168.11.200"
+                  className="flex-1 px-3 py-2 rounded-xl bg-[#181613] border border-[#29241f] text-[#f5f2eb] focus:border-emerald-500 outline-none font-mono text-xs"
+                />
+                <button
+                  type="button"
+                  onClick={handleTestLan}
+                  disabled={testingLan || !lanHost.trim()}
+                  className="px-3 py-2 rounded-xl bg-[#1f1a15] hover:bg-[#28211b] border border-emerald-500/30 text-emerald-300 font-semibold text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0"
+                >
+                  {testingLan ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Wifi className="w-3.5 h-3.5" />}
+                  <span>{testingLan ? texts.testing : texts.btnTestLan}</span>
+                </button>
+              </div>
+              <span className="text-[10px] text-[#70665a] block">{texts.lanIpHint}</span>
+            </div>
+
+            <div className="pt-1 text-[11px] font-mono text-[#8c7a6b] flex items-center justify-between bg-[#141210] px-3 py-1.5 rounded-lg border border-[#221e19]">
+              <span>SMB LAN:</span>
+              <span className="text-emerald-300 truncate">
+                {lanHost.trim() ? `\\\\${lanHost.trim()}\\${cleanSharePreview}` : "—"}
+              </span>
+            </div>
+          </div>
+
+          {/* RUTA 2: RED TAILSCALE VPN */}
+          <div
+            className={cn(
+              "p-4 rounded-xl border space-y-3 transition-all",
+              activeRoute === "tailscale"
+                ? "bg-sky-950/10 border-sky-500/40"
+                : "bg-[#100f0d] border-[#26211c]"
+            )}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 font-semibold text-[#f5f2eb]">
+                <Globe className="w-4 h-4 text-sky-400" />
+                <span>{texts.route2Title}</span>
+              </div>
+              <span
+                className={cn(
+                  "text-[10px] px-2 py-0.5 rounded-full font-mono border",
+                  tsOnline
+                    ? "bg-sky-500/15 text-sky-300 border-sky-500/30"
+                    : "bg-[#1c1915] text-[#70665a] border-[#26211c]"
+                )}
+              >
+                {tsOnline ? `● ${texts.onlineBadge}${tsLatency > 0 ? ` (${tsLatency}ms)` : ""}` : `○ ${texts.offlineBadge}`}
+              </span>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[#a89f91] font-medium block">{texts.tsIpLabel}</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={tailscaleHost}
+                  onChange={(e) => setTailscaleHost(e.target.value)}
+                  placeholder="Ej: 100.113.239.52"
+                  className="flex-1 px-3 py-2 rounded-xl bg-[#181613] border border-[#29241f] text-[#f5f2eb] focus:border-sky-500 outline-none font-mono text-xs"
+                />
+                <button
+                  type="button"
+                  onClick={handleTestTailscale}
+                  disabled={testingTs || !tailscaleHost.trim()}
+                  className="px-3 py-2 rounded-xl bg-[#1f1a15] hover:bg-[#28211b] border border-sky-500/30 text-sky-300 font-semibold text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0"
+                >
+                  {testingTs ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Globe className="w-3.5 h-3.5" />}
+                  <span>{testingTs ? texts.testing : texts.btnTestTs}</span>
+                </button>
+              </div>
+              <span className="text-[10px] text-[#70665a] block">{texts.tsIpHint}</span>
+            </div>
+
+            <div className="pt-1 text-[11px] font-mono text-[#8c7a6b] flex items-center justify-between bg-[#141210] px-3 py-1.5 rounded-lg border border-[#221e19]">
+              <span>SMB / FTP Tailscale:</span>
+              <span className="text-sky-300 truncate">
+                {tailscaleHost.trim() ? `\\\\${tailscaleHost.trim()}\\${cleanSharePreview}` : "—"}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Credenciales Únicas Compartidas y Carpetas */}
+        <div className="p-4 rounded-xl bg-[#100f0d] border border-[#26211c] space-y-4">
+          <div className="flex items-center gap-2 text-xs font-semibold text-[#c69f68]">
+            <Key className="w-4 h-4" />
+            <span>{texts.credsTitle}</span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+            {/* Share Name SMB */}
+            <div className="space-y-1">
+              <label className="text-[#a89f91] font-medium block">{texts.shareNameLabel}</label>
+              <div className="relative">
+                <HardDrive className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#70665a]" />
+                <input
+                  type="text"
+                  value={shareName}
+                  onChange={(e) => setShareName(e.target.value)}
+                  placeholder="Lamha-Storage"
+                  className="w-full pl-8 pr-3 py-2 rounded-xl bg-[#181613] border border-[#29241f] text-[#f5f2eb] focus:border-[#c69f68] outline-none font-mono text-xs"
                 />
               </div>
-              <span className="text-[10px] text-[#70665a] block">{texts.ftpHostHint}</span>
+              <span className="text-[10px] text-[#70665a] block">{texts.shareNameHint}</span>
+            </div>
+
+            {/* FTP Base Dir */}
+            <div className="space-y-1">
+              <label className="text-[#a89f91] font-medium block">{texts.ftpDirLabel}</label>
+              <div className="relative">
+                <Folder className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#70665a]" />
+                <input
+                  type="text"
+                  value={nasBaseDir}
+                  onChange={(e) => setNasBaseDir(e.target.value)}
+                  placeholder="/"
+                  className="w-full pl-8 pr-3 py-2 rounded-xl bg-[#181613] border border-[#29241f] text-[#f5f2eb] focus:border-[#c69f68] outline-none font-mono text-xs"
+                />
+              </div>
             </div>
 
             {/* FTP Port */}
-            <div className="space-y-1.5">
-              <label className="text-[#a89f91] font-semibold block">
-                {texts.ftpPortLabel}
-              </label>
+            <div className="space-y-1">
+              <label className="text-[#a89f91] font-medium block">{texts.ftpPortLabel}</label>
               <input
                 type="number"
-                value={ftpRemotePort}
-                onChange={(e) => setFtpRemotePort(parseInt(e.target.value, 10) || 21)}
+                value={ftpPort}
+                onChange={(e) => setFtpPort(parseInt(e.target.value, 10) || 21)}
                 placeholder="21"
-                className="w-full px-3 py-2.5 rounded-xl bg-[#181613] border border-[#29241f] text-[#f5f2eb] focus:border-purple-500 outline-none font-mono text-xs transition-colors"
+                className="w-full px-3 py-2 rounded-xl bg-[#181613] border border-[#29241f] text-[#f5f2eb] focus:border-[#c69f68] outline-none font-mono text-xs"
               />
-              <span className="text-[10px] text-[#70665a] block">Puerto estándar (21)</span>
             </div>
 
-            {/* User */}
-            <div className="space-y-1.5">
-              <label className="text-[#a89f91] font-semibold block">
-                {texts.ftpUserLabel}
-              </label>
+            {/* NAS Username */}
+            <div className="space-y-1">
+              <label className="text-[#a89f91] font-medium block">{texts.ftpUserLabel}</label>
               <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#70665a]" />
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#70665a]" />
                 <input
                   type="text"
-                  value={ftpRemoteUser}
-                  onChange={(e) => setFtpRemoteUser(e.target.value)}
-                  placeholder="admin"
-                  className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#181613] border border-[#29241f] text-[#f5f2eb] focus:border-purple-500 outline-none font-mono text-xs transition-colors"
+                  value={nasUser}
+                  onChange={(e) => setNasUser(e.target.value)}
+                  placeholder="Usuario NAS"
+                  className="w-full pl-8 pr-3 py-2 rounded-xl bg-[#181613] border border-[#29241f] text-[#f5f2eb] focus:border-[#c69f68] outline-none font-mono text-xs"
                 />
               </div>
-              <span className="text-[10px] text-[#70665a] block">{texts.ftpUserHint}</span>
             </div>
 
-            {/* Password */}
-            <div className="space-y-1.5">
-              <label className="text-[#a89f91] font-semibold flex items-center justify-between">
+            {/* NAS Password */}
+            <div className="space-y-1">
+              <label className="text-[#a89f91] font-medium flex items-center justify-between">
                 <span>{texts.ftpPassLabel}</span>
-                {hasPassword && (
-                  <span className="text-[10px] text-emerald-400 font-normal">●●●●●●●● (enregistré)</span>
-                )}
+                {hasPassword && <span className="text-[10px] text-emerald-400 font-normal">●●●● (OK)</span>}
               </label>
               <div className="relative">
-                <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#70665a]" />
+                <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#70665a]" />
                 <input
                   type={showPassword ? "text" : "password"}
-                  value={ftpRemotePassword}
-                  onChange={(e) => setFtpRemotePassword(e.target.value)}
+                  value={nasPassword}
+                  onChange={(e) => setNasPassword(e.target.value)}
                   placeholder={texts.passPlaceholder}
-                  className="w-full pl-9 pr-10 py-2.5 rounded-xl bg-[#181613] border border-[#29241f] text-[#f5f2eb] focus:border-purple-500 outline-none text-xs transition-colors"
+                  className="w-full pl-8 pr-9 py-2 rounded-xl bg-[#181613] border border-[#29241f] text-[#f5f2eb] focus:border-[#c69f68] outline-none text-xs"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#70665a] hover:text-[#f5f2eb]"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#70665a] hover:text-[#f5f2eb]"
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                 </button>
               </div>
             </div>
-
-            {/* Base Directory */}
-            <div className="space-y-1.5 md:col-span-2">
-              <label className="text-[#a89f91] font-semibold block">
-                {texts.ftpDirLabel}
-              </label>
-              <div className="relative">
-                <Folder className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#70665a]" />
-                <input
-                  type="text"
-                  value={ftpRemoteBaseDir}
-                  onChange={(e) => setFtpRemoteBaseDir(e.target.value)}
-                  placeholder="/usb1_1/Lamha-Storage"
-                  className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#181613] border border-[#29241f] text-[#f5f2eb] focus:border-purple-500 outline-none font-mono text-xs transition-colors"
-                />
-              </div>
-              <span className="text-[10px] text-[#70665a] block">{texts.ftpDirHint}</span>
-            </div>
-
-            <div className="md:col-span-2 flex justify-start">
-              <button
-                type="button"
-                onClick={handleTestFtp}
-                disabled={testingFtp || saving}
-                className="px-4 py-2 rounded-xl bg-[#1f1a15] hover:bg-[#28211b] border border-purple-500/40 text-purple-300 font-semibold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
-              >
-                {testingFtp ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Globe className="w-3.5 h-3.5" />}
-                <span>{testingFtp ? texts.testing : texts.btnTestFtp}</span>
-              </button>
-            </div>
           </div>
-        )}
+        </div>
 
         {/* Feedback Alert */}
         {feedback && (
-          <div className={cn(
-            "p-3 rounded-xl border flex items-center gap-2.5 text-xs animate-in fade-in duration-200",
-            feedback.type === "success" 
-              ? "bg-emerald-950/30 border-emerald-800/40 text-emerald-300"
-              : "bg-rose-950/30 border-rose-800/40 text-rose-300"
-          )}>
-            {feedback.type === "success" ? <Check className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
+          <div
+            className={cn(
+              "p-3 rounded-xl border flex items-center gap-2.5 text-xs animate-in fade-in duration-200",
+              feedback.type === "success"
+                ? "bg-emerald-950/30 border-emerald-800/40 text-emerald-300"
+                : "bg-rose-950/30 border-rose-800/40 text-rose-300"
+            )}
+          >
+            {feedback.type === "success" ? (
+              <Check className="w-4 h-4 shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 shrink-0" />
+            )}
             <span className="font-medium">{feedback.msg}</span>
           </div>
         )}
@@ -616,7 +771,7 @@ export function NasConfigCard() {
         <div className="flex items-center justify-end pt-2 border-t border-[#26211c]">
           <button
             type="submit"
-            disabled={saving || testingSmb || testingFtp}
+            disabled={saving || testingLan || testingTs}
             className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#c69f68] to-[#dfba85] text-[#0b0a09] font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md hover:opacity-95 disabled:opacity-50"
           >
             {saving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}

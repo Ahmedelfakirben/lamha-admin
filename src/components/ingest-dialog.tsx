@@ -1270,7 +1270,7 @@ export function IngestDialog({
                 </div>
                 <div className="pt-1.5 border-t border-[#1f1b17] flex items-center justify-between text-[10px] text-[#70665a]">
                   <span>{t.nasSyncLater}</span>
-                  <span className="font-mono text-[#c69f68]">\\192.168.11.1\usb1_1\Lamha-Storage</span>
+                  <span className="font-mono text-[#c69f68]">NAS QNAP (LAN Local / Tailscale VPN)</span>
                 </div>
               </div>
 

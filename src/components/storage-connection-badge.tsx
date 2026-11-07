@@ -42,7 +42,8 @@ export function StorageConnectionBadge({
 
       // Si el servidor en la nube dice que el NAS está offline, comprobar localmente desde el PC
       if (!isNas) {
-        const localProbe = await checkStudioNas("192.168.11.1", 21)
+        const probeHost = data.settings?.smb_probe_host || data.settings?.ftp_remote_host || ""
+        const localProbe = await checkStudioNas(probeHost, 21)
         if (localProbe.reachable) {
           isNas = true
         }
@@ -57,7 +58,7 @@ export function StorageConnectionBadge({
       })
     } catch {
       // Intento directo vía desktop bridge
-      const localProbe = await checkStudioNas("192.168.11.1", 21)
+      const localProbe = await checkStudioNas("", 21)
       const nasActive = localProbe.reachable
       setStatus({
         isSmbOnline: false,

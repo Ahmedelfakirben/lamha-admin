@@ -9,7 +9,7 @@ const fs = require("fs")
 const path = require("path")
 const { app, safeStorage } = require("electron")
 const { createClient } = require("@supabase/supabase-js")
-const { getConfig } = require("./config")
+const { getConfig, resolveActiveNasRoute, findAvailableSmbShareAsync } = require("./config")
 
 const PHOTO_EXT = new Set([".arw", ".cr2", ".cr3", ".nef", ".nrw", ".dng", ".raf", ".orf", ".rw2", ".pef", ".jpg", ".jpeg", ".tif", ".tiff", ".png", ".heic"])
 const VIDEO_EXT = new Set([".mp4", ".mov", ".mxf", ".braw", ".avi", ".mkv", ".prores", ".r3d", ".crm", ".mts", ".m4v"])
@@ -19,27 +19,6 @@ const classify = (name) => {
   if (PHOTO_EXT.has(ext)) return "photo"
   if (VIDEO_EXT.has(ext)) return "video"
   return "other"
-}
-
-function findAvailableSmbShare(cfg = {}) {
-  const host = cfg.nasHost || "192.168.11.200"
-  const candidates = [
-    "Z:\\",
-    `\\\\${host}\\Lamha-Storage`,
-    "\\\\192.168.11.200\\Lamha-Storage",
-    "Y:\\",
-  ]
-  for (const candidate of candidates) {
-    try {
-      if (fs.existsSync(candidate)) {
-        const testDir = path.join(candidate, ".lamha_probe_" + Date.now())
-        fs.mkdirSync(testDir, { recursive: true })
-        fs.rmdirSync(testDir)
-        return candidate
-      }
-    } catch {}
-  }
-  return null
 }
 
 // ---------------------------------------------------------------------------
@@ -1336,15 +1315,19 @@ async function runIngest(params, emit) {
       }
 
       tracker.setStage("nas", { state: "active", percent: 0 }, true)
+      const route = await resolveActiveNasRoute({ force: true })
+      const activeNasHost = route.activeHost || cfg.nasHost
+      const activeNasPort = Number(cfg.nasPort) || 21
 
-      // PRIORIDAD 1: SMB DIRECTO (Red Windows de altísima velocidad: Z:\ o \\192.168.11.200\Lamha-Storage)
-      const smbShare = findAvailableSmbShare(cfg)
+      // PRIORIDAD 1: SMB DIRECTO ASÍNCRONO (Red Local LAN o Tailscale VPN verificada por TCP 445)
+      const smbShare = await findAvailableSmbShareAsync(cfg)
       if (smbShare) {
-        tracker.log("info", `[SMB] Red Windows directa detectada (${smbShare}): transfiriendo a máxima velocidad...`)
+        const routeBadge = route.activeRoute === "tailscale" ? "Tailscale VPN" : "LAN Local"
+        tracker.log("info", `[SMB ${routeBadge}] Red Windows directa detectada (${smbShare}): transfiriendo a máxima velocidad...`)
         const uniqueDirs = new Set(okItems.map((it) => path.join(smbShare, folderName, "01_RAW", it.sub || "")))
         for (const d of uniqueDirs) {
           try {
-            fs.mkdirSync(d, { recursive: true })
+            await fs.promises.mkdir(d, { recursive: true })
           } catch {}
         }
 
@@ -1417,14 +1400,20 @@ async function runIngest(params, emit) {
         }
       }
 
-      // PRIORIDAD 2: FALLBACK FTP
-      tracker.log("info", t.nasStart(cfg.nasHost))
+      // PRIORIDAD 2: FALLBACK FTP (LAN o Tailscale VPN)
+      if (!activeNasHost) {
+        tracker.log("warn", t.nasUnavailable("Sin host NAS configurado"))
+        nasState = "failed"
+        tracker.setStage("nas", { state: "error", percent: 100 }, true)
+        return
+      }
+      tracker.log("info", t.nasStart(activeNasHost))
       const ftp = require("basic-ftp")
 
       // 1. Asegurar directorios remotos en el NAS con 1 cliente inicial
       const initClient = new ftp.Client(120000)
       try {
-        await initClient.access({ host: cfg.nasHost, user: cfg.nasUser, password: cfg.nasPassword, port: 21 })
+        await initClient.access({ host: activeNasHost, user: cfg.nasUser, password: cfg.nasPassword, port: activeNasPort })
         const uniqueDirs = new Set(okItems.map((it) => path.posix.join(cfg.nasBaseDir || "/", folderName, "01_RAW", it.sub || "")))
         for (const d of uniqueDirs) {
           await initClient.ensureDir(d)
@@ -1444,7 +1433,7 @@ async function runIngest(params, emit) {
         } catch {}
       }
 
-      // 2. Pool de hasta 3 clientes FTP en paralelo para saturar la red Gigabit local
+      // 2. Pool de hasta 3 clientes FTP en paralelo
       const nasTotal = okItems.reduce((a, b) => a + b.size, 0) || 1
       let nasBytes = 0
       let nasProcessed = 0
@@ -1459,7 +1448,7 @@ async function runIngest(params, emit) {
             client.close()
           } catch {}
           client = new ftp.Client(120000)
-          await client.access({ host: cfg.nasHost, user: cfg.nasUser, password: cfg.nasPassword, port: 21 })
+          await client.access({ host: activeNasHost, user: cfg.nasUser, password: cfg.nasPassword, port: activeNasPort })
         }
         try {
           await connect()
@@ -1847,14 +1836,14 @@ async function processSingleMasterItem(item, ftpClient, ensuredDirs, batchState,
     const isNasAllowed = cfg.nasAutoSyncEnabled && (!cfg.nasSyncPausedUntil || Date.now() >= cfg.nasSyncPausedUntil)
     if (!isNasAllowed) return
 
-    // Prioridad 1: SMB Directo (Red Windows)
-    const smbBase = findAvailableSmbShare(cfg)
+    // Prioridad 1: SMB Directo Asíncrono (Red Local LAN o Tailscale VPN)
+    const smbBase = await findAvailableSmbShareAsync(cfg)
     if (smbBase) {
       try {
         const targetDir = path.join(smbBase, item.projectFolder || "", item.masterSubfolder || "")
-        fs.mkdirSync(targetDir, { recursive: true })
+        await fs.promises.mkdir(targetDir, { recursive: true })
         const targetFile = path.join(targetDir, item.fileName)
-        fs.copyFileSync(item.filePath, targetFile)
+        await fs.promises.copyFile(item.filePath, targetFile)
         emitStep(100, "done", "done", 100)
         return
       } catch (smbErr) {
@@ -1863,7 +1852,7 @@ async function processSingleMasterItem(item, ftpClient, ensuredDirs, batchState,
     }
 
     // Prioridad 2: Fallback FTP
-    if (!cfg.nasPassword || !cfg.nasHost || !ftpClient) return
+    if (!cfg.nasPassword || !ftpClient) return
     try {
       const remoteDir = path.posix.join(cfg.nasBaseDir || "/", item.projectFolder || "", item.masterSubfolder || "")
       if (!ensuredDirs.has(remoteDir)) {
@@ -1911,18 +1900,21 @@ function enqueueMasterFile(item, onProgress = () => {}, onBatchComplete = () => 
 
   ;(async () => {
     const cfg = getConfig()
+    const route = await resolveActiveNasRoute()
+    const activeHost = route.activeHost || cfg.nasHost
+    const activePort = Number(cfg.nasPort) || 21
     const ftp = require("basic-ftp")
     let ftpClient = null
     const ensuredDirs = new Set()
 
-    if (cfg.nasPassword && cfg.nasHost) {
+    if (cfg.nasPassword && activeHost && route.activeFtpOnline) {
       try {
         ftpClient = new ftp.Client(120000)
         await ftpClient.access({
-          host: cfg.nasHost,
+          host: activeHost,
           user: cfg.nasUser,
           password: cfg.nasPassword,
-          port: 21,
+          port: activePort,
         })
       } catch (e) {
         console.warn("No se pudo abrir conexión FTP inicial para lote Master:", e.message)
@@ -1937,14 +1929,14 @@ function enqueueMasterFile(item, onProgress = () => {}, onBatchComplete = () => 
       while (masterQueue.length > 0 && !masterCancelled) {
         const nextItem = masterQueue.shift()
         // Verificar si el cliente FTP sigue abierto o reconectar si se cerró
-        if (cfg.nasPassword && cfg.nasHost && (!ftpClient || ftpClient.closed)) {
+        if (cfg.nasPassword && activeHost && route.activeFtpOnline && (!ftpClient || ftpClient.closed)) {
           try {
             ftpClient = new ftp.Client(120000)
             await ftpClient.access({
-              host: cfg.nasHost,
+              host: activeHost,
               user: cfg.nasUser,
               password: cfg.nasPassword,
-              port: 21,
+              port: activePort,
             })
             ensuredDirs.clear()
           } catch {

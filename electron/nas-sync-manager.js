@@ -1,16 +1,21 @@
 /**
- * Lam7a Studios — Gestor de Sincronización Unidireccional Automática (Local SSD -> NAS)
+ * Lam7a Studios — Gestor de Sincronización Unidireccional Automática (Local SSD -> NAS Híbrido LAN / Tailscale)
  *
- * - Escanea recursivamente todas las carpetas y documentos en C:\Lamha-Storage.
+ * - Escanea de forma 100% ASÍNCRONA y NO BLOQUEANTE todas las carpetas en C:\Lamha-Storage.
  * - Estrictamente UNIDIRECCIONAL (Local -> NAS): nunca borra en el NAS ni altera archivos locales.
  * - Soporta Activar / Desactivar y Pausar por 2h, 4h, 8h o 24h con reanudación automática.
- * - Al iniciar o activar, detecta todo lo no sincronizado y solicita confirmación antes de subir.
+ * - Utiliza la ruta híbrida activa (Red Local LAN o Tailscale VPN) con sondeo TCP previo de 350ms.
  */
 const fs = require("fs")
 const path = require("path")
 const EventEmitter = require("events")
 const { app, shell } = require("electron")
-const { getConfig, updateSettings } = require("./config")
+const {
+  getConfig,
+  updateSettings,
+  resolveActiveNasRoute,
+  findAvailableSmbShareAsync,
+} = require("./config")
 
 function isIngestActive() {
   try {
@@ -19,27 +24,6 @@ function isIngestActive() {
   } catch {
     return false
   }
-}
-
-function findAvailableSmbShare(cfg = {}) {
-  const host = cfg.nasHost || "192.168.11.200"
-  const candidates = [
-    "Z:\\",
-    `\\\\${host}\\Lamha-Storage`,
-    "\\\\192.168.11.200\\Lamha-Storage",
-    "Y:\\",
-  ]
-  for (const candidate of candidates) {
-    try {
-      if (fs.existsSync(candidate)) {
-        const testDir = path.join(candidate, ".lamha_probe_" + Date.now())
-        fs.mkdirSync(testDir, { recursive: true })
-        fs.rmdirSync(testDir)
-        return candidate
-      }
-    } catch {}
-  }
-  return null
 }
 
 async function registerSyncedFileInSupabase(it) {
@@ -52,10 +36,15 @@ async function registerSyncedFileInSupabase(it) {
     const parts = relNormalized.split("/")
     const projectFolder = parts[0]
     const fileName = it.fileName || path.basename(it.fullPath)
-    const isMaster = relNormalized.toLowerCase().includes("03_edicion_master") || relNormalized.toLowerCase().includes("03_édition_master")
+    const isMaster =
+      relNormalized.toLowerCase().includes("03_edicion_master") ||
+      relNormalized.toLowerCase().includes("03_édition_master")
     const ext = path.extname(fileName).toLowerCase()
     const isVideo = [".mp4", ".mov", ".mkv", ".mxf", ".braw", ".prores", ".avi"].includes(ext)
-    const isPhoto = [".cr2", ".cr3", ".nef", ".arw", ".dng", ".raf", ".orf", ".rw2", ".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff"].includes(ext)
+    const isPhoto = [
+      ".cr2", ".cr3", ".nef", ".arw", ".dng", ".raf", ".orf", ".rw2",
+      ".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff",
+    ].includes(ext)
 
     if (!isVideo && !isPhoto) return
 
@@ -110,7 +99,7 @@ async function registerSyncedFileInSupabase(it) {
     }
 
     const sizeMb = Number((it.size / 1024 ** 2).toFixed(2))
-    const assetType = isVideo ? "raw_video" : (isMaster ? "jpg" : "raw_photo")
+    const assetType = isVideo ? "raw_video" : isMaster ? "jpg" : "raw_photo"
 
     if (existing && existing.length > 0) {
       await supabase
@@ -168,34 +157,14 @@ function shouldIgnoreFile(name) {
   const lower = name.toLowerCase()
   if (IGNORED_NAMES.has(lower)) return true
   if (name.startsWith(".") || name.startsWith("~$")) return true
-  if (lower.endsWith(".tmp") || lower.endsWith(".crswap") || lower.endsWith(".part") || lower.endsWith(".download")) return true
+  if (
+    lower.endsWith(".tmp") ||
+    lower.endsWith(".crswap") ||
+    lower.endsWith(".part") ||
+    lower.endsWith(".download")
+  )
+    return true
   return false
-}
-
-function checkNasTcpReachable(host, port = 21, timeoutMs = 2500) {
-  return new Promise((resolve) => {
-    if (!host) return resolve(false)
-    const net = require("net")
-    const sock = new net.Socket()
-    let settled = false
-    const done = (val) => {
-      if (settled) return
-      settled = true
-      try {
-        sock.destroy()
-      } catch {}
-      resolve(val)
-    }
-    sock.setTimeout(timeoutMs)
-    sock.once("connect", () => done(true))
-    sock.once("timeout", () => done(false))
-    sock.once("error", () => done(false))
-    try {
-      sock.connect(port, host)
-    } catch {
-      done(false)
-    }
-  })
 }
 
 class NasSyncManager extends EventEmitter {
@@ -207,6 +176,7 @@ class NasSyncManager extends EventEmitter {
     this.PendingSummary = null
     this.isScanning = false
     this.isRunning = false
+    this.isTicking = false
     this.cancelled = false
     this.activeFtpClients = new Set()
     this.stabilizing = new Map() // fullPath -> { size, mtimeMs }
@@ -226,25 +196,25 @@ class NasSyncManager extends EventEmitter {
 
   saveCache() {
     try {
-      fs.writeFileSync(this.cacheFile, JSON.stringify(this.cache), "utf-8")
+      fs.promises.writeFile(this.cacheFile, JSON.stringify(this.cache), "utf-8").catch(() => {})
     } catch {}
   }
 
   start() {
-    // Verificar expiración de pausa cada 20 segundos
     this.checkPauseExpiration()
     this.pauseTimer = setInterval(() => this.checkPauseExpiration(), 20000)
 
-    // Indexar archivos actuales para el vigilante en tiempo real
-    this.indexRealtimeBaseline()
-    this.watchTimer = setInterval(() => this.realtimeTick(), 4000)
-
-    // Si está activo y no pausado al arrancar la herramienta, buscar pendientes y avisar
-    if (this.isActive()) {
-      setTimeout(() => {
+    // Indexar archivos actuales en segundo plano sin bloquear el arranque
+    setTimeout(async () => {
+      await this.indexRealtimeBaseline()
+      // Vigilancia asíncrona no bloqueante cada 25 segundos
+      if (!this.watchTimer) {
+        this.watchTimer = setInterval(() => this.realtimeTick(), 25000)
+      }
+      if (this.isActive()) {
         this.scanForPending({ triggerPrompt: true }).catch(() => {})
-      }, 2500)
-    }
+      }
+    }, 2000)
   }
 
   stop() {
@@ -352,16 +322,25 @@ class NasSyncManager extends EventEmitter {
     return { ok: true }
   }
 
-  // Escanea recursivamente C:\Lamha-Storage y devuelve todos los archivos válidos
-  scanLocalTree(baseRoot) {
+  /**
+   * Escanea recursivamente C:\Lamha-Storage de forma 100% ASÍNCRONA cediendo el event-loop
+   * cada 60 archivos para que la interfaz de Electron jamás se congele.
+   */
+  async scanLocalTreeAsync(baseRoot) {
     const results = []
-    if (!baseRoot || !fs.existsSync(baseRoot)) return results
+    if (!baseRoot) return results
+    try {
+      await fs.promises.access(baseRoot)
+    } catch {
+      return results
+    }
 
-    const walk = (currentDir, relPrefix, projectFolder, depth) => {
+    let ops = 0
+    const walk = async (currentDir, relPrefix, projectFolder, depth) => {
       if (depth > 8) return
       let entries = []
       try {
-        entries = fs.readdirSync(currentDir, { withFileTypes: true })
+        entries = await fs.promises.readdir(currentDir, { withFileTypes: true })
       } catch {
         return
       }
@@ -373,10 +352,10 @@ class NasSyncManager extends EventEmitter {
 
         if (entry.isDirectory()) {
           if (/^(System Volume Information|\$RECYCLE\.BIN)$/i.test(entry.name)) continue
-          walk(fullPath, relPath, proj, depth + 1)
+          await walk(fullPath, relPath, proj, depth + 1)
         } else if (entry.isFile()) {
           try {
-            const st = fs.statSync(fullPath)
+            const st = await fs.promises.stat(fullPath)
             if (st.size > 0) {
               results.push({
                 fullPath,
@@ -388,57 +367,67 @@ class NasSyncManager extends EventEmitter {
               })
             }
           } catch {}
+          ops++
+          if (ops % 60 === 0) {
+            await new Promise((r) => setImmediate(r))
+          }
         }
       }
     }
 
-    walk(baseRoot, "", "", 0)
+    await walk(baseRoot, "", "", 0)
     return results
   }
 
-  indexRealtimeBaseline() {
-    const cfg = getConfig()
-    const files = this.scanLocalTree(cfg.ssdPath)
-    for (const f of files) {
-      this.knownRealtime.set(f.fullPath, { size: f.size, mtimeMs: f.mtimeMs })
-    }
+  async indexRealtimeBaseline() {
+    try {
+      const cfg = getConfig()
+      const files = await this.scanLocalTreeAsync(cfg.ssdPath)
+      for (const f of files) {
+        this.knownRealtime.set(f.fullPath, { size: f.size, mtimeMs: f.mtimeMs })
+      }
+    } catch {}
   }
 
-  // Vigilancia continua en tiempo real para nuevos archivos creados o pegados en cualquier carpeta
+  // Vigilancia asíncrona en segundo plano para nuevos archivos creados o pegados
   async realtimeTick() {
-    if (!this.isActive() || this.isScanning || this.isRunning || isIngestActive()) return
-    const cfg = getConfig()
-    const files = this.scanLocalTree(cfg.ssdPath)
-    const readyNewFiles = []
+    if (this.isTicking || !this.isActive() || this.isScanning || this.isRunning || isIngestActive()) return
+    this.isTicking = true
+    try {
+      const cfg = getConfig()
+      const files = await this.scanLocalTreeAsync(cfg.ssdPath)
+      const readyNewFiles = []
 
-    for (const f of files) {
-      const known = this.knownRealtime.get(f.fullPath)
-      if (known && known.size === f.size && known.mtimeMs === f.mtimeMs) {
-        continue
-      }
-      // Si es una carpeta 03_Edicion_Master de foto/vídeo, MasterFolderWatcher ya la gestiona (si está activo)
-      const isMasterMedia =
-        /03[_-\s]?(?:Edicion|Edition|Édition)[_-\s]?Master/i.test(f.relPath) &&
-        /\.(jpg|jpeg|png|webp|tif|tiff|mp4|mov|mkv|mxf|braw|prores|avi)$/i.test(f.fileName)
-
-      const stab = this.stabilizing.get(f.fullPath)
-      if (!stab) {
-        this.stabilizing.set(f.fullPath, { size: f.size, mtimeMs: f.mtimeMs })
-        continue
-      }
-      if (stab.size === f.size && f.size > 0) {
-        this.stabilizing.delete(f.fullPath)
-        this.knownRealtime.set(f.fullPath, { size: f.size, mtimeMs: f.mtimeMs })
-        if (!isMasterMedia) {
-          readyNewFiles.push(f)
+      for (const f of files) {
+        const known = this.knownRealtime.get(f.fullPath)
+        if (known && known.size === f.size && known.mtimeMs === f.mtimeMs) {
+          continue
         }
-      } else {
-        this.stabilizing.set(f.fullPath, { size: f.size, mtimeMs: f.mtimeMs })
-      }
-    }
+        const isMasterMedia =
+          /03[_-\s]?(?:Edicion|Edition|Édition)[_-\s]?Master/i.test(f.relPath) &&
+          /\.(jpg|jpeg|png|webp|tif|tiff|mp4|mov|mkv|mxf|braw|prores|avi)$/i.test(f.fileName)
 
-    if (readyNewFiles.length > 0 && this.isActive()) {
-      await this.syncFilesList(readyNewFiles)
+        const stab = this.stabilizing.get(f.fullPath)
+        if (!stab) {
+          this.stabilizing.set(f.fullPath, { size: f.size, mtimeMs: f.mtimeMs })
+          continue
+        }
+        if (stab.size === f.size && f.size > 0) {
+          this.stabilizing.delete(f.fullPath)
+          this.knownRealtime.set(f.fullPath, { size: f.size, mtimeMs: f.mtimeMs })
+          if (!isMasterMedia) {
+            readyNewFiles.push(f)
+          }
+        } else {
+          this.stabilizing.set(f.fullPath, { size: f.size, mtimeMs: f.mtimeMs })
+        }
+      }
+
+      if (readyNewFiles.length > 0 && this.isActive()) {
+        await this.syncFilesList(readyNewFiles)
+      }
+    } catch {} finally {
+      this.isTicking = false
     }
   }
 
@@ -494,7 +483,7 @@ class NasSyncManager extends EventEmitter {
 
     try {
       const cfg = getConfig()
-      const localFiles = this.scanLocalTree(cfg.ssdPath)
+      const localFiles = await this.scanLocalTreeAsync(cfg.ssdPath)
       if (localFiles.length === 0) {
         this.pendingItems = []
         this.PendingSummary = { totalFiles: 0, totalBytes: 0, totalMb: 0, totalGb: 0, projects: [] }
@@ -503,30 +492,28 @@ class NasSyncManager extends EventEmitter {
 
       const localProjectNames = [...new Set(localFiles.map((f) => f.projectFolder))]
       let remoteMap = null
-      let nasOnline = false
+      const route = await resolveActiveNasRoute()
+      const nasOnline = route.activeRoute !== "offline" && Boolean(route.activeHost)
 
-      if (cfg.nasPassword && cfg.nasHost) {
-        nasOnline = await checkNasTcpReachable(cfg.nasHost, 21, 2500)
-        if (nasOnline) {
-          const ftp = require("basic-ftp")
-          const client = new ftp.Client(10000)
-          this.activeFtpClients.add(client)
+      if (nasOnline && cfg.nasPassword && route.activeHost && route.activeFtpOnline) {
+        const ftp = require("basic-ftp")
+        const client = new ftp.Client(10000)
+        this.activeFtpClients.add(client)
+        try {
+          await client.access({
+            host: route.activeHost,
+            user: cfg.nasUser,
+            password: cfg.nasPassword,
+            port: Number(cfg.nasPort) || 21,
+          })
+          remoteMap = await this.fetchRemoteTreeMap(client, cfg.nasBaseDir, localProjectNames)
+        } catch {
+          remoteMap = null
+        } finally {
+          this.activeFtpClients.delete(client)
           try {
-            await client.access({
-              host: cfg.nasHost,
-              user: cfg.nasUser,
-              password: cfg.nasPassword,
-              port: 21,
-            })
-            remoteMap = await this.fetchRemoteTreeMap(client, cfg.nasBaseDir, localProjectNames)
-          } catch {
-            remoteMap = null
-          } finally {
-            this.activeFtpClients.delete(client)
-            try {
-              client.close()
-            } catch {}
-          }
+            client.close()
+          } catch {}
         }
       }
 
@@ -540,7 +527,6 @@ class NasSyncManager extends EventEmitter {
             pending.push(f)
           }
         } else {
-          // Si el NAS no respondió al listado completo, consultar caché local
           const c = this.cache[f.relPath]
           if (!c || c.size !== f.size || c.mtimeMs !== f.mtimeMs) {
             pending.push(f)
@@ -568,6 +554,8 @@ class NasSyncManager extends EventEmitter {
       this.pendingItems = pending
       this.PendingSummary = {
         nasOnline,
+        activeRoute: route.activeRoute,
+        activeHost: route.activeHost,
         totalFiles: pending.length,
         totalBytes,
         totalMb: Number((totalBytes / (1024 * 1024)).toFixed(1)),
@@ -575,7 +563,6 @@ class NasSyncManager extends EventEmitter {
         projects,
       }
 
-      // Solo lanzar el popup automático de sincronización si el NAS está realmente alcanzable en red
       if (pending.length > 0 && triggerPrompt && nasOnline) {
         this.emit("pending-detected", this.PendingSummary)
       }
@@ -590,10 +577,9 @@ class NasSyncManager extends EventEmitter {
     if (!this.pendingItems || this.pendingItems.length === 0) {
       return { ok: true, synced: 0 }
     }
-    const cfg = getConfig()
-    const reachable = await checkNasTcpReachable(cfg.nasHost, 21, 2500)
-    if (!reachable) {
-      return { ok: false, error: "NAS_UNREACHABLE", host: cfg.nasHost }
+    const route = await resolveActiveNasRoute({ force: true })
+    if (route.activeRoute === "offline" || !route.activeHost) {
+      return { ok: false, error: "NAS_UNREACHABLE", host: route.activeHost }
     }
     const itemsToSync = [...this.pendingItems]
     this.pendingItems = []
@@ -605,14 +591,12 @@ class NasSyncManager extends EventEmitter {
     const force = Boolean(options.force)
     if (!force && isIngestActive()) return { ok: false, busy: true, ingesting: true }
     if (this.isRunning || !items || items.length === 0) return { ok: false, busy: true }
-    const cfg = getConfig()
-    if (!cfg.nasPassword || !cfg.nasHost) {
-      return { ok: false, error: "NAS_NOT_CONFIGURED" }
-    }
 
-    const reachable = await checkNasTcpReachable(cfg.nasHost, 21, 2500)
-    if (!reachable) {
-      const msg = `NAS injoignable (${cfg.nasHost}:21)`
+    const cfg = getConfig()
+    const route = await resolveActiveNasRoute({ force: true })
+    const targetHost = route.activeHost || cfg.nasHost
+    if (!targetHost || route.activeRoute === "offline") {
+      const msg = `NAS injoignable (${targetHost || "non configuré"})`
       this.emit("sync-progress", { type: "error", isNasMirror: true, message: msg })
       return { ok: false, error: "NAS_UNREACHABLE", message: msg }
     }
@@ -655,28 +639,33 @@ class NasSyncManager extends EventEmitter {
       })
     }
 
-    // Emitir estado inicial inmediato para que la mini ventana nunca quede en "Initialisation... 0/0"
-    emitProgress(`Connexion au NAS (${cfg.nasHost})...`, 1)
+    const routeBadge = route.activeRoute === "tailscale" ? "Tailscale VPN" : "LAN Local"
+    emitProgress(`Connexion au NAS ${routeBadge} (${targetHost})...`, 1)
 
-    // Prioridad 1: SMB directo (Windows Red local Z:\ o \\192.168.11.200\Lamha-Storage)
-    const smbShare = findAvailableSmbShare(cfg)
+    // Prioridad 1: SMB directo ASÍNCRONO (Windows Red Local o Tailscale VPN verificada por TCP 445)
+    const smbShare = await findAvailableSmbShareAsync(cfg)
     if (smbShare) {
-      emitProgress(`Copia directa Windows SMB (${smbShare})...`, 2)
+      emitProgress(`Copia directa SMB ${routeBadge} (${smbShare})...`, 2)
       try {
         for (let i = 0; i < items.length; i++) {
           if (this.cancelled || (!force && (!this.isActive() || isIngestActive()))) break
           const it = items[i]
           const targetPath = path.join(smbShare, it.relPath)
           const targetDir = path.dirname(targetPath)
-          if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true })
+          await fs.promises.mkdir(targetDir, { recursive: true }).catch(() => {})
 
           let sent = false
           for (let attempt = 0; attempt < 2 && !sent; attempt++) {
             try {
-              if (fs.existsSync(targetPath) && fs.statSync(targetPath).size === it.size) {
+              let existingSize = -1
+              try {
+                const st = await fs.promises.stat(targetPath)
+                existingSize = st.size
+              } catch {}
+              if (existingSize === it.size) {
                 uploadedBytes += it.size
               } else {
-                fs.copyFileSync(it.fullPath, targetPath)
+                await fs.promises.copyFile(it.fullPath, targetPath)
                 uploadedBytes += it.size
               }
               sent = true
@@ -700,6 +689,7 @@ class NasSyncManager extends EventEmitter {
             mb: Number((uploadedBytes / (1024 * 1024)).toFixed(1)),
             elapsedSec: Math.max(1, Math.round((Date.now() - startTime) / 1000)),
             smb: true,
+            route: route.activeRoute,
           }
           this.emit("sync-progress", {
             type: "done",
@@ -721,18 +711,24 @@ class NasSyncManager extends EventEmitter {
       }
     }
 
+    if (!cfg.nasPassword) {
+      this.isRunning = false
+      this.emit("state-changed", this.getState())
+      return { ok: false, error: "NAS_NOT_CONFIGURED" }
+    }
+
     const ftp = require("basic-ftp")
+    const ftpPort = Number(cfg.nasPort) || 21
 
     try {
-      // 1. Asegurar todas las carpetas remotas primero con 1 cliente con timeout ágil
       const initClient = new ftp.Client(15000)
       this.activeFtpClients.add(initClient)
       try {
         await initClient.access({
-          host: cfg.nasHost,
+          host: targetHost,
           user: cfg.nasUser,
           password: cfg.nasPassword,
-          port: 21,
+          port: ftpPort,
         })
         const remoteDirs = Array.from(
           new Set(
@@ -744,7 +740,7 @@ class NasSyncManager extends EventEmitter {
         )
         for (let i = 0; i < remoteDirs.length; i++) {
           if (this.cancelled || (!force && (!this.isActive() || isIngestActive()))) break
-          emitProgress(`Préparation NAS (${i + 1}/${remoteDirs.length})...`, 2)
+          emitProgress(`Préparation NAS ${routeBadge} (${i + 1}/${remoteDirs.length})...`, 2)
           await initClient.ensureDir(remoteDirs[i])
         }
       } finally {
@@ -759,7 +755,6 @@ class NasSyncManager extends EventEmitter {
         return { ok: false, cancelled: true }
       }
 
-      // 2. Subir archivos con pool de 2 conexiones FTP concurrentes
       let nextIdx = 0
       const poolSize = Math.min(2, items.length)
 
@@ -774,10 +769,10 @@ class NasSyncManager extends EventEmitter {
           client = new ftp.Client(30000)
           this.activeFtpClients.add(client)
           await client.access({
-            host: cfg.nasHost,
+            host: targetHost,
             user: cfg.nasUser,
             password: cfg.nasPassword,
-            port: 21,
+            port: ftpPort,
           })
         }
 
@@ -853,6 +848,7 @@ class NasSyncManager extends EventEmitter {
         failed: failCount,
         mb: Number((uploadedBytes / (1024 * 1024)).toFixed(1)),
         client: "NAS Mirror",
+        route: route.activeRoute,
       }
 
       this.emit("sync-progress", {
@@ -877,8 +873,8 @@ class NasSyncManager extends EventEmitter {
   }
 
   /**
-   * Escanea todas las carpetas de proyectos en C:\Lamha-Storage, las cruza con las sesiones
-   * de Supabase (para conocer su estado: Entregado vs En curso) y verifica su estado en el NAS.
+   * Escanea todas las carpetas de proyectos en C:\Lamha-Storage de forma asíncrona,
+   * las cruza con las sesiones de Supabase y verifica su estado en el NAS.
    */
   async scanLocalProjectsForRecycle(sessionsList = [], checkRemoteLive = false) {
     const cfg = getConfig()
@@ -897,7 +893,7 @@ class NasSyncManager extends EventEmitter {
 
     let entries = []
     try {
-      entries = fs.readdirSync(baseRoot, { withFileTypes: true })
+      entries = await fs.promises.readdir(baseRoot, { withFileTypes: true })
     } catch {
       return { ok: true, nasReachable: false, totalBytes: 0, totalGb: 0, deliveredBytes: 0, deliveredGb: 0, projects: [] }
     }
@@ -906,7 +902,7 @@ class NasSyncManager extends EventEmitter {
       .filter((e) => e.isDirectory() && !e.name.startsWith(".") && !/^(System Volume Information|\$RECYCLE\.BIN)$/i.test(e.name))
       .map((e) => e.name)
 
-    const allLocalFiles = this.scanLocalTree(baseRoot)
+    const allLocalFiles = await this.scanLocalTreeAsync(baseRoot)
     const filesByProject = new Map()
     for (const f of allLocalFiles) {
       if (!filesByProject.has(f.projectFolder)) filesByProject.set(f.projectFolder, [])
@@ -915,18 +911,18 @@ class NasSyncManager extends EventEmitter {
 
     let remoteMap = null
     let nasReachable = false
-    if (checkRemoteLive && cfg.nasPassword && cfg.nasHost && folderDirs.length > 0) {
-      const tcpOk = await checkNasTcpReachable(cfg.nasHost, 21, 2500)
-      if (tcpOk) {
+    if (checkRemoteLive && cfg.nasPassword && folderDirs.length > 0) {
+      const route = await resolveActiveNasRoute()
+      if (route.activeFtpOnline && route.activeHost) {
         const ftp = require("basic-ftp")
         const client = new ftp.Client(8000)
         this.activeFtpClients.add(client)
         try {
           await client.access({
-            host: cfg.nasHost,
+            host: route.activeHost,
             user: cfg.nasUser,
             password: cfg.nasPassword,
-            port: 21,
+            port: Number(cfg.nasPort) || 21,
           })
           nasReachable = true
           remoteMap = await this.fetchRemoteTreeMap(client, cfg.nasBaseDir, folderDirs)
@@ -947,17 +943,17 @@ class NasSyncManager extends EventEmitter {
       const parts = folderName.split("_")
       const dateInFolder = parts.find((p) => /^\d{4}-\d{2}-\d{2}$/.test(p)) || null
 
-      // 1. Coincidencia exacta con patrón generado
       for (const s of sessionsList) {
         const cleanDate = String(s.session_date || "").replace(/[^0-9-]/g, "")
         const cleanClient = normalizeFolderToken(s.client_name || "Cliente")
-        const nonPlaceTag = Array.isArray(s.tags) ? s.tags.find((tg) => tg && !String(tg).toLowerCase().startsWith("place:") && !/^(stage|retention):/i.test(String(tg))) : null
+        const nonPlaceTag = Array.isArray(s.tags)
+          ? s.tags.find((tg) => tg && !String(tg).toLowerCase().startsWith("place:") && !/^(stage|retention):/i.test(String(tg)))
+          : null
         const cleanProj = normalizeFolderToken(nonPlaceTag || s.subcategory || s.category || "Sesion")
         const expected = `${cleanDate}_${cleanClient}_${cleanProj}`
         if (lowerFolder === expected) return s
       }
 
-      // 2. Coincidencia por fecha + nombre del cliente
       if (dateInFolder) {
         const byDateAndClient = sessionsList.find((s) => {
           if (s.session_date !== dateInFolder) return false
@@ -967,7 +963,6 @@ class NasSyncManager extends EventEmitter {
         if (byDateAndClient) return byDateAndClient
       }
 
-      // 3. Coincidencia por nombre de cliente
       return (
         sessionsList.find((s) => {
           const token = normalizeFolderToken(s.client_name)
@@ -1039,7 +1034,6 @@ class NasSyncManager extends EventEmitter {
 
     if (remoteMap !== null) this.saveCache()
 
-    // Ordenar: primero los entregados más pesados, luego el resto por peso
     projects.sort((a, b) => {
       if (a.isDelivered !== b.isDelivered) return a.isDelivered ? -1 : 1
       return b.bytes - a.bytes
@@ -1058,13 +1052,6 @@ class NasSyncManager extends EventEmitter {
     }
   }
 
-  /**
-   * Reciclaje Seguro con Verificación NAS obligatoria (y modo forceLocalTrash opcional si el usuario lo confirma):
-   * 1. Conecta al NAS en vivo (chequeo TCP rápido 2.5s) y verifica que cada foto/vídeo/documento exista con idéntico peso.
-   * 2. Si faltan archivos en el NAS, los sube primero automáticamente al NAS con barra de progreso.
-   * 3. Si falla la conexión al NAS o falla algún archivo (y no se pidió forceLocalTrash), ABORTA sin borrar nada en local.
-   * 4. Una vez respaldado en el NAS (o con forceLocalTrash confirmado por el usuario), mueve la carpeta a la Papelera de Reciclaje de Windows.
-   */
   async verifyAndRecycleProjects(projectFolders = [], options = {}) {
     const forceLocalTrash = Boolean(options && options.forceLocalTrash)
     const folders = Array.isArray(projectFolders) ? projectFolders.filter(Boolean) : [projectFolders].filter(Boolean)
@@ -1077,47 +1064,44 @@ class NasSyncManager extends EventEmitter {
       return { ok: false, error: "SSD_PATH_NOT_FOUND" }
     }
 
-    // 1. Recolectar todos los archivos locales de las carpetas seleccionadas
-    const allLocal = this.scanLocalTree(baseRoot)
+    const allLocal = await this.scanLocalTreeAsync(baseRoot)
     const targetSet = new Set(folders)
     const targetFiles = allLocal.filter((f) => targetSet.has(f.projectFolder))
 
     let syncedBeforeRecycle = 0
 
-    // Si hay archivos dentro de la carpeta y NO estamos en modo forzado sin NAS, verificar y sincronizar con NAS primero
     if (targetFiles.length > 0 && !forceLocalTrash) {
-      if (!cfg.nasPassword || !cfg.nasHost) {
+      const route = await resolveActiveNasRoute({ force: true })
+      if (!cfg.nasPassword || !route.activeHost) {
         return { ok: false, error: "NAS_NOT_CONFIGURED" }
       }
 
-      const tcpOk = await checkNasTcpReachable(cfg.nasHost, 21, 2500)
-      if (!tcpOk) {
+      if (!route.activeFtpOnline) {
         return {
           ok: false,
           error: "NAS_UNREACHABLE",
-          host: cfg.nasHost,
-          message: `NAS (${cfg.nasHost}:21) non connecté ou hors ligne`,
+          host: route.activeHost,
+          message: `NAS (${route.activeHost}:21) non connecté ou hors ligne`,
         }
       }
 
-      // 2. Conectar al NAS por FTP para auditoría real en vivo
       const ftp = require("basic-ftp")
       let remoteMap = null
       const auditClient = new ftp.Client(10000)
       this.activeFtpClients.add(auditClient)
       try {
         await auditClient.access({
-          host: cfg.nasHost,
+          host: route.activeHost,
           user: cfg.nasUser,
           password: cfg.nasPassword,
-          port: 21,
+          port: Number(cfg.nasPort) || 21,
         })
         remoteMap = await this.fetchRemoteTreeMap(auditClient, cfg.nasBaseDir, folders)
       } catch (err) {
         return {
           ok: false,
           error: "NAS_UNREACHABLE",
-          host: cfg.nasHost,
+          host: route.activeHost,
           message: err.message || String(err),
         }
       } finally {
@@ -1128,10 +1112,9 @@ class NasSyncManager extends EventEmitter {
       }
 
       if (remoteMap === null) {
-        return { ok: false, error: "NAS_UNREACHABLE", host: cfg.nasHost }
+        return { ok: false, error: "NAS_UNREACHABLE", host: route.activeHost }
       }
 
-      // 3. Detectar cualquier archivo que aún no esté sincronizado en el NAS
       const missingFiles = []
       for (const f of targetFiles) {
         const rSize = remoteMap.get(f.relPath)
@@ -1143,7 +1126,6 @@ class NasSyncManager extends EventEmitter {
       }
       this.saveCache()
 
-      // 4. Si hay archivos sin sincronizar en el NAS, sincronizarlos automáticamente antes de reciclar
       if (missingFiles.length > 0) {
         const syncResult = await this.syncFilesList(missingFiles, { force: true })
         if (!syncResult || !syncResult.ok || (syncResult.summary && syncResult.summary.failed > 0)) {
@@ -1157,7 +1139,6 @@ class NasSyncManager extends EventEmitter {
       }
     }
 
-    // 5. Enviar las carpetas locales a la Papelera de Reciclaje de Windows
     let freedBytes = 0
     const recycledProjects = []
     const failedRecycle = []
@@ -1173,7 +1154,6 @@ class NasSyncManager extends EventEmitter {
         await shell.trashItem(fullProjectPath)
         freedBytes += projBytes
         recycledProjects.push(folderName)
-        // Limpiar del mapa en tiempo real
         for (const f of targetFiles) {
           if (f.projectFolder === folderName) {
             this.knownRealtime.delete(f.fullPath)
@@ -1199,4 +1179,3 @@ class NasSyncManager extends EventEmitter {
 }
 
 module.exports = { NasSyncManager }
-

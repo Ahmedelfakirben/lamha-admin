@@ -150,8 +150,11 @@ class LamhaSystemTray {
       },
       {
         label: t.checkNas,
-        click: () => {
-          shell.openExternal("http://192.168.11.1")
+        click: async () => {
+          const { resolveActiveNasRoute, getConfig } = require("./config")
+          const route = await resolveActiveNasRoute()
+          const host = route.activeHost || getConfig().nasLanHost || getConfig().nasTailscaleHost
+          if (host) shell.openExternal(`http://${host}`)
         },
       },
       { type: "separator" },

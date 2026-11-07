@@ -40,6 +40,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // Ajustes
   getSettings: () => ipcRenderer.invoke("get-settings"),
   saveSettings: (settings) => ipcRenderer.invoke("save-settings", settings),
+  setNetworkMode: (mode) => ipcRenderer.invoke("set-network-mode", mode),
+  onSettingsUpdated: on("settings-updated"),
 
   // Autenticación y proyectos reales de Supabase
   authStatus: () => ipcRenderer.invoke("auth-status"),

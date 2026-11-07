@@ -1,81 +1,80 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getNasFtpConfig, saveNasFtpConfig } from "@/lib/storage-config"
+import { resolveActiveNasRoute, saveNasCentralConfig, NetworkRouteMode } from "@/lib/storage-config"
 import ftp from "basic-ftp"
 
 export const dynamic = "force-dynamic"
 
 export async function GET() {
-  const cfg = getNasFtpConfig()
-  let online = false
-  let latencyMs = -1
-  let errorMsg = ""
-
-  const t0 = Date.now()
-  const client = new ftp.Client(8000)
-  client.ftp.verbose = false
-  try {
-    await client.access({
-      host: cfg.host,
-      user: cfg.user,
-      password: cfg.password || "",
-      port: 21,
-    })
-    latencyMs = Date.now() - t0
-    online = true
-    client.close()
-  } catch (err: any) {
-    try { client.close() } catch {}
-    errorMsg = err.message || "Impossible de joindre le NAS"
-  }
-
+  const route = await resolveActiveNasRoute()
   return NextResponse.json({
-    host: cfg.host,
-    user: cfg.user,
-    baseDir: cfg.baseDir,
-    hasPassword: Boolean(cfg.password && cfg.password.length > 0),
-    online,
-    latencyMs,
-    error: errorMsg,
+    host: route.activeHost,
+    lanHost: route.lanHost,
+    tailscaleHost: route.tailscaleHost,
+    shareName: route.shareName,
+    networkMode: route.networkMode,
+    activeRoute: route.activeRoute,
+    user: route.user,
+    baseDir: route.baseDir,
+    hasPassword: route.hasPassword,
+    online: route.activeRoute !== "offline",
+    lanOnline: route.lanOnline,
+    tailscaleOnline: route.tailscaleOnline,
+    latencyMs: route.activeRoute === "lan" ? route.lanLatencyMs : route.tailscaleLatencyMs,
   })
 }
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { host, user, password, baseDir, testOnly } = body
+    const { host, lanHost, tailscaleHost, shareName, user, password, baseDir, networkMode, testOnly } = body
+    const current = await resolveActiveNasRoute()
 
     if (testOnly) {
+      const targetHost = (host || lanHost || tailscaleHost || current.activeHost || "").trim()
+      if (!targetHost) {
+        return NextResponse.json({ success: false, online: false, error: "IP no especificada" })
+      }
       const t0 = Date.now()
-      const client = new ftp.Client(8000)
+      const client = new ftp.Client(5000)
       client.ftp.verbose = false
       try {
         await client.access({
-          host: host || "192.168.11.1",
-          user: user || "admin",
-          password: password || getNasFtpConfig().password || "",
-          port: 21,
+          host: targetHost,
+          user: (user || current.user || "").trim(),
+          password: password || current.password || "",
+          port: current.ftpPort || 21,
         })
         const latencyMs = Date.now() - t0
         client.close()
         return NextResponse.json({ success: true, online: true, latencyMs })
       } catch (err: any) {
-        try { client.close() } catch {}
+        try {
+          client.close()
+        } catch {}
         return NextResponse.json({ success: false, online: false, error: err.message })
       }
     }
 
-    const patch: any = {}
-    if (host !== undefined) patch.host = host
-    if (user !== undefined) patch.user = user
-    if (password !== undefined && password !== "") patch.password = password
-    if (baseDir !== undefined) patch.baseDir = baseDir
+    const res = await saveNasCentralConfig({
+      lanHost: lanHost !== undefined ? lanHost : host,
+      tailscaleHost,
+      shareName,
+      user,
+      password,
+      baseDir,
+      networkMode: networkMode as NetworkRouteMode | undefined,
+    })
 
-    const ok = saveNasFtpConfig(patch)
-    if (!ok) {
-      return NextResponse.json({ success: false, error: "Échec de l'enregistrement du fichier de configuration" }, { status: 500 })
+    if (!res.ok) {
+      return NextResponse.json({ success: false, error: res.error }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true, message: "Configuration enregistrée avec succès" })
+    const updated = await resolveActiveNasRoute({ forceRefresh: true })
+    return NextResponse.json({
+      success: true,
+      route: updated,
+      message: "Configuración centralizada guardada correctamente",
+    })
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 })
   }
