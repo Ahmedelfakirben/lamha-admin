@@ -21,10 +21,11 @@ class LamhaBridgeServer {
 
   start() {
     this.server = http.createServer((req, res) => {
-      // Cabeceras CORS universales para permitir peticiones desde admin.lam7a.ma o localhost
+      // Cabeceras CORS universales para permitir peticiones desde admin.lam7a.ma / admin.lam7a.com o localhost
       res.setHeader("Access-Control-Allow-Origin", "*")
       res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization")
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Access-Control-Request-Private-Network")
+      res.setHeader("Access-Control-Allow-Private-Network", "true")
       res.setHeader("Content-Type", "application/json; charset=utf-8")
 
       if (req.method === "OPTIONS") {
@@ -513,16 +514,25 @@ class LamhaBridgeServer {
       res.end(JSON.stringify({ ok: false, error: "Not found" }))
     })
 
+    let currentPort = BRIDGE_PORT
     this.server.on("error", (err) => {
-      if (err.code === "EADDRINUSE") {
-        console.warn(`[BRIDGE] Puerto ${BRIDGE_PORT} en uso, reintentando o ya activo por otra instancia.`)
+      if (err.code === "EADDRINUSE" && currentPort === BRIDGE_PORT) {
+        currentPort = 41891
+        console.warn(`[BRIDGE] Puerto ${BRIDGE_PORT} en uso, escuchando en puerto secundario http://127.0.0.1:${currentPort}`)
+        try {
+          this.server.listen(currentPort, "127.0.0.1", () => {
+            console.log(`[BRIDGE] Servidor de enlace web ↔ escritorio escuchando en http://127.0.0.1:${currentPort}`)
+          })
+        } catch {}
+      } else if (err.code === "EADDRINUSE") {
+        console.warn(`[BRIDGE] Puerto ${currentPort} ya activo por otra instancia.`)
       } else {
         console.error("[BRIDGE] Error en servidor bridge:", err)
       }
     })
 
-    this.server.listen(BRIDGE_PORT, "127.0.0.1", () => {
-      console.log(`[BRIDGE] Servidor de enlace web ↔ escritorio escuchando en http://127.0.0.1:${BRIDGE_PORT}`)
+    this.server.listen(currentPort, "127.0.0.1", () => {
+      console.log(`[BRIDGE] Servidor de enlace web ↔ escritorio escuchando en http://127.0.0.1:${currentPort}`)
     })
   }
 
@@ -534,6 +544,11 @@ class LamhaBridgeServer {
       this.server = null
     }
   }
+}
+
+if (require.main === module) {
+  const srv = new LamhaBridgeServer({})
+  srv.start()
 }
 
 module.exports = { LamhaBridgeServer, BRIDGE_PORT }
