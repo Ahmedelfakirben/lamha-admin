@@ -121,6 +121,18 @@ function createWindow() {
 
   loadPanel()
 
+  // Evitar que el visor de fotos (lightbox fixed inset-0 z-[100]) quede debajo de los botones nativos de ventana de Windows (36px superiores)
+  mainWindow.webContents.on("did-finish-load", () => {
+    try {
+      mainWindow.webContents.insertCSS(`
+        div.fixed.inset-0.z-\\[100\\]:not(:fullscreen) {
+          top: 36px !important;
+          height: calc(100vh - 36px) !important;
+        }
+      `)
+    } catch {}
+  })
+
   // Atajos nativos de teclado en el contenedor de escritorio (F5, Ctrl+R, Ctrl+Shift+R, Ctrl+Shift+I)
   mainWindow.webContents.on("before-input-event", (event, input) => {
     if (input.type !== "keyDown") return

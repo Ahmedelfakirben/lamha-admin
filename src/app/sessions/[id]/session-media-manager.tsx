@@ -1475,7 +1475,7 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
         return (
           <div 
             ref={lightboxContainerRef}
-            className="fixed inset-0 z-[100] flex flex-col bg-[#070605]/98 backdrop-blur-2xl animate-in fade-in select-none overflow-hidden"
+            className={`${isFullscreen ? "fixed inset-0" : "fixed top-9 inset-x-0 bottom-0"} z-[100] flex flex-col bg-[#070605]/98 backdrop-blur-2xl animate-in fade-in select-none overflow-hidden`}
             onClick={() => {
               if (openMenuAssetId) setOpenMenuAssetId(null)
               if (isLightboxFolderMenuOpen) setIsLightboxFolderMenuOpen(false)
