@@ -3915,6 +3915,9 @@
       if (!(cap > 0) || !(trig > 0) || !(rel > 0)) return;
       if (trig >= cap) { warn.textContent = r.warnTrigger; warn.style.display = "block"; return; }
       if (rel >= trig) { warn.textContent = r.warnRelease; warn.style.display = "block"; return; }
+      const enabled = rtEl("rt-chk-enabled").checked;
+      const autoNotice = rtEl("rt-chk-notice").checked;
+      const autoPurge = rtEl("rt-chk-purge").checked;
       await window.electronAPI.saveSettings({
         retentionUnit: unit,
         retentionCapacityValue: cap,
@@ -3926,11 +3929,22 @@
         retentionGraceDays: Math.max(1, Math.round(Number(rtEl("rt-in-grace").value) || 7)),
         retentionMode: rtEl("rt-in-mode").value,
         retentionNoticeLang: rtEl("rt-in-lang").value,
-        retentionEnabled: rtEl("rt-chk-enabled").checked,
-        retentionAutoNotice: rtEl("rt-chk-notice").checked,
-        retentionAutoPurge: rtEl("rt-chk-purge").checked,
+        retentionEnabled: enabled,
+        retentionAutoNotice: autoNotice,
+        retentionAutoPurge: autoPurge,
       });
-      refreshRetention(true);
+      await refreshRetention(false);
+      const s = window.__rtLast;
+      if (enabled && autoNotice && s && s.overThreshold && s.plan && s.plan.items && s.plan.items.length > 0) {
+        const res = await window.electronAPI.runRetention("auto");
+        if (res && res.ok && res.notified && res.notified.length > 0) {
+          const okList = res.notified.filter((n) => n.notified);
+          const emails = okList.filter((n) => n.email).length;
+          const was = okList.filter((n) => n.whatsapp).length;
+          alert(`${r.saved}\n\n📨 Preaviso automático ejecutado: ${okList.length} proyecto(s) avisados (📧 ${emails} Email · 💬 ${was} WhatsApp).`);
+        }
+        await refreshRetention(false);
+      }
     };
     rtEl("rt-btn-refresh").onclick = () => refreshRetention(true);
     rtEl("rt-btn-notice").onclick = async () => {
@@ -3940,9 +3954,20 @@
       const unit = s.unit || "TB";
       const amt = unit === "GB" ? (s.plan.totalGb || (s.plan.totalTb * 1024).toFixed(1)) : s.plan.totalTb;
       if (!confirm(r.confirmNotice(s.plan.items.length, amt, unit))) return;
-      const res = await window.electronAPI.runRetention("notice");
-      if (res && res.ok) alert(r.done((res.purged || []).length, (res.notified || []).filter((n) => n.notified).length));
-      refreshRetention(true);
+      rtEl("rt-btn-notice").disabled = true;
+      try {
+        const res = await window.electronAPI.runRetention("notice");
+        if (res && res.ok) {
+          const list = res.notified || [];
+          const okList = list.filter((n) => n.notified);
+          const emails = okList.filter((n) => n.email).length;
+          const was = okList.filter((n) => n.whatsapp).length;
+          alert(`${r.done((res.purged || []).length, okList.length)}\n📧 Emails enviados: ${emails}\n💬 WhatsApps enviados: ${was}`);
+        }
+      } finally {
+        rtEl("rt-btn-notice").disabled = false;
+      }
+      refreshRetention(false);
     };
     rtEl("rt-btn-purge").onclick = async () => {
       const r = rtT();

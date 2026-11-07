@@ -348,7 +348,8 @@ class QnapRetentionManager extends EventEmitter {
     const unit = cfg.retentionUnit === "GB" ? "GB" : "TB"
     const unitMultiplier = unit === "GB" ? GB : TB
     const relVal = cfg.retentionReleaseValue !== undefined ? cfg.retentionReleaseValue : cfg.retentionReleaseTb
-    const need = relVal * unitMultiplier
+    const rawNeed = relVal * unitMultiplier
+    let alreadyWaitingBytes = 0
     const items = []
     let sum = 0
     const candidates = []
@@ -356,11 +357,16 @@ class QnapRetentionManager extends EventEmitter {
       const s = matchSession(p.folderName, sessions)
       if (!s || !isDelivered(s.status)) continue
       const tags = Array.isArray(s.tags) ? s.tags : []
-      if (hasTag(tags, "retention:vip_lock") || hasTag(tags, "retention:requested") || hasTag(tags, "retention:notified") || hasTag(tags, "retention:purged")) continue
+      if (hasTag(tags, "retention:vip_lock") || hasTag(tags, "retention:requested") || hasTag(tags, "retention:purged")) continue
       const reclaim = this._reclaimable(p, cfg.retentionMode)
       if (reclaim <= 0) continue
+      if (hasTag(tags, "retention:notified")) {
+        alreadyWaitingBytes += reclaim
+        continue
+      }
       candidates.push({ project: p, session: s, reclaim })
     }
+    const need = Math.max(0, rawNeed - alreadyWaitingBytes)
     candidates.sort((a, b) => String(a.session.session_date).localeCompare(String(b.session.session_date)))
     for (const c of candidates) {
       if (sum >= need) break
@@ -380,7 +386,7 @@ class QnapRetentionManager extends EventEmitter {
       totalGb: Number((sum / GB).toFixed(2)),
       totalTb: Number((sum / TB).toFixed(3)),
       totalFormatted: unit === "GB" ? `${Number((sum / GB).toFixed(2))} GB` : `${Number((sum / TB).toFixed(3))} TB`,
-      enough: sum >= need,
+      enough: sum + alreadyWaitingBytes >= rawNeed,
     }
   }
 
@@ -602,11 +608,12 @@ class QnapRetentionManager extends EventEmitter {
       days,
       deadline: deadlineDate.toLocaleDateString(lang === "ar" ? "ar-MA" : lang === "es" ? "es-ES" : lang === "en" ? "en-GB" : "fr-FR", { day: "2-digit", month: "long", year: "numeric" }),
       keepFinals: cfg.retentionMode === "keep_finals",
-      link: `${String(cfg.dashboardUrl).replace(/\/+$/, "")}/api/retention/request?session=${session.id}&lang=${lang}`,
+      link: `${String(cfg.dashboardUrl || "https://admin.lam7a.ma").replace(/\/+$/, "")}/api/retention/request?session=${session.id}&lang=${lang}`,
     }
     const msg = buildNoticeHtml(lang, v)
-    const res = { email: false, whatsapp: false }
+    const res = { email: false, whatsapp: false, emailError: null, whatsappError: null }
 
+    // 1. Envío de Email por SMTP (Microsoft Exchange / Office 365)
     if (session.client_email && session.client_email.includes("@") && cfg.smtpUser && cfg.smtpPass) {
       try {
         const nodemailer = require("nodemailer")
@@ -624,20 +631,58 @@ class QnapRetentionManager extends EventEmitter {
           html: msg.html,
         })
         res.email = true
-      } catch {}
+      } catch (e) {
+        res.emailError = e.message || String(e)
+        console.warn("[Retention] Error enviando email a", session.client_email, ":", res.emailError)
+      }
     }
 
+    // 2. Envío de WhatsApp: Prioridad 1 a través de admin.lam7a.ma/api/whatsapp/send (instancia conectada centralizada)
     const phone = engine.normalizePhoneForWhatsApp(session.client_phone)
-    if (phone && cfg.evolutionUrl && cfg.evolutionKey) {
-      try {
-        const r = await fetch(`${cfg.evolutionUrl}/message/sendText/${cfg.evolutionInstance || "lam7astudio"}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", apikey: cfg.evolutionKey },
-          body: JSON.stringify({ number: phone, text: msg.wa, delay: 1200, linkPreview: true }),
-        })
-        res.whatsapp = r.ok
-      } catch {}
+    if (phone) {
+      if (cfg.dashboardUrl) {
+        try {
+          const controller = new AbortController()
+          const tmr = setTimeout(() => controller.abort(), 12000)
+          const r = await fetch(`${String(cfg.dashboardUrl).replace(/\/+$/, "")}/api/whatsapp/send`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              phone,
+              text: msg.wa,
+              sessionId: session.id,
+            }),
+            signal: controller.signal,
+          })
+          clearTimeout(tmr)
+          if (r.ok) {
+            const j = await r.json().catch(() => ({}))
+            res.whatsapp = Boolean(j && j.success !== false)
+          } else {
+            const errTxt = await r.text().catch(() => "")
+            res.whatsappError = `HTTP ${r.status}: ${errTxt.slice(0, 140)}`
+          }
+        } catch (e) {
+          res.whatsappError = e.message || String(e)
+        }
+      }
+
+      // Prioridad 2: Fallback directo a Evolution API si tiene evolutionKey local
+      if (!res.whatsapp && cfg.evolutionUrl && cfg.evolutionKey) {
+        try {
+          const r = await fetch(`${cfg.evolutionUrl}/message/sendText/${cfg.evolutionInstance || "lam7astudio"}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", apikey: cfg.evolutionKey },
+            body: JSON.stringify({ number: phone, text: msg.wa, delay: 1200, linkPreview: true }),
+          })
+          res.whatsapp = r.ok
+          if (r.ok) res.whatsappError = null
+        } catch (e) {
+          res.whatsappError = e.message || String(e)
+        }
+      }
     }
+
     return { ...res, deadline: deadlineDate.toISOString() }
   }
 
@@ -653,7 +698,7 @@ class QnapRetentionManager extends EventEmitter {
       const notify = await this._notifyOne(s, lang)
       if (!notify.email && !notify.whatsapp) {
         // Sin canal de aviso efectivo: NO se inicia la cuenta atrás (nunca se borra sin avisar)
-        results.push({ ...item, notified: false })
+        results.push({ ...item, notified: false, emailError: notify.emailError, whatsappError: notify.whatsappError })
         continue
       }
       const tags = [...stripTags(s.tags, ["retention:notified", "retention:resent"]), `retention:notified:${Date.now()}`]
@@ -761,7 +806,8 @@ class QnapRetentionManager extends EventEmitter {
       const sessRes = await engine.listSessions()
       if (!sessRes || !sessRes.ok) return { ok: false, error: "NO_SESSIONS" }
       let sessions = sessRes.sessions
-      let scan = await this.scanUsage({ force: true })
+      let scan = await this.scanUsage({ force: false })
+      if (!scan.ok) scan = await this.scanUsage({ force: true })
       if (!scan.ok) return { ok: false, error: scan.error }
 
       let purged = []
@@ -780,14 +826,8 @@ class QnapRetentionManager extends EventEmitter {
       const triggerBytes = trigVal * unitMultiplier
       const over = scan.usedBytes >= triggerBytes
       if (forceNotice || (auto && cfg.retentionAutoNotice && over)) {
-        const waiting = sessions.some((s) => {
-          const tags = Array.isArray(s.tags) ? s.tags : []
-          return hasTag(tags, "retention:notified") && !hasTag(tags, "retention:requested") && !hasTag(tags, "retention:vip_lock") && !hasTag(tags, "retention:purged")
-        })
-        if (!waiting && (over || forceNotice)) {
-          const plan = this.buildPlan(scan, sessions)
-          if (plan.items.length) notified = await this.startNotice(plan, sessions)
-        }
+        const plan = this.buildPlan(scan, sessions)
+        if (plan.items.length) notified = await this.startNotice(plan, sessions)
       }
       this.lastRun = { at: Date.now(), purged: purged.length, notified: notified.filter((n) => n.notified).length }
       this.emit("changed", this.lastRun)
