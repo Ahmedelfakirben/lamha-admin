@@ -102,12 +102,19 @@ let sb = null
 let sbSignature = ""
 
 function authStorage() {
-  const file = path.join(app.getPath("userData"), "auth-session.bin")
+  const baseDir =
+    app && typeof app.getPath === "function"
+      ? app.getPath("userData")
+      : process.env.APPDATA
+      ? path.join(process.env.APPDATA, "lamha-admin")
+      : process.cwd()
+  const file = path.join(baseDir, "auth-session.bin")
+  const canEncrypt = Boolean(safeStorage && typeof safeStorage.isEncryptionAvailable === "function" && safeStorage.isEncryptionAvailable())
   const read = () => {
     try {
       if (!fs.existsSync(file)) return {}
       const buf = fs.readFileSync(file)
-      const txt = safeStorage.isEncryptionAvailable() ? safeStorage.decryptString(buf) : buf.toString("utf-8")
+      const txt = canEncrypt ? safeStorage.decryptString(buf) : buf.toString("utf-8")
       return JSON.parse(txt)
     } catch {
       return {}
@@ -115,7 +122,7 @@ function authStorage() {
   }
   const write = (obj) => {
     const txt = JSON.stringify(obj)
-    fs.writeFileSync(file, safeStorage.isEncryptionAvailable() ? safeStorage.encryptString(txt) : Buffer.from(txt, "utf-8"))
+    fs.writeFileSync(file, canEncrypt ? safeStorage.encryptString(txt) : Buffer.from(txt, "utf-8"))
   }
   return {
     getItem: (k) => {

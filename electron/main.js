@@ -672,6 +672,14 @@ app.whenReady().then(async () => {
       return { ok: false, error: e.message || String(e) }
     }
   })
+  ipcMain.handle("retention-toggle-vip", async (_e, sessionId, lock = true) => {
+    if (!retentionManager) return { ok: false, error: "NO_MANAGER" }
+    try {
+      return await retentionManager.toggleVipLock(sessionId, Boolean(lock))
+    } catch (e) {
+      return { ok: false, error: e.message || String(e) }
+    }
+  })
   ipcMain.handle("retention-run", async (_e, action) => {
     if (!retentionManager) return { ok: false, error: "NO_MANAGER" }
     const res = await retentionManager.runCycle({

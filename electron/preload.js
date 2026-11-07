@@ -74,6 +74,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // Ciclo de vida QNAP
   getRetentionStatus: (force = false) => ipcRenderer.invoke("retention-get-status", Boolean(force)),
   runRetention: (action) => ipcRenderer.invoke("retention-run", action),
+  toggleRetentionVip: (sessionId, lock) => ipcRenderer.invoke("retention-toggle-vip", sessionId, Boolean(lock)),
 
   // Mini ventana
   miniExpand: () => ipcRenderer.send("mini-expand"),

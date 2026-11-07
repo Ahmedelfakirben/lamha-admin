@@ -923,27 +923,41 @@
           <div class="accordion-body">
             <!-- card id="retention-card" content preserved -->
             <div id="retention-card">
-              <p id="rt-desc" style="font-size:12px;color:var(--text-muted);line-height:1.5;margin-bottom:12px;"></p>
-              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:8px;margin-bottom:12px;">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
+                <p id="rt-desc" style="font-size:12px;color:var(--text-muted);line-height:1.5;margin:0;flex:1;min-width:240px;"></p>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                  <button id="rt-btn-preset-qnap" type="button" class="select-input" style="width:auto;cursor:pointer;padding:5px 10px;font-size:11px;border-color:rgba(16,185,129,0.45);color:#10b981;font-weight:600;" title="Restaurar capacidad real del RAID QNAP">
+                    <span id="rt-txt-preset-qnap">💾 QNAP Real (TB)</span>
+                  </button>
+                  <button id="rt-btn-preset-test" type="button" class="select-input" style="width:auto;cursor:pointer;padding:5px 10px;font-size:11px;border-color:rgba(212,175,55,0.45);color:var(--gold);font-weight:600;" title="Simular umbral bajo en GB para probar el lote previsto sin borrar nada">
+                    <span id="rt-txt-preset-test">🧪 Simular Prueba (25 GB)</span>
+                  </button>
+                </div>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:12px;">
                 <div style="background:var(--input-bg);border:1px solid var(--card-border);border-radius:10px;padding:9px 12px;">
                   <div id="rt-kpi-total-lbl" style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Espace Total</div>
                   <div id="rt-kpi-total-val" style="font-size:15px;font-weight:700;color:var(--text);margin-top:2px;">—</div>
+                  <div id="rt-kpi-total-sub" style="font-size:10px;color:var(--text-muted);margin-top:2px;"></div>
                 </div>
                 <div style="background:var(--input-bg);border:1px solid var(--card-border);border-radius:10px;padding:9px 12px;">
                   <div id="rt-kpi-used-lbl" style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Espace Utilisé</div>
                   <div id="rt-kpi-used-val" style="font-size:15px;font-weight:700;color:#10b981;margin-top:2px;">—</div>
+                  <div id="rt-kpi-used-sub" style="font-size:10px;color:var(--text-muted);margin-top:2px;"></div>
                 </div>
                 <div style="background:var(--input-bg);border:1px solid var(--card-border);border-radius:10px;padding:9px 12px;">
                   <div id="rt-kpi-free-lbl" style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Espace Libre</div>
                   <div id="rt-kpi-free-val" style="font-size:15px;font-weight:700;color:#38bdf8;margin-top:2px;">—</div>
+                  <div id="rt-kpi-free-sub" style="font-size:10px;color:var(--text-muted);margin-top:2px;"></div>
                 </div>
                 <div style="background:var(--input-bg);border:1px solid var(--card-border);border-radius:10px;padding:9px 12px;">
                   <div id="rt-kpi-trig-lbl" style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Seuil Alerte</div>
                   <div id="rt-kpi-trig-val" style="font-size:15px;font-weight:700;color:var(--gold);margin-top:2px;">—</div>
+                  <div id="rt-kpi-trig-sub" style="font-size:10px;color:var(--text-muted);margin-top:2px;"></div>
                 </div>
               </div>
               <div style="background:var(--input-bg);border:1px solid var(--card-border);border-radius:12px;padding:12px 14px;margin-bottom:12px;">
-                <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px;">
+                <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px;gap:8px;flex-wrap:wrap;">
                   <span id="rt-usage-text">—</span>
                   <span id="rt-usage-state" style="font-weight:700;">—</span>
                 </div>
@@ -951,22 +965,24 @@
                   <div id="rt-bar" style="height:100%;width:0%;background:#10b981;transition:width .4s;"></div>
                   <div id="rt-marker" style="position:absolute;top:0;bottom:0;width:2px;background:var(--gold);left:70%;"></div>
                 </div>
-                <div id="rt-summary" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;font-size:11px;"></div>
+                <div id="rt-summary" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;font-size:11px;"></div>
               </div>
-              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px;">
-                <label style="font-size:11px;color:var(--text-muted);display:flex;flex-direction:column;gap:4px;"><span id="rt-lbl-unit"></span>
-                  <select id="rt-in-unit" class="select-input">
-                    <option value="TB">TB (Téraoctets - QNAP)</option>
-                    <option value="GB">GB (Gigaoctets - Test)</option>
-                  </select></label>
+              <div style="display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:10px;margin-bottom:10px;">
                 <label style="font-size:11px;color:var(--text-muted);display:flex;flex-direction:column;gap:4px;"><span id="rt-lbl-capacity"></span>
-                  <input id="rt-in-capacity" class="text-input" type="number" step="0.1" min="0.1" /></label>
+                  <input id="rt-in-capacity" class="text-input" type="number" step="0.01" min="0.1" /></label>
                 <label style="font-size:11px;color:var(--text-muted);display:flex;flex-direction:column;gap:4px;"><span id="rt-lbl-trigger"></span>
-                  <input id="rt-in-trigger" class="text-input" type="number" step="0.1" min="0.1" /></label>
+                  <input id="rt-in-trigger" class="text-input" type="number" step="0.01" min="0.1" /></label>
                 <label style="font-size:11px;color:var(--text-muted);display:flex;flex-direction:column;gap:4px;"><span id="rt-lbl-release"></span>
-                  <input id="rt-in-release" class="text-input" type="number" step="0.1" min="0.1" /></label>
+                  <input id="rt-in-release" class="text-input" type="number" step="0.01" min="0.1" /></label>
                 <label style="font-size:11px;color:var(--text-muted);display:flex;flex-direction:column;gap:4px;"><span id="rt-lbl-grace"></span>
                   <input id="rt-in-grace" class="text-input" type="number" step="1" min="1" /></label>
+              </div>
+              <div style="display:grid;grid-template-columns:minmax(180px,1.2fr) minmax(240px,2fr) minmax(130px,0.9fr);gap:10px;margin-bottom:12px;">
+                <label style="font-size:11px;color:var(--text-muted);display:flex;flex-direction:column;gap:4px;"><span id="rt-lbl-unit"></span>
+                  <select id="rt-in-unit" class="select-input">
+                    <option value="TB">TB (Terabytes — QNAP Real)</option>
+                    <option value="GB">GB (Gigabytes — Simulación / Test)</option>
+                  </select></label>
                 <label style="font-size:11px;color:var(--text-muted);display:flex;flex-direction:column;gap:4px;"><span id="rt-lbl-mode"></span>
                   <select id="rt-in-mode" class="select-input"><option value="keep_finals"></option><option value="delete_all"></option></select></label>
                 <label style="font-size:11px;color:var(--text-muted);display:flex;flex-direction:column;gap:4px;"><span id="rt-lbl-lang"></span>
@@ -983,7 +999,7 @@
                 <button id="rt-btn-notice" class="select-input" style="width:auto;cursor:pointer;padding:8px 14px;font-size:12px;border-color:var(--gold);color:var(--gold);"><span id="rt-txt-notice"></span></button>
                 <button id="rt-btn-purge" class="select-input" style="width:auto;cursor:pointer;padding:8px 14px;font-size:12px;border-color:#ef4444;color:#ef4444;"><span id="rt-txt-purge"></span></button>
               </div>
-              <div id="rt-lists" style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;font-size:12px;"></div>
+              <div id="rt-lists" style="display:flex;flex-direction:column;gap:6px;max-height:280px;overflow-y:auto;font-size:12px;"></div>
             </div>
           </div>
         </div>
@@ -3335,6 +3351,7 @@
     // ---------------------------------------------------------------------
     // Ciclo de vida QNAP / Almacenamiento en red (preaviso + reciclaje automático)
     // ---------------------------------------------------------------------
+    let currentRetentionFilter = "all";
     const RT = {
       fr: {
         title: "Cycle de vie du stockage réseau — Préavis & recyclage automatique",
@@ -3344,6 +3361,9 @@
         kpiUsed: "Espace Utilisé",
         kpiFree: "Espace Libre",
         kpiTrig: "Seuil d'Alerte",
+        usedWord: "utilisé",
+        presetQnap: "💾 QNAP Réel (TB)",
+        presetTest: "🧪 Simuler Test (25 GB)",
         capacity: (u) => `Capacité (${u})`,
         trigger: (u) => `Seuil de déclenchement (${u})`,
         release: (u) => `Volume à libérer (${u})`,
@@ -3360,12 +3380,14 @@
         purge: "Supprimer les projets échus maintenant",
         ok: "Espace OK",
         over: "Seuil dépassé",
+        allTab: "Tous",
         waiting: "En préavis",
-        requested: "Copie demandée (bloqués)",
+        requested: "Copie demandée",
         ready: "Prêts à recycler",
         plan: "Lot prévu",
+        vipTab: "Protégés VIP",
         daysLeft: (d) => `${d} j restants`,
-        none: "Aucun projet pour le moment.",
+        none: "Aucun projet dans cette catégorie.",
         noNas: "Stockage réseau injoignable ou non configuré.",
         detected: (n, h) => `🟢 Stockage connecté (${h}) — ${n} dossier(s) mesuré(s) :`,
         belowThreshold: (trig, u) => `Espace bien en dessous du seuil (${trig} ${u}) — Fichiers protégés, aucun recyclage nécessaire.`,
@@ -3376,6 +3398,17 @@
         confirmPurge: "Supprimer DÉFINITIVEMENT les projets dont le délai est échu et sans demande client ?",
         noPlan: "Aucun projet livré éligible pour le moment.",
         done: (p, n) => `Terminé : ${n} avis envoyés, ${p} projet(s) supprimés.`,
+        btnLockVip: "🔒 Protéger VIP",
+        btnUnlockVip: "🔓 Débloquer",
+        badgePlanned: "🎯 Lot prévu",
+        badgeWaiting: "⏳ En préavis",
+        badgeRequested: "🛑 Copie demandée",
+        badgeVip: "🔒 Protégé VIP",
+        badgeReady: "♻️ Prêt à recycler",
+        badgeDelivered: "✅ Livré",
+        badgeActive: "📸 En cours",
+        realRaidSub: (tb) => `RAID QNAP réel : ${tb} TB`,
+        projectsSub: (n) => `${n} dossier(s) de projets`,
       },
       es: {
         title: "Ciclo de vida del almacenamiento en red — Preaviso y reciclaje automático",
@@ -3385,6 +3418,9 @@
         kpiUsed: "Espacio Usado",
         kpiFree: "Espacio Libre",
         kpiTrig: "Umbral de Alerta",
+        usedWord: "usado",
+        presetQnap: "💾 QNAP Real (TB)",
+        presetTest: "🧪 Simular Prueba (25 GB)",
         capacity: (u) => `Capacidad (${u})`,
         trigger: (u) => `Umbral de disparo (${u})`,
         release: (u) => `Volumen a liberar (${u})`,
@@ -3401,12 +3437,14 @@
         purge: "Borrar proyectos vencidos ahora",
         ok: "Espacio OK",
         over: "Umbral superado",
+        allTab: "Todos",
         waiting: "En preaviso",
-        requested: "Copia solicitada (bloqueados)",
+        requested: "Copia solicitada",
         ready: "Listos para reciclar",
         plan: "Lote previsto",
+        vipTab: "Protegidos VIP",
         daysLeft: (d) => `${d} d restantes`,
-        none: "Ningún proyecto por ahora.",
+        none: "Ningún proyecto en esta categoría.",
         noNas: "Unidad de red inaccesible o sin configurar.",
         detected: (n, h) => `🟢 Almacenamiento conectado (${h}) — ${n} carpeta(s) medida(s):`,
         belowThreshold: (trig, u) => `Espacio muy por debajo del umbral (${trig} ${u}) — Archivos protegidos, no requiere reciclaje.`,
@@ -3417,6 +3455,17 @@
         confirmPurge: "¿Borrar DEFINITIVAMENTE los proyectos con plazo vencido y sin solicitud del cliente?",
         noPlan: "No hay proyectos entregados elegibles por ahora.",
         done: (p, n) => `Terminado: ${n} avisos enviados, ${p} proyecto(s) borrados.`,
+        btnLockVip: "🔒 Proteger VIP",
+        btnUnlockVip: "🔓 Desbloquear",
+        badgePlanned: "🎯 Lote previsto",
+        badgeWaiting: "⏳ En preaviso",
+        badgeRequested: "🛑 Copia solicitada",
+        badgeVip: "🔒 Protegido VIP",
+        badgeReady: "♻️ Listo para reciclar",
+        badgeDelivered: "✅ Entregado",
+        badgeActive: "📸 En curso",
+        realRaidSub: (tb) => `RAID QNAP real: ${tb} TB`,
+        projectsSub: (n) => `${n} carpeta(s) de proyectos`,
       },
       en: {
         title: "Network storage lifecycle — Notice & automatic recycling",
@@ -3426,6 +3475,9 @@
         kpiUsed: "Used Space",
         kpiFree: "Free Space",
         kpiTrig: "Alert Threshold",
+        usedWord: "used",
+        presetQnap: "💾 Real QNAP (TB)",
+        presetTest: "🧪 Simulate Test (25 GB)",
         capacity: (u) => `Capacity (${u})`,
         trigger: (u) => `Trigger threshold (${u})`,
         release: (u) => `Volume to free (${u})`,
@@ -3442,12 +3494,14 @@
         purge: "Delete expired projects now",
         ok: "Space OK",
         over: "Threshold exceeded",
+        allTab: "All",
         waiting: "In notice period",
-        requested: "Copy requested (locked)",
+        requested: "Copy requested",
         ready: "Ready to recycle",
         plan: "Planned batch",
+        vipTab: "VIP Protected",
         daysLeft: (d) => `${d} d left`,
-        none: "No projects right now.",
+        none: "No projects in this category.",
         noNas: "Network storage unreachable or not configured.",
         detected: (n, h) => `🟢 Storage connected (${h}) — ${n} measured folder(s):`,
         belowThreshold: (trig, u) => `Space well below threshold (${trig} ${u}) — Files safe, no recycling needed.`,
@@ -3458,6 +3512,17 @@
         confirmPurge: "PERMANENTLY delete projects whose grace period expired and with no client request?",
         noPlan: "No eligible delivered projects right now.",
         done: (p, n) => `Done: ${n} notices sent, ${p} project(s) deleted.`,
+        btnLockVip: "🔒 VIP Protect",
+        btnUnlockVip: "🔓 Unlock",
+        badgePlanned: "🎯 Planned batch",
+        badgeWaiting: "⏳ In notice",
+        badgeRequested: "🛑 Copy requested",
+        badgeVip: "🔒 VIP Protected",
+        badgeReady: "♻️ Ready to recycle",
+        badgeDelivered: "✅ Delivered",
+        badgeActive: "📸 Active",
+        realRaidSub: (tb) => `Real QNAP RAID: ${tb} TB`,
+        projectsSub: (n) => `${n} project folder(s)`,
       },
       ar: {
         title: "دورة حياة التخزين الشبكي — إشعار وإعادة تدوير تلقائية",
@@ -3467,6 +3532,9 @@
         kpiUsed: "المساحة المستخدمة",
         kpiFree: "المساحة الفارغة",
         kpiTrig: "حد التنبيه",
+        usedWord: "مستخدم",
+        presetQnap: "💾 سعة QNAP الحقيقية (TB)",
+        presetTest: "🧪 وضع التجربة (25 GB)",
         capacity: (u) => `السعة (${u})`,
         trigger: (u) => `حد التشغيل (${u})`,
         release: (u) => `الحجم المراد تحريره (${u})`,
@@ -3483,12 +3551,14 @@
         purge: "حذف المشاريع المنتهية الآن",
         ok: "المساحة جيدة",
         over: "تم تجاوز الحد",
+        allTab: "الكل",
         waiting: "في مهلة الإشعار",
-        requested: "طلب نسخة (محمية)",
+        requested: "طلب نسخة",
         ready: "جاهزة لإعادة التدوير",
         plan: "الدفعة المقترحة",
+        vipTab: "محمية VIP",
         daysLeft: (d) => `متبقي ${d} يوم`,
-        none: "لا توجد مشاريع حالياً.",
+        none: "لا توجد مشاريع في هذه الفئة.",
         noNas: "التخزين غير متاح أو غير مُهيّأ.",
         detected: (n, h) => `🟢 التخزين متصل (${h}) — ${n} مجلدات تم قياسها:`,
         belowThreshold: (trig, u) => `المساحة أقل بكثير من الحد (${trig} ${u}) — الملفات محمية، لا داعي لإعادة التدوير.`,
@@ -3499,6 +3569,17 @@
         confirmPurge: "حذف نهائي للمشاريع المنتهية مهلتها والتي لم يطلب العميل نسخة منها؟",
         noPlan: "لا توجد مشاريع مُسلَّمة مؤهلة حالياً.",
         done: (p, n) => `تم: ${n} إشعار مرسل، ${p} مشروع محذوف.`,
+        btnLockVip: "🔒 حماية VIP",
+        btnUnlockVip: "🔓 إلغاء الحماية",
+        badgePlanned: "🎯 دفعة مقترحة",
+        badgeWaiting: "⏳ في مهلة",
+        badgeRequested: "🛑 طلب نسخة",
+        badgeVip: "🔒 محمي VIP",
+        badgeReady: "♻️ جاهز للحذف",
+        badgeDelivered: "✅ تم التسليم",
+        badgeActive: "📸 قيد العمل",
+        realRaidSub: (tb) => `مساحة QNAP الفعلية: ${tb} TB`,
+        projectsSub: (n) => `${n} مجلدات مشاريع`,
       },
     };
     const rtT = () => RT[currentLang] || RT.fr;
@@ -3515,6 +3596,8 @@
       set("rt-kpi-used-lbl", r.kpiUsed);
       set("rt-kpi-free-lbl", r.kpiFree);
       set("rt-kpi-trig-lbl", r.kpiTrig);
+      set("rt-txt-preset-qnap", r.presetQnap);
+      set("rt-txt-preset-test", r.presetTest);
       set("rt-lbl-capacity", r.capacity(unit));
       set("rt-lbl-trigger", r.trigger(unit));
       set("rt-lbl-release", r.release(unit));
@@ -3530,6 +3613,22 @@
       const sel = rtEl("rt-in-mode");
       if (sel) { sel.options[0].textContent = r.modeKeep; sel.options[1].textContent = r.modeAll; }
       if (window.__rtLast) renderRetentionStatus(window.__rtLast);
+    }
+
+    function syncRetentionInputsFromStatus(s) {
+      if (!s || !s.settings) return;
+      const st = s.settings;
+      if (document.activeElement && document.activeElement.id && document.activeElement.id.startsWith("rt-in-")) return;
+      if (st.unit && rtEl("rt-in-unit")) rtEl("rt-in-unit").value = st.unit;
+      if (st.capacityValue !== undefined && rtEl("rt-in-capacity")) rtEl("rt-in-capacity").value = st.capacityValue;
+      if (st.triggerValue !== undefined && rtEl("rt-in-trigger")) rtEl("rt-in-trigger").value = st.triggerValue;
+      if (st.releaseValue !== undefined && rtEl("rt-in-release")) rtEl("rt-in-release").value = st.releaseValue;
+      if (st.graceDays !== undefined && rtEl("rt-in-grace")) rtEl("rt-in-grace").value = st.graceDays;
+      if (st.mode && rtEl("rt-in-mode")) rtEl("rt-in-mode").value = st.mode;
+      if (st.noticeLang && rtEl("rt-in-lang")) rtEl("rt-in-lang").value = st.noticeLang;
+      if (rtEl("rt-chk-enabled")) rtEl("rt-chk-enabled").checked = Boolean(st.enabled);
+      if (rtEl("rt-chk-notice")) rtEl("rt-chk-notice").checked = Boolean(st.autoNotice);
+      if (rtEl("rt-chk-purge")) rtEl("rt-chk-purge").checked = Boolean(st.autoPurge);
     }
 
     function renderRetentionStatus(s) {
@@ -3550,6 +3649,8 @@
         return;
       }
 
+      syncRetentionInputsFromStatus(s);
+
       const unit = s.unit || (rtEl("rt-in-unit") && rtEl("rt-in-unit").value) || "TB";
       const isGb = unit === "GB";
 
@@ -3561,73 +3662,176 @@
       const usedPct = s.usedPercent !== undefined ? s.usedPercent : (totalVal > 0 ? Number(((usedVal / totalVal) * 100).toFixed(1)) : 0);
       const freePct = s.freePercent !== undefined ? s.freePercent : Math.max(0, Number((100 - usedPct).toFixed(1)));
 
+      const statusColor = s.overThreshold ? "#ef4444" : (usedVal >= trigVal * 0.85 ? "#f59e0b" : "#10b981");
+
       // Visualización en tarjetas KPI
       rtEl("rt-kpi-total-val").textContent = isGb ? `${totalVal.toFixed(1)} GB` : `${totalVal.toFixed(2)} TB`;
-      rtEl("rt-kpi-used-val").textContent = isGb
+      if (rtEl("rt-kpi-total-sub")) {
+        rtEl("rt-kpi-total-sub").textContent = s.diskTotalTb ? r.realRaidSub(s.diskTotalTb.toFixed(2)) : "";
+      }
+
+      const usedEl = rtEl("rt-kpi-used-val");
+      usedEl.textContent = isGb
         ? `${usedVal.toFixed(2)} GB (${usedPct}%)`
         : (s.usedGb >= 1024 ? `${usedVal.toFixed(2)} TB (${usedPct}%)` : `${(s.usedGb || 0).toFixed(2)} GB (${usedPct}%)`);
+      usedEl.style.color = statusColor;
+      if (rtEl("rt-kpi-used-sub")) {
+        rtEl("rt-kpi-used-sub").textContent = r.projectsSub((s.projects || []).length);
+      }
+
       rtEl("rt-kpi-free-val").textContent = isGb ? `${freeVal.toFixed(1)} GB (${freePct}%)` : `${freeVal.toFixed(2)} TB (${freePct}%)`;
+      if (rtEl("rt-kpi-free-sub")) {
+        rtEl("rt-kpi-free-sub").textContent = s.diskFreeTb ? `RAID Libre: ${s.diskFreeTb.toFixed(2)} TB` : "";
+      }
+
       rtEl("rt-kpi-trig-val").textContent = `${trigVal} ${unit}`;
+      if (rtEl("rt-kpi-trig-sub")) {
+        const relVal = s.releaseValue !== undefined ? s.releaseValue : (s.settings && s.settings.releaseValue) || 0;
+        rtEl("rt-kpi-trig-sub").textContent = `${r.release(unit)}: ${relVal} ${unit}`;
+      }
 
       // Barra de progreso y marcador
       const pctForBar = Math.min(100, Math.max(usedPct, (s.usedBytes > 0 ? 1.5 : 0)));
       const bar = rtEl("rt-bar");
       bar.style.width = pctForBar + "%";
-      bar.style.background = s.overThreshold ? "#ef4444" : (usedVal >= trigVal * 0.85 ? "#f59e0b" : "#10b981");
+      bar.style.background = statusColor;
 
       const trigPct = totalVal > 0 ? Math.min(100, (trigVal / totalVal) * 100) : 70;
       rtEl("rt-marker").style.left = trigPct + "%";
 
       // Texto de uso y badge
       if (isGb) {
-        rtEl("rt-usage-text").textContent = `${s.nasHost || "Stockage"} : ${usedVal.toFixed(2)} GB / ${totalVal.toFixed(1)} GB (${usedPct}% utilisé)`;
+        rtEl("rt-usage-text").textContent = `${s.nasHost || "NAS"} : ${usedVal.toFixed(2)} GB / ${totalVal.toFixed(1)} GB (${usedPct}% ${r.usedWord})`;
         badge.textContent = `${usedVal.toFixed(2)} / ${totalVal.toFixed(1)} GB`;
       } else {
         const detailStr = (s.usedGb || 0) < 1024 ? ` (${(s.usedGb || 0).toFixed(2)} GB)` : "";
-        rtEl("rt-usage-text").textContent = `${s.nasHost || "QNAP"} : ${usedVal.toFixed(3)} TB${detailStr} / ${totalVal.toFixed(2)} TB (${usedPct}% utilisé)`;
-        badge.textContent = `${usedVal >= 0.05 ? usedVal.toFixed(2) : (s.usedGb || 0).toFixed(2) + ' GB'} / ${totalVal.toFixed(2)} TB`;
+        rtEl("rt-usage-text").textContent = `${s.nasHost || "QNAP"} : ${usedVal.toFixed(3)} TB${detailStr} / ${totalVal.toFixed(2)} TB (${usedPct}% ${r.usedWord})`;
+        badge.textContent = `${usedVal >= 0.05 ? usedVal.toFixed(2) + " TB" : (s.usedGb || 0).toFixed(2) + " GB"} / ${totalVal.toFixed(2)} TB`;
       }
 
       const st = rtEl("rt-usage-state");
       st.textContent = s.overThreshold ? r.over : r.ok;
-      st.style.color = s.overThreshold ? "#ef4444" : "#10b981";
+      st.style.color = statusColor;
 
-      const pill = (txt, color) => `<span style="padding:3px 9px;border-radius:999px;border:1px solid ${color};color:${color};">${txt}</span>`;
+      const plannedIds = new Set(((s.plan && s.plan.items) || []).map((i) => i.sessionId));
+      const allProjects = (s.projects || []).map((p) => ({
+        ...p,
+        isPlanned: Boolean(p.sessionId && plannedIds.has(p.sessionId)),
+      }));
+      const vipCount = allProjects.filter((p) => p.isVipLocked).length;
+
+      const pill = (filterKey, txt, color) => {
+        const active = currentRetentionFilter === filterKey;
+        const bg = active ? "rgba(212,175,55,0.18)" : "transparent";
+        const fw = active ? "700" : "500";
+        return `<button type="button" data-rt-filter="${filterKey}" style="cursor:pointer;padding:4px 10px;border-radius:999px;border:1px solid ${color};background:${bg};color:${color};font-size:11px;font-weight:${fw};transition:all .15s;">${txt}</button>`;
+      };
       const planAmt = s.plan ? (isGb ? `${s.plan.totalGb || (s.plan.totalTb * 1024).toFixed(1)} GB` : `${s.plan.totalTb} TB`) : `0 ${unit}`;
       rtEl("rt-summary").innerHTML =
-        pill(`⏳ ${r.waiting}: ${(s.waiting || []).length}`, "#38bdf8") +
-        pill(`${r.requested}: ${(s.requested || []).length}`, "#f59e0b") +
-        pill(`${r.ready}: ${(s.expiredReady || []).length}`, "#10b981") +
-        pill(`${r.plan}: ${(s.plan && s.plan.items ? s.plan.items.length : 0)} (${planAmt})`, "var(--gold)");
+        pill("all", `📁 ${r.allTab}: ${allProjects.length}`, "var(--text)") +
+        pill("plan", `🎯 ${r.plan}: ${(s.plan && s.plan.items ? s.plan.items.length : 0)} (${planAmt})`, "var(--gold)") +
+        pill("waiting", `⏳ ${r.waiting}: ${(s.waiting || []).length}`, "#38bdf8") +
+        pill("requested", `🛑 ${r.requested}: ${(s.requested || []).length}`, "#f59e0b") +
+        pill("vip", `🔒 ${r.vipTab}: ${vipCount}`, "#a855f7") +
+        pill("ready", `♻️ ${r.ready}: ${(s.expiredReady || []).length}`, "#10b981");
 
-      const row = (icon, name, extra) =>
-        `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 10px;background:var(--input-bg);border:1px solid var(--card-border);border-radius:8px;font-size:12px;"><span>${icon} ${escapeHtml(name)}</span><span style="color:var(--text-muted);font-size:11px;font-family:monospace;">${escapeHtml(extra)}</span></div>`;
-      const rows = [];
-      (s.requested || []).forEach((x) => rows.push(row("", x.clientName, x.sessionDate)));
-      (s.waiting || []).forEach((x) => rows.push(row("⏳", x.clientName, r.daysLeft(x.daysLeft))));
-      (s.expiredReady || []).forEach((x) => rows.push(row("", x.clientName, x.sessionDate)));
-      if (s.plan && s.plan.items && s.plan.items.length) {
-        s.plan.items.forEach((x) => rows.push(row("", x.clientName, `${x.sessionDate} · ${x.gb} GB`)));
+      rtEl("rt-summary").querySelectorAll("[data-rt-filter]").forEach((btn) => {
+        btn.onclick = () => {
+          currentRetentionFilter = btn.getAttribute("data-rt-filter") || "all";
+          renderRetentionStatus(window.__rtLast);
+        };
+      });
+
+      const filtered = allProjects.filter((p) => {
+        if (currentRetentionFilter === "plan") return p.isPlanned;
+        if (currentRetentionFilter === "waiting") return p.retentionState === "waiting";
+        if (currentRetentionFilter === "requested") return p.retentionState === "requested";
+        if (currentRetentionFilter === "vip") return Boolean(p.isVipLocked);
+        if (currentRetentionFilter === "ready") return p.retentionState === "expired";
+        return true;
+      });
+
+      if (!filtered.length) {
+        rtEl("rt-lists").innerHTML = `<div style="color:var(--text-muted);padding:8px 4px;">${r.none}</div>`;
+        return;
       }
 
-      if (rows.length) {
-        rtEl("rt-lists").innerHTML = rows.join("");
-      } else if (s.projects && s.projects.length) {
-        const projRows = s.projects.map((p) => {
-          const gb = (p.bytes / 1024 ** 3).toFixed(2);
-          const mb = (p.bytes / 1024 ** 2).toFixed(1);
-          const sizeStr = Number(gb) >= 0.1 ? `${gb} GB` : `${mb} MB`;
-          const countStr = p.filesCount ? `${p.filesCount} arch. · ` : "";
-          return row("", p.folderName, `${countStr}${sizeStr}`);
-        });
-        rtEl("rt-lists").innerHTML = `
-          <div style="font-size:11px;font-weight:700;color:var(--gold);margin-bottom:6px;">${r.detected(s.projects.length, s.nasHost || "Stockage")}</div>
-          <div style="display:flex;flex-direction:column;gap:5px;">${projRows.join("")}</div>
-          <div style="font-size:10px;color:var(--text-muted);margin-top:6px;font-style:italic;">${r.belowThreshold(trigVal, unit)}</div>
-        `;
-      } else {
-        rtEl("rt-lists").innerHTML = `<div style="color:var(--text-muted);">${r.none}</div>`;
-      }
+      const projRows = filtered.map((p) => {
+        const gb = (p.bytes / 1024 ** 3).toFixed(2);
+        const mb = (p.bytes / 1024 ** 2).toFixed(1);
+        const sizeStr = Number(gb) >= 0.1 ? `${gb} GB` : `${mb} MB`;
+        const countStr = p.filesCount ? `${p.filesCount} arch. · ` : "";
+        const dateStr = p.sessionDate ? `${p.sessionDate} · ` : "";
+
+        let badgeHtml = "";
+        if (p.isVipLocked) {
+          badgeHtml = `<span style="padding:2px 7px;border-radius:999px;background:rgba(168,85,247,0.16);color:#c084fc;border:1px solid rgba(168,85,247,0.4);font-size:10px;font-weight:700;">${r.badgeVip}</span>`;
+        } else if (p.retentionState === "requested") {
+          badgeHtml = `<span style="padding:2px 7px;border-radius:999px;background:rgba(245,158,11,0.16);color:#fbbf24;border:1px solid rgba(245,158,11,0.4);font-size:10px;font-weight:700;">${r.badgeRequested}</span>`;
+        } else if (p.retentionState === "waiting") {
+          badgeHtml = `<span style="padding:2px 7px;border-radius:999px;background:rgba(56,189,248,0.16);color:#38bdf8;border:1px solid rgba(56,189,248,0.4);font-size:10px;font-weight:700;">${r.badgeWaiting} (${r.daysLeft(p.daysLeft || 0)})</span>`;
+        } else if (p.retentionState === "expired") {
+          badgeHtml = `<span style="padding:2px 7px;border-radius:999px;background:rgba(239,68,68,0.16);color:#f87171;border:1px solid rgba(239,68,68,0.4);font-size:10px;font-weight:700;">${r.badgeReady}</span>`;
+        } else if (p.isPlanned) {
+          badgeHtml = `<span style="padding:2px 7px;border-radius:999px;background:rgba(212,175,55,0.18);color:var(--gold);border:1px solid var(--gold);font-size:10px;font-weight:700;">${r.badgePlanned}</span>`;
+        } else if (p.isDelivered) {
+          badgeHtml = `<span style="padding:2px 7px;border-radius:999px;background:rgba(16,185,129,0.14);color:#10b981;border:1px solid rgba(16,185,129,0.35);font-size:10px;font-weight:600;">${r.badgeDelivered}</span>`;
+        } else {
+          badgeHtml = `<span style="padding:2px 7px;border-radius:999px;background:rgba(148,163,184,0.14);color:var(--text-muted);border:1px solid var(--card-border);font-size:10px;">${r.badgeActive}</span>`;
+        }
+
+        const vipBtn = p.sessionId
+          ? `<button type="button" data-vip-session="${escapeHtml(p.sessionId)}" data-vip-lock="${p.isVipLocked ? "0" : "1"}" class="select-input" style="width:auto;cursor:pointer;padding:3px 8px;font-size:10px;border-color:${p.isVipLocked ? "#a855f7" : "var(--card-border)"};color:${p.isVipLocked ? "#c084fc" : "var(--text-muted)"};">${p.isVipLocked ? r.btnUnlockVip : r.btnLockVip}</button>`
+          : "";
+        const openBtn = p.fullPath
+          ? `<button type="button" data-open-folder="${escapeHtml(p.fullPath)}" class="select-input" style="width:auto;cursor:pointer;padding:3px 7px;font-size:10px;" title="Abrir carpeta en Windows Explorer">📁</button>`
+          : "";
+
+        const displayTitle = p.clientName && p.clientName !== p.folderName
+          ? `<strong>${escapeHtml(p.clientName)}</strong> <span style="color:var(--text-muted);font-size:11px;">(${escapeHtml(p.folderName)})</span>`
+          : `<strong>${escapeHtml(p.folderName)}</strong>`;
+
+        return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 10px;background:var(--input-bg);border:1px solid ${p.isPlanned ? "rgba(212,175,55,0.45)" : "var(--card-border)"};border-radius:8px;font-size:12px;flex-wrap:wrap;">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:180px;">
+            ${displayTitle}
+            ${badgeHtml}
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <span style="color:var(--text-muted);font-size:11px;font-family:monospace;">${escapeHtml(dateStr + countStr + sizeStr)}</span>
+            ${vipBtn}
+            ${openBtn}
+          </div>
+        </div>`;
+      });
+
+      rtEl("rt-lists").innerHTML = `
+        <div style="font-size:11px;font-weight:700;color:var(--gold);margin-bottom:4px;">${r.detected(allProjects.length, s.nasHost || "QNAP")}</div>
+        <div style="display:flex;flex-direction:column;gap:5px;">${projRows.join("")}</div>
+        ${!s.overThreshold ? `<div style="font-size:10px;color:var(--text-muted);margin-top:6px;font-style:italic;">${r.belowThreshold(trigVal, unit)}</div>` : ""}
+      `;
+
+      rtEl("rt-lists").querySelectorAll("[data-vip-session]").forEach((btn) => {
+        btn.onclick = async () => {
+          const sid = btn.getAttribute("data-vip-session");
+          const shouldLock = btn.getAttribute("data-vip-lock") === "1";
+          btn.disabled = true;
+          try {
+            await window.electronAPI.toggleRetentionVip(sid, shouldLock);
+            await refreshRetention(true);
+          } finally {
+            btn.disabled = false;
+          }
+        };
+      });
+
+      rtEl("rt-lists").querySelectorAll("[data-open-folder]").forEach((btn) => {
+        btn.onclick = () => {
+          const fp = btn.getAttribute("data-open-folder");
+          if (fp && window.electronAPI && window.electronAPI.openPath) {
+            window.electronAPI.openPath(fp);
+          }
+        };
+      });
     }
 
     async function refreshRetention(force) {
@@ -3658,17 +3862,47 @@
     rtEl("rt-in-unit").onchange = () => {
       const u = rtEl("rt-in-unit").value;
       const cap = Number(rtEl("rt-in-capacity").value);
-      if (u === "GB" && (cap === 3.6 || cap === 4 || cap <= 10)) {
-        rtEl("rt-in-capacity").value = "32";
+      const realTb = (window.__rtLast && window.__rtLast.diskTotalTb) ? Number(window.__rtLast.diskTotalTb.toFixed(2)) : 3.13;
+      if (u === "GB" && cap <= 10) {
+        rtEl("rt-in-capacity").value = "100";
         rtEl("rt-in-trigger").value = "25";
-        rtEl("rt-in-release").value = "5";
-      } else if (u === "TB" && (cap === 32 || cap === 64 || cap === 128 || cap > 10)) {
-        rtEl("rt-in-capacity").value = "3.6";
-        rtEl("rt-in-trigger").value = "2.6";
-        rtEl("rt-in-release").value = "1.0";
+        rtEl("rt-in-release").value = "15";
+      } else if (u === "TB" && cap > 10) {
+        rtEl("rt-in-capacity").value = String(realTb);
+        rtEl("rt-in-trigger").value = String(Number((realTb * 0.8).toFixed(2)));
+        rtEl("rt-in-release").value = String(Number((realTb * 0.15).toFixed(2)));
       }
       renderRetentionStrings();
     };
+
+    if (rtEl("rt-btn-preset-qnap")) {
+      rtEl("rt-btn-preset-qnap").onclick = async () => {
+        const realTb = (window.__rtLast && window.__rtLast.diskTotalTb) ? Number(window.__rtLast.diskTotalTb.toFixed(2)) : 3.13;
+        const trigTb = Number((realTb * 0.8).toFixed(2));
+        const relTb = Number((realTb * 0.15).toFixed(2));
+        rtEl("rt-in-unit").value = "TB";
+        rtEl("rt-in-capacity").value = String(realTb);
+        rtEl("rt-in-trigger").value = String(trigTb);
+        rtEl("rt-in-release").value = String(relTb);
+        rtEl("rt-in-mode").value = "keep_finals";
+        rtEl("rt-chk-purge").checked = false;
+        renderRetentionStrings();
+        await rtEl("rt-btn-save").onclick();
+      };
+    }
+
+    if (rtEl("rt-btn-preset-test")) {
+      rtEl("rt-btn-preset-test").onclick = async () => {
+        rtEl("rt-in-unit").value = "GB";
+        rtEl("rt-in-capacity").value = "100";
+        rtEl("rt-in-trigger").value = "25";
+        rtEl("rt-in-release").value = "15";
+        rtEl("rt-in-mode").value = "keep_finals";
+        rtEl("rt-chk-purge").checked = false;
+        renderRetentionStrings();
+        await rtEl("rt-btn-save").onclick();
+      };
+    }
 
     rtEl("rt-btn-save").onclick = async () => {
       const r = rtT();
@@ -3696,7 +3930,6 @@
         retentionAutoNotice: rtEl("rt-chk-notice").checked,
         retentionAutoPurge: rtEl("rt-chk-purge").checked,
       });
-      alert(r.saved);
       refreshRetention(true);
     };
     rtEl("rt-btn-refresh").onclick = () => refreshRetention(true);
