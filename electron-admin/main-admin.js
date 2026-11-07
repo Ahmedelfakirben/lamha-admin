@@ -122,6 +122,8 @@ function createWindow() {
   loadPanel()
 
   // Evitar que el visor de fotos (lightbox fixed inset-0 z-[100]) quede debajo de los botones nativos de ventana de Windows (36px superiores)
+  // + Fragmentar lotes grandes (>50 UUIDs) en Server Actions de compartido masivo para evitar 414 URI Too Long en PostgREST
+  // + Sincronizar traducciones multi-idioma (FR/ES/EN/AR) en la barra flotante de selección y cuaderno de notas
   mainWindow.webContents.on("did-finish-load", () => {
     try {
       mainWindow.webContents.insertCSS(`
@@ -130,6 +132,271 @@ function createWindow() {
           height: calc(100vh - 36px) !important;
         }
       `)
+      mainWindow.webContents.executeJavaScript(`
+        (function() {
+          if (window.__lamhaAdminPatchApplied) return;
+          window.__lamhaAdminPatchApplied = true;
+
+          // 1. Interceptor de Server Actions para lotes grandes de fotos (evita 414 URI Too Long al compartir >50 fotos)
+          const origFetch = window.fetch;
+          window.fetch = async function(input, init) {
+            try {
+              if (init && init.method === "POST" && init.body) {
+                const matchSession = window.location.pathname.match(/\\/sessions\\/([0-9a-fA-F-]{36})/);
+                const urlSessionId = matchSession ? matchSession[1] : null;
+
+                // Caso A: body es string JSON (ej. [["uuid1","uuid2",...], true, "session-id"])
+                if (typeof init.body === "string" && init.body.includes("-")) {
+                  try {
+                    const parsed = JSON.parse(init.body);
+                    if (
+                      Array.isArray(parsed) &&
+                      parsed.length >= 2 &&
+                      Array.isArray(parsed[0]) &&
+                      parsed[0].length > 50 &&
+                      typeof parsed[0][0] === "string" &&
+                      typeof parsed[1] === "boolean"
+                    ) {
+                      const ids = parsed[0];
+                      const shouldShare = parsed[1];
+                      const sessionId = parsed[2] || urlSessionId;
+                      if (window.desktopAdminAPI && window.desktopAdminAPI.bulkShareSessionAssets && sessionId) {
+                        await window.desktopAdminAPI.bulkShareSessionAssets({
+                          sessionId,
+                          shouldShare,
+                          assetIds: ids
+                        });
+                      }
+                      // Enviar solo los primeros 20 IDs al Server Action remoto para que no falle por 414 URI Too Long y ejecute revalidatePath con éxito
+                      const shortBody = JSON.stringify([ids.slice(0, 20), shouldShare, sessionId]);
+                      return await origFetch.call(this, input, Object.assign({}, init, { body: shortBody }));
+                    }
+                  } catch {}
+                }
+
+                // Caso B: body es FormData (React 19 Flight encodeReply para arrays grandes)
+                if (typeof FormData !== "undefined" && init.body instanceof FormData) {
+                  let foundIds = null;
+                  let foundShare = null;
+                  let foundSessionId = urlSessionId;
+                  let idsFieldKey = null;
+
+                  for (const [k, v] of init.body.entries()) {
+                    if (typeof v === "string" && v.startsWith("[")) {
+                      try {
+                        const arr = JSON.parse(v);
+                        if (Array.isArray(arr) && arr.length > 50 && typeof arr[0] === "string") {
+                          foundIds = arr;
+                          idsFieldKey = k;
+                        } else if (Array.isArray(arr) && arr.length >= 2 && typeof arr[1] === "boolean") {
+                          foundShare = arr[1];
+                          if (typeof arr[2] === "string") foundSessionId = arr[2];
+                          if (Array.isArray(arr[0]) && arr[0].length > 50) {
+                            foundIds = arr[0];
+                            idsFieldKey = k;
+                          }
+                        }
+                      } catch {}
+                    }
+                  }
+
+                  if (foundIds && foundIds.length > 50 && foundSessionId) {
+                    if (foundShare === null) foundShare = true;
+                    if (window.desktopAdminAPI && window.desktopAdminAPI.bulkShareSessionAssets) {
+                      await window.desktopAdminAPI.bulkShareSessionAssets({
+                        sessionId: foundSessionId,
+                        shouldShare: foundShare,
+                        assetIds: foundIds
+                      });
+                    }
+                    if (idsFieldKey) {
+                      const newFd = new FormData();
+                      for (const [k, v] of init.body.entries()) {
+                        if (k === idsFieldKey && typeof v === "string") {
+                          try {
+                            const parsedVal = JSON.parse(v);
+                            if (Array.isArray(parsedVal) && typeof parsedVal[0] === "string") {
+                              newFd.append(k, JSON.stringify(parsedVal.slice(0, 20)));
+                            } else if (Array.isArray(parsedVal) && Array.isArray(parsedVal[0])) {
+                              parsedVal[0] = parsedVal[0].slice(0, 20);
+                              newFd.append(k, JSON.stringify(parsedVal));
+                            } else {
+                              newFd.append(k, v);
+                            }
+                          } catch {
+                            newFd.append(k, v);
+                          }
+                        } else {
+                          newFd.append(k, v);
+                        }
+                      }
+                      return await origFetch.call(this, input, Object.assign({}, init, { body: newFd }));
+                    }
+                  }
+                }
+              }
+            } catch (e) {
+              console.warn("[Lam7a Patch] Error chunking bulk share:", e);
+            }
+            return origFetch.apply(this, arguments);
+          };
+
+          // 2. Respaldo directo por IPC Node.js al hacer clic en Compartir / Ocultar (barra flotante o Compartir Todo el Lote)
+          document.addEventListener("click", async (ev) => {
+            try {
+              const btn = ev.target && ev.target.closest ? ev.target.closest("button") : null;
+              if (!btn || !window.desktopAdminAPI || !window.desktopAdminAPI.bulkShareSessionAssets) return;
+              const matchUrl = window.location.pathname.match(/\\/sessions\\/([0-9a-fA-F-]{36})/);
+              if (!matchUrl) return;
+              const sessionId = matchUrl[1];
+              const txt = (btn.textContent || "").trim();
+
+              const isFloatingBar = Boolean(btn.closest("div.fixed.bottom-5.z-50"));
+              const isShareFloater = isFloatingBar && ["Compartir", "Partager", "Share", "مشاركة"].includes(txt);
+              const isHideFloater = isFloatingBar && ["Ocultar", "Masquer", "Hide", "إخفاء"].includes(txt);
+
+              const isBulkShareToolbar = !isFloatingBar && ["Compartir Todo el Lote", "Tout Partager", "Share All Batch", "مشاركة الدفعة"].includes(txt);
+              const isBulkHideToolbar = !isFloatingBar && ["Ocultar Todo", "Tout Masquer", "Hide All", "إخفاء الكل"].includes(txt);
+
+              if (!isShareFloater && !isHideFloater && !isBulkShareToolbar && !isBulkHideToolbar) return;
+
+              const shouldShare = isShareFloater || isBulkShareToolbar;
+              let assetIds = [];
+
+              if (isShareFloater || isHideFloater) {
+                // Verificar si están todos seleccionados mirando el botón de contador (ej. 382/382)
+                let allSelected = false;
+                document.querySelectorAll("button span").forEach((sp) => {
+                  const m = (sp.textContent || "").trim().match(/^(\\d+)\\/(\\d+)$/);
+                  if (m && m[1] === m[2]) allSelected = true;
+                });
+
+                if (!allSelected) {
+                  // Recoger los IDs de las tarjetas marcadas en el DOM (tienen ring-2 y un input[name="id"])
+                  document.querySelectorAll("div.group.rounded-2xl.ring-2 input[name='id']").forEach((inp) => {
+                    if (inp.value) assetIds.push(inp.value);
+                  });
+                }
+              }
+
+              await window.desktopAdminAPI.bulkShareSessionAssets({
+                sessionId,
+                shouldShare,
+                assetIds: assetIds.length > 0 ? assetIds : null
+              });
+            } catch (err) {
+              console.warn("[Lam7a Patch] Error en bulkShareSessionAssets:", err);
+            }
+          }, true);
+
+          // 3. Sincronizador multi-idioma (FR / ES / EN / AR) para elementos de proyecto
+          const DICT = {
+            fr: {
+              selectedSuffix: "sélectionnés",
+              share: "Partager",
+              hide: "Masquer",
+              copyToSel: "Copier vers 02_Seleccion",
+              auditStorage: "Auditer Stockage",
+              notesTitle: "Cahier de Notes & Historique de Production",
+              notesEmpty: "Aucune note enregistrée pour ce projet.",
+              notesAddFirst: "Ajouter une première note",
+              notesAddBtn: "Ajouter Note",
+              notesCloseBtn: "Fermer",
+              notesSaveBtn: "Enregistrer",
+              notesCancelBtn: "Annuler",
+              notesNewLabel: "Nouvelle consigne ou mise à jour au journal",
+              notesAutoTs: "Horodatage automatique"
+            },
+            es: {
+              selectedSuffix: "seleccionados",
+              share: "Compartir",
+              hide: "Ocultar",
+              copyToSel: "Copiar a 02_Seleccion",
+              auditStorage: "Auditar Almacenamiento",
+              notesTitle: "Cuaderno de Notas e Historial de Producción",
+              notesEmpty: "No hay notas registradas para este proyecto.",
+              notesAddFirst: "Añadir una primera nota",
+              notesAddBtn: "Añadir Nota",
+              notesCloseBtn: "Cerrar",
+              notesSaveBtn: "Guardar",
+              notesCancelBtn: "Cancelar",
+              notesNewLabel: "Nueva indicación o actualización en el registro",
+              notesAutoTs: "Fecha y hora automáticas"
+            },
+            en: {
+              selectedSuffix: "selected",
+              share: "Share",
+              hide: "Hide",
+              copyToSel: "Copy to 02_Seleccion",
+              auditStorage: "Audit Storage",
+              notesTitle: "Production Notebook & History",
+              notesEmpty: "No notes recorded for this project.",
+              notesAddFirst: "Add a first note",
+              notesAddBtn: "Add Note",
+              notesCloseBtn: "Close",
+              notesSaveBtn: "Save",
+              notesCancelBtn: "Cancel",
+              notesNewLabel: "New instruction or log update",
+              notesAutoTs: "Automatic timestamp"
+            },
+            ar: {
+              selectedSuffix: "محدد",
+              share: "مشاركة",
+              hide: "إخفاء",
+              copyToSel: "نسخ إلى 02_Seleccion",
+              auditStorage: "تدقيق التخزين",
+              notesTitle: "دفتر الملاحظات وسجل الإنتاج",
+              notesEmpty: "لا توجد ملاحظات مسجلة لهذا المشروع.",
+              notesAddFirst: "إضافة أول ملاحظة",
+              notesAddBtn: "إضافة ملاحظة",
+              notesCloseBtn: "إغلاق",
+              notesSaveBtn: "حفظ",
+              notesCancelBtn: "إلغاء",
+              notesNewLabel: "تعليمات جديدة أو تحديث في السجل",
+              notesAutoTs: "ختم زمني تلقائي"
+            }
+          };
+
+          function applyTranslations() {
+            const lang = localStorage.getItem("lamha_language") || "fr";
+            const d = DICT[lang] || DICT.fr;
+
+            // Barra flotante inferior de selección múltiple
+            const floatingBar = document.querySelector("div.fixed.bottom-5.z-50");
+            if (floatingBar) {
+              const badge = floatingBar.querySelector("span.font-mono");
+              if (badge) {
+                const m = (badge.textContent || "").match(/^(\\d+)/);
+                if (m) {
+                  const targetBadge = m[1] + " " + d.selectedSuffix;
+                  if (badge.textContent !== targetBadge) badge.textContent = targetBadge;
+                }
+              }
+              const buttons = floatingBar.querySelectorAll("button span");
+              if (buttons[0] && buttons[0].textContent !== d.share) buttons[0].textContent = d.share;
+              if (buttons[1] && buttons[1].textContent !== d.hide) buttons[1].textContent = d.hide;
+              if (buttons[2] && buttons[2].textContent !== d.copyToSel) buttons[2].textContent = d.copyToSel;
+            }
+
+            // Textos fijos en vista de sesión
+            document.querySelectorAll("h3, p, span, button").forEach((el) => {
+              if (el.children.length > 0) return;
+              const txt = (el.textContent || "").trim();
+              if (txt === "Auditar Stockage" && lang === "es") el.textContent = d.auditStorage;
+              else if (txt === "Cahier de Notes & Historique de Production" && lang !== "fr") el.textContent = d.notesTitle;
+              else if (txt === "Aucune note enregistrée pour ce projet." && lang !== "fr") el.textContent = d.notesEmpty;
+              else if (txt === "Ajouter une première note" && lang !== "fr") el.textContent = d.notesAddFirst;
+              else if (txt === "Ajouter Note" && lang !== "fr") el.textContent = d.notesAddBtn;
+              else if (txt === "Nouvelle consigne ou mise à jour au journal" && lang !== "fr") el.textContent = d.notesNewLabel;
+              else if (txt === "Horodatage automatique" && lang !== "fr") el.textContent = d.notesAutoTs;
+            });
+          }
+
+          applyTranslations();
+          const obs = new MutationObserver(() => applyTranslations());
+          obs.observe(document.body, { childList: true, subtree: true });
+        })();
+      `).catch(() => {})
     } catch {}
   })
 
@@ -887,6 +1154,44 @@ function startAdminLocalFileBridge(port) {
 }
 
 // Single Instance Lock
+ipcMain.handle("bulk-share-session-assets", async (_event, params = {}) => {
+  try {
+    const { sessionId, shouldShare, assetIds } = params
+    if (!sessionId || typeof shouldShare !== "boolean") {
+      return { success: false, error: "Parámetros inválidos" }
+    }
+    const { createClient } = require("@supabase/supabase-js")
+    const cfg = getConfig()
+    const sb = createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, {
+      auth: { persistSession: false },
+    })
+
+    let targetIds = Array.isArray(assetIds) && assetIds.length > 0 ? assetIds : []
+    if (targetIds.length === 0) {
+      const { data: rows, error: fetchErr } = await sb
+        .from("media_assets")
+        .select("id")
+        .eq("session_id", sessionId)
+      if (fetchErr) return { success: false, error: fetchErr.message }
+      targetIds = (rows || []).map((r) => r.id)
+    }
+
+    const CHUNK_SIZE = 80
+    for (let i = 0; i < targetIds.length; i += CHUNK_SIZE) {
+      const chunk = targetIds.slice(i, i + CHUNK_SIZE)
+      const { error: updErr } = await sb
+        .from("media_assets")
+        .update({ is_shared: shouldShare })
+        .in("id", chunk)
+      if (updErr) return { success: false, error: updErr.message }
+    }
+
+    return { success: true, count: targetIds.length }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
 const gotTheLock = app.requestSingleInstanceLock()
 if (!gotTheLock) {
   app.quit()

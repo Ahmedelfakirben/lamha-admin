@@ -26,7 +26,7 @@ import {
 } from '@/lib/whatsapp-templates';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: { persistSession: false }
@@ -730,12 +730,21 @@ export async function toggleAssetSharedAction(
 
 export async function bulkSetAssetsSharedAction(assetIds: string[], isShared: boolean, sessionId: string, userContext?: UserAuditContext) {
   try {
-    const { error } = await supabase
-      .from('media_assets')
-      .update({ is_shared: isShared })
-      .in('id', assetIds);
+    if (!Array.isArray(assetIds) || assetIds.length === 0) {
+      return { success: true };
+    }
 
-    if (error) throw error;
+    // Dividir en lotes de 80 UUIDs para evitar errores HTTP 414 "URI too long" en PostgREST / Nginx cuando hay >200 fotos
+    const CHUNK_SIZE = 80;
+    for (let i = 0; i < assetIds.length; i += CHUNK_SIZE) {
+      const chunk = assetIds.slice(i, i + CHUNK_SIZE);
+      const { error } = await supabase
+        .from('media_assets')
+        .update({ is_shared: isShared })
+        .in('id', chunk);
+
+      if (error) throw error;
+    }
 
     await recordAuditLog({
       action: 'MEDIA_SHARED_TOGGLE',

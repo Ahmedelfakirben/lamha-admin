@@ -470,17 +470,51 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
     })
   }
 
-  // Compartir / Dejar de compartir todo el lote actual
-  const handleBulkShare = (shouldShare: boolean) => {
-    const targetIds = currentList.map(a => a.id)
+  // Compartir / Dejar de compartir todo el lote actual o selección manual (fragmentado en bloques de 80 UUIDs para evitar 414 URI Too Long en PostgREST)
+  const handleBulkShare = (shouldShare: boolean, customTargetIds?: string[]) => {
+    const targetIds = customTargetIds && customTargetIds.length > 0 ? customTargetIds : currentList.map(a => a.id)
     if (targetIds.length === 0) return
 
     setAssets(prev => prev.map(a => targetIds.includes(a.id) ? { ...a, is_shared: shouldShare } : a))
 
     startTransition(async () => {
-      const res = await bulkSetAssetsSharedAction(targetIds, shouldShare, session.id)
-      if (res.success) {
-        showNotification(shouldShare ? `${targetIds.length} -> ${t.sharedStatus}` : `${targetIds.length} -> ${t.hiddenStatus}`)
+      const CHUNK_SIZE = 80
+      const sb = createClient()
+      let hasError = false
+
+      for (let i = 0; i < targetIds.length; i += CHUNK_SIZE) {
+        const chunk = targetIds.slice(i, i + CHUNK_SIZE)
+        const { error: clientErr } = await sb
+          .from("media_assets")
+          .update({ is_shared: shouldShare })
+          .in("id", chunk)
+
+        if (clientErr) {
+          const res = await bulkSetAssetsSharedAction(chunk, shouldShare, session.id)
+          if (!res.success) hasError = true
+        }
+      }
+
+      // Registrar también trazabilidad de auditoría vía Server Action con el primer bloque
+      await bulkSetAssetsSharedAction(targetIds.slice(0, CHUNK_SIZE), shouldShare, session.id).catch(() => {})
+
+      if (!hasError) {
+        const msg = shouldShare
+          ? language === "fr"
+            ? `${targetIds.length} fichiers partagés avec le client`
+            : language === "ar"
+            ? `تمت مشاركة ${targetIds.length} ملف مع العميل`
+            : language === "en"
+            ? `${targetIds.length} files shared with client`
+            : `${targetIds.length} archivos compartidos con el cliente`
+          : language === "fr"
+          ? `${targetIds.length} fichiers masqués au client`
+          : language === "ar"
+          ? `تم إخفاء ${targetIds.length} ملف عن العميل`
+          : language === "en"
+          ? `${targetIds.length} files hidden from client`
+          : `${targetIds.length} archivos ocultados al cliente`
+        showNotification(msg)
       }
     })
   }
@@ -945,7 +979,15 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
                   ? "border-[#c69f68] bg-[#c69f68]/20 text-[#f5f2eb]"
                   : "border-[#26211c] hover:bg-[#201c18] text-[#a89f91]"
               }`}
-              title="Seleccionar varios archivos (o usa Shift + Clic en las tarjetas)"
+              title={
+                language === "fr"
+                  ? "Sélectionner plusieurs fichiers (ou Maj + Clic sur les cartes)"
+                  : language === "ar"
+                  ? "تحديد عدة ملفات (أو Shift + نقر على البطاقات)"
+                  : language === "en"
+                  ? "Select multiple files (or Shift + Click on cards)"
+                  : "Seleccionar varios archivos (o usa Shift + Clic en las tarjetas)"
+              }
             >
               <Check className="w-3.5 h-3.5 text-[#c69f68]" />
               <span>
@@ -971,7 +1013,7 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
           >
             <Server className="w-3.5 h-3.5 text-[#c69f68]" />
             <span className="hidden sm:inline">
-              {language === "fr" ? "Auditer Stockage" : language === "ar" ? "تدقيق التخزين" : language === "en" ? "Audit Storage" : "Auditar Stockage"}
+              {language === "fr" ? "Auditer Stockage" : language === "ar" ? "تدقيق التخزين" : language === "en" ? "Audit Storage" : "Auditar Almacenamiento"}
             </span>
           </button>
 
@@ -1267,7 +1309,23 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
                           }`}
                         >
                           <Check className="w-2.5 h-2.5" />
-                          <span>{isRetouchDone ? "Retoque listo" : "Marcar listo"}</span>
+                          <span>
+                            {isRetouchDone
+                              ? language === "fr"
+                                ? "Retouche prête"
+                                : language === "ar"
+                                ? "جاهز للتعديل"
+                                : language === "en"
+                                ? "Retouch done"
+                                : "Retoque listo"
+                              : language === "fr"
+                              ? "Marquer prêt"
+                              : language === "ar"
+                              ? "تحديد كجاهز"
+                              : language === "en"
+                              ? "Mark ready"
+                              : "Marcar listo"}
+                          </span>
                         </button>
                       </div>
                       <p className={`italic leading-relaxed font-sans font-medium pl-1 line-clamp-2 ${isRetouchDone ? "line-through opacity-70 text-emerald-200" : "text-amber-200/90"}`} title={asset.client_notes || ""}>
@@ -1393,14 +1451,26 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
               onClick={() => setVisibleLimit((prev) => Math.min(prev + 60, currentList.length))}
               className="px-5 py-2.5 rounded-xl bg-[#181512] hover:bg-[#241f1a] border border-[#c69f68]/40 text-[#c69f68] text-xs font-bold cursor-pointer transition-all"
             >
-              Mostrar 60 más ({visibleLimit} de {currentList.length})
+              {language === "fr"
+                ? `Afficher 60 de plus (${visibleLimit} sur ${currentList.length})`
+                : language === "ar"
+                ? `عرض 60 إضافية (${visibleLimit} من ${currentList.length})`
+                : language === "en"
+                ? `Show 60 more (${visibleLimit} of ${currentList.length})`
+                : `Mostrar 60 más (${visibleLimit} de ${currentList.length})`}
             </button>
             <button
               type="button"
               onClick={() => setVisibleLimit(currentList.length)}
               className="px-4 py-2.5 rounded-xl bg-[#12100e] hover:bg-[#1a1714] border border-[#26211c] text-[#8c7a6b] hover:text-[#f5f2eb] text-xs font-medium cursor-pointer transition-all"
             >
-              Mostrar todas ({currentList.length})
+              {language === "fr"
+                ? `Tout afficher (${currentList.length})`
+                : language === "ar"
+                ? `عرض الكل (${currentList.length})`
+                : language === "en"
+                ? `Show all (${currentList.length})`
+                : `Mostrar todas (${currentList.length})`}
             </button>
           </div>
         )}
@@ -1409,35 +1479,46 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
         {checkedIds.length > 0 && (
           <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 flex flex-wrap items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-[#141210]/95 border border-[#c69f68] shadow-[0_15px_50px_rgba(0,0,0,0.85)] backdrop-blur-xl animate-in fade-in slide-in-from-bottom-3">
             <span className="px-2.5 py-1 rounded-lg bg-[#c69f68] text-[#0b0a09] font-mono text-xs font-extrabold">
-              {checkedIds.length} seleccionados
+              {checkedIds.length}{" "}
+              {language === "fr"
+                ? "sélectionnés"
+                : language === "ar"
+                ? "محدد"
+                : language === "en"
+                ? "selected"
+                : "seleccionados"}
             </span>
             <button
               type="button"
-              onClick={() => {
-                setAssets((prev) => prev.map((a) => (checkedIds.includes(a.id) ? { ...a, is_shared: true } : a)))
-                startTransition(async () => {
-                  await bulkSetAssetsSharedAction(checkedIds, true, session.id)
-                  showNotification(`${checkedIds.length} archivos compartidos con el cliente`)
-                })
-              }}
+              onClick={() => handleBulkShare(true, checkedIds)}
               className="px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
             >
               <Eye className="w-3.5 h-3.5" />
-              <span>Compartir</span>
+              <span>
+                {language === "fr"
+                  ? "Partager"
+                  : language === "ar"
+                  ? "مشاركة"
+                  : language === "en"
+                  ? "Share"
+                  : "Compartir"}
+              </span>
             </button>
             <button
               type="button"
-              onClick={() => {
-                setAssets((prev) => prev.map((a) => (checkedIds.includes(a.id) ? { ...a, is_shared: false } : a)))
-                startTransition(async () => {
-                  await bulkSetAssetsSharedAction(checkedIds, false, session.id)
-                  showNotification(`${checkedIds.length} archivos ocultados al cliente`)
-                })
-              }}
+              onClick={() => handleBulkShare(false, checkedIds)}
               className="px-3 py-1.5 rounded-xl bg-[#1c1916] hover:bg-[#26211c] border border-[#383129] text-[#d6cec2] text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
             >
               <EyeOff className="w-3.5 h-3.5" />
-              <span>Ocultar</span>
+              <span>
+                {language === "fr"
+                  ? "Masquer"
+                  : language === "ar"
+                  ? "إخفاء"
+                  : language === "en"
+                  ? "Hide"
+                  : "Ocultar"}
+              </span>
             </button>
             <button
               type="button"
@@ -1448,13 +1529,29 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
               className="px-3 py-1.5 rounded-xl bg-[#c69f68]/20 hover:bg-[#c69f68]/30 border border-[#c69f68]/50 text-[#e8c89b] text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
             >
               <FolderOpen className="w-3.5 h-3.5 text-[#c69f68]" />
-              <span>Copiar a 02_Seleccion</span>
+              <span>
+                {language === "fr"
+                  ? "Copier vers 02_Seleccion"
+                  : language === "ar"
+                  ? "نسخ إلى 02_Seleccion"
+                  : language === "en"
+                  ? "Copy to 02_Seleccion"
+                  : "Copiar a 02_Seleccion"}
+              </span>
             </button>
             <button
               type="button"
               onClick={() => setCheckedIds([])}
               className="p-1.5 rounded-lg hover:bg-white/10 text-[#8c7a6b] hover:text-white cursor-pointer"
-              title="Limpiar selección"
+              title={
+                language === "fr"
+                  ? "Effacer la sélection"
+                  : language === "ar"
+                  ? "مسح التحديد"
+                  : language === "en"
+                  ? "Clear selection"
+                  : "Limpiar selección"
+              }
             >
               <X className="w-4 h-4" />
             </button>

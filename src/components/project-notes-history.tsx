@@ -110,7 +110,115 @@ export function ProjectNotesHistory({
   initialNotes = "",
   clientName,
 }: ProjectNotesHistoryProps) {
-  const { t } = useLanguage()
+  const { language } = useLanguage()
+
+  const labels = {
+    fr: {
+      title: "Cahier de Notes & Historique de Production",
+      entrySingle: "entrée",
+      entryPlural: "entrées",
+      subtitle: `Journal chronologique pour ${clientName}`,
+      collapse: "Réduire le cahier de notes",
+      expand: "Développer le cahier de notes",
+      saved: "Enregistré ✓",
+      closeForm: "Fermer le formulaire de note",
+      addNoteTitle: "Ajouter une note",
+      close: "Fermer",
+      addNote: "Ajouter Note",
+      newEntryLabel: "Nouvelle consigne ou mise à jour au journal",
+      autoTimestamp: "Horodatage automatique",
+      placeholder:
+        "Ex : Le client préfère les tirages en noir et blanc • Changement de tenue prévu à 16h30 • Acompte validé...",
+      saving: "Ajout...",
+      save: "Enregistrer",
+      cancel: "Annuler",
+      empty: "Aucune note enregistrée pour ce projet.",
+      addFirst: "Ajouter une première note",
+      initialNote: "Note initiale de la séance",
+      latestUpdate: "Dernière mise à jour",
+      copyText: "Copier le texte",
+      deleteNote: "Supprimer cette note",
+    },
+    es: {
+      title: "Cuaderno de Notas e Historial de Producción",
+      entrySingle: "entrada",
+      entryPlural: "entradas",
+      subtitle: `Registro cronológico para ${clientName}`,
+      collapse: "Contraer cuaderno de notas",
+      expand: "Desplegar cuaderno de notas",
+      saved: "Guardado ✓",
+      closeForm: "Cerrar formulario de nota",
+      addNoteTitle: "Añadir una nota",
+      close: "Cerrar",
+      addNote: "Añadir Nota",
+      newEntryLabel: "Nueva indicación o actualización en el registro",
+      autoTimestamp: "Fecha y hora automáticas",
+      placeholder:
+        "Ej: El cliente prefiere copias en blanco y negro • Cambio de vestuario previsto a las 16:30 • Anticipo validado...",
+      saving: "Añadiendo...",
+      save: "Guardar",
+      cancel: "Cancelar",
+      empty: "No hay notas registradas para este proyecto.",
+      addFirst: "Añadir una primera nota",
+      initialNote: "Nota inicial de la sesión",
+      latestUpdate: "Última actualización",
+      copyText: "Copiar texto",
+      deleteNote: "Eliminar esta nota",
+    },
+    en: {
+      title: "Production Notebook & History",
+      entrySingle: "entry",
+      entryPlural: "entries",
+      subtitle: `Chronological log for ${clientName}`,
+      collapse: "Collapse notebook",
+      expand: "Expand notebook",
+      saved: "Saved ✓",
+      closeForm: "Close note form",
+      addNoteTitle: "Add a note",
+      close: "Close",
+      addNote: "Add Note",
+      newEntryLabel: "New instruction or log update",
+      autoTimestamp: "Automatic timestamp",
+      placeholder:
+        "Ex: Client prefers black and white prints • Outfit change scheduled at 4:30 PM • Deposit confirmed...",
+      saving: "Adding...",
+      save: "Save",
+      cancel: "Cancel",
+      empty: "No notes recorded for this project.",
+      addFirst: "Add a first note",
+      initialNote: "Initial session note",
+      latestUpdate: "Latest update",
+      copyText: "Copy text",
+      deleteNote: "Delete this note",
+    },
+    ar: {
+      title: "دفتر الملاحظات وسجل الإنتاج",
+      entrySingle: "ملاحظة",
+      entryPlural: "ملاحظات",
+      subtitle: `السجل الزمني لـ ${clientName}`,
+      collapse: "طي دفتر الملاحظات",
+      expand: "توسيع دفتر الملاحظات",
+      saved: "تم الحفظ ✓",
+      closeForm: "إغلاق نموذج الملاحظة",
+      addNoteTitle: "إضافة ملاحظة",
+      close: "إغلاق",
+      addNote: "إضافة ملاحظة",
+      newEntryLabel: "تعليمات جديدة أو تحديث في السجل",
+      autoTimestamp: "ختم زمني تلقائي",
+      placeholder:
+        "مثال: يفضل العميل الصور بالأبيض والأسود • تغيير الملابس في الساعة 16:30 • تم تأكيد العربون...",
+      saving: "جارٍ الإضافة...",
+      save: "حفظ",
+      cancel: "إلغاء",
+      empty: "لا توجد ملاحظات مسجلة لهذا المشروع.",
+      addFirst: "إضافة أول ملاحظة",
+      initialNote: "ملاحظة الجلسة الأولية",
+      latestUpdate: "آخر تحديث",
+      copyText: "نسخ النص",
+      deleteNote: "حذف هذه الملاحظة",
+    },
+  }[language === "es" || language === "en" || language === "ar" ? language : "fr"]
+
   const [rawNotes, setRawNotes] = useState(initialNotes || "")
   const [entries, setEntries] = useState<NoteEntry[]>(() =>
     parseNotesIntoEntries(initialNotes || "")
@@ -201,7 +309,7 @@ export function ProjectNotesHistory({
           <button
             onClick={() => setIsExpanded(!isExpanded)}
             className="w-8 h-8 rounded-xl bg-[#1e1a16] border border-[#332b22] hover:border-[#c69f68]/50 text-[#c69f68] flex items-center justify-center transition-all cursor-pointer shadow-sm group"
-            title={isExpanded ? "Réduire le cahier de notes" : "Développer le cahier de notes"}
+            title={isExpanded ? labels.collapse : labels.expand}
           >
             {isExpanded ? (
               <ChevronUp className="w-4 h-4 group-hover:scale-110 transition-transform" />
@@ -214,14 +322,14 @@ export function ProjectNotesHistory({
             <div className="flex items-center gap-2">
               <NotebookPen className="w-4 h-4 text-[#c69f68]" />
               <h3 className="text-sm font-serif font-bold text-[#f5f2eb] tracking-wide">
-                Cahier de Notes & Historique de Production
+                {labels.title}
               </h3>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#1e1a16] border border-[#382f25] text-[#c69f68] font-semibold">
-                {entries.length} {entries.length === 1 ? "entrée" : "entrées"}
+                {entries.length} {entries.length === 1 ? labels.entrySingle : labels.entryPlural}
               </span>
             </div>
             <p className="text-[11px] text-[#70665a] mt-0.5">
-              Journal chronologique pour {clientName}
+              {labels.subtitle}
             </p>
           </div>
         </div>
@@ -230,7 +338,7 @@ export function ProjectNotesHistory({
         <div className="flex items-center gap-2 flex-wrap">
           {successNotice && (
             <span className="text-[11px] text-emerald-400 font-semibold flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-950/40 border border-emerald-800/40 animate-in fade-in duration-200">
-              <Check className="w-3.5 h-3.5" /> Enregistré ✓
+              <Check className="w-3.5 h-3.5" /> {labels.saved}
             </span>
           )}
 
@@ -243,10 +351,10 @@ export function ProjectNotesHistory({
                 ? "bg-[#c69f68] text-[#0b0a09] border-[#c69f68]"
                 : "bg-[#1e1a16] hover:bg-[#25201a] border-[#382f25] hover:border-[#c69f68]/50 text-[#c69f68]"
             }`}
-            title={isAddFormOpen ? "Fermer le formulaire de note" : "Ajouter une note"}
+            title={isAddFormOpen ? labels.closeForm : labels.addNoteTitle}
           >
             <Plus className={`w-3.5 h-3.5 transition-transform duration-200 ${isAddFormOpen ? "rotate-45" : ""}`} />
-            <span>{isAddFormOpen ? "Fermer" : "Ajouter Note"}</span>
+            <span>{isAddFormOpen ? labels.close : labels.addNote}</span>
           </button>
         </div>
       </div>
@@ -260,17 +368,17 @@ export function ProjectNotesHistory({
               <div className="flex items-center justify-between">
                 <label className="text-xs font-semibold text-[#f5f2eb] flex items-center gap-2">
                   <Plus className="w-3.5 h-3.5 text-[#c69f68]" />
-                  <span>Nouvelle consigne ou mise à jour au journal</span>
+                  <span>{labels.newEntryLabel}</span>
                 </label>
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] text-[#70665a] font-mono">
-                    Horodatage automatique
+                    {labels.autoTimestamp}
                   </span>
                   <button
                     type="button"
                     onClick={() => setIsAddFormOpen(false)}
                     className="text-[#70665a] hover:text-[#f5f2eb] text-xs px-1 rounded cursor-pointer"
-                    title="Fermer"
+                    title={labels.close}
                   >
                     ✕
                   </button>
@@ -289,7 +397,7 @@ export function ProjectNotesHistory({
                       handleAddEntry()
                     }
                   }}
-                  placeholder="Ex : Le client préfère les tirages en noir et blanc • Changement de tenue prévu à 16h30 • Acompte validé..."
+                  placeholder={labels.placeholder}
                   className="flex-1 p-3 rounded-xl bg-[#141210] border border-[#2d261e] text-xs text-[#f5f2eb] placeholder-[#554c42] focus:border-[#c69f68] focus:ring-1 focus:ring-[#c69f68]/30 outline-none leading-relaxed transition-all resize-y"
                 />
 
@@ -301,7 +409,7 @@ export function ProjectNotesHistory({
                     className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#c69f68] to-[#dfba85] text-[#0b0a09] font-bold text-xs shadow-md hover:shadow-[#c69f68]/20 hover:scale-[1.01] active:scale-[0.99] transition-all cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    <span>{isSaving ? "Ajout..." : "Enregistrer"}</span>
+                    <span>{isSaving ? labels.saving : labels.save}</span>
                   </button>
                   <button
                     type="button"
@@ -311,7 +419,7 @@ export function ProjectNotesHistory({
                     }}
                     className="px-3 py-1.5 rounded-xl bg-[#141210] border border-[#26211c] text-[#70665a] hover:text-[#f5f2eb] text-xs transition-colors cursor-pointer"
                   >
-                    Annuler
+                    {labels.cancel}
                   </button>
                 </div>
               </div>
@@ -324,7 +432,7 @@ export function ProjectNotesHistory({
               <div className="p-8 rounded-xl bg-[#0b0a09] border border-[#1f1b17] text-center space-y-3">
                 <NotebookPen className="w-6 h-6 text-[#554c42] mx-auto" />
                 <p className="text-xs text-[#70665a]">
-                  Aucune note enregistrée pour ce projet.
+                  {labels.empty}
                 </p>
                 <button
                   type="button"
@@ -332,7 +440,7 @@ export function ProjectNotesHistory({
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1c1815] border border-[#c69f68]/30 text-[#c69f68] text-xs font-semibold hover:bg-[#c69f68]/10 transition-colors cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  <span>Ajouter une première note</span>
+                  <span>{labels.addFirst}</span>
                 </button>
               </div>
             ) : (
@@ -355,13 +463,13 @@ export function ProjectNotesHistory({
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#181512] border border-[#332b22] text-[10px] font-mono text-[#a89f91]">
                             <Sparkles className="w-3.5 h-3.5 text-[#c69f68]" />
-                            Note initiale de la séance
+                            {labels.initialNote}
                           </span>
                         )}
 
                         {idx === 0 && entry.timestamp && (
                           <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-950/60 text-emerald-400 border border-emerald-800/40 font-mono">
-                            Dernière mise à jour
+                            {labels.latestUpdate}
                           </span>
                         )}
                       </div>
@@ -372,7 +480,7 @@ export function ProjectNotesHistory({
                           type="button"
                           onClick={() => copyNoteText(entry.id, entry.text)}
                           className="p-1 rounded-lg text-[#70665a] hover:text-[#c69f68] hover:bg-[#1a1714] transition-colors cursor-pointer"
-                          title="Copier le texte"
+                          title={labels.copyText}
                         >
                           {copiedId === entry.id ? (
                             <Check className="w-3.5 h-3.5 text-emerald-400" />
@@ -385,7 +493,7 @@ export function ProjectNotesHistory({
                           type="button"
                           onClick={() => handleDeleteEntry(entry.id)}
                           className="p-1 rounded-lg text-[#70665a] hover:text-red-400 hover:bg-[#1a1714] transition-colors cursor-pointer"
-                          title="Supprimer cette note"
+                          title={labels.deleteNote}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
