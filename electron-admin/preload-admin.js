@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld("desktopAdminAPI", {
   checkLocalPath: (targetPath) => ipcRenderer.invoke("check-local-path", targetPath),
   scanProjectStorage: (folderName) => ipcRenderer.invoke("scan-project-storage", folderName),
   listProjectSubfolder: (folderName, subfolderName) => ipcRenderer.invoke("list-project-subfolder", folderName, subfolderName),
+  readProjectFile: (folderName, subfolderName, fileName) => ipcRenderer.invoke("read-project-file", folderName, subfolderName, fileName),
   createProjectFolders: (folderName) => ipcRenderer.invoke("create-project-folders", folderName),
   checkNasConnection: (host, port) => ipcRenderer.invoke("check-nas-connection", host, port),
   launchIngestCompanion: (params) => ipcRenderer.invoke("launch-ingest-companion", params),

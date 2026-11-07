@@ -353,6 +353,17 @@ class LamhaBridgeServer {
                 res.end(JSON.stringify({ ok: true, message: "Archivo revelado en el Explorador de Windows", path: resolvedLocalPath }))
               }
             } else {
+              // Si es una carpeta dentro de Lamha-Storage (ej. 03_Edicion_Master), crearla automáticamente y abrirla
+              try {
+                if (resolvedLocalPath.toLowerCase().includes("lamha-storage") && !path.extname(resolvedLocalPath)) {
+                  fs.mkdirSync(resolvedLocalPath, { recursive: true })
+                  await shell.openPath(resolvedLocalPath)
+                  res.writeHead(200)
+                  res.end(JSON.stringify({ ok: true, message: "Carpeta creada y abierta en el Explorador", path: resolvedLocalPath }))
+                  return
+                }
+              } catch {}
+
               // Intentar abrir la carpeta padre si existe
               const parentDir = path.dirname(resolvedLocalPath)
               if (fs.existsSync(parentDir)) {
@@ -370,6 +381,130 @@ class LamhaBridgeServer {
             res.end(JSON.stringify({ ok: false, error: err.message }))
           }
         })
+        return
+      }
+
+      // GET /master-files — Listar archivos en C:\Lamha-Storage\<folder>\03_Edicion_Master
+      if (req.method === "GET" && pathname === "/master-files") {
+        const fs = require("fs")
+        const path = require("path")
+        const folderName = parsedUrl.query.folder || ""
+        const subfolder = parsedUrl.query.sub || "03_Edicion_Master"
+        if (!folderName) {
+          res.writeHead(400)
+          res.end(JSON.stringify({ ok: false, error: "folder query parameter required" }))
+          return
+        }
+
+        const drives = ["C", "D", "E", "F", "G"]
+        let resolvedDir = null
+        for (const d of drives) {
+          const candidates = [
+            path.join(`${d}:\\Lamha-Storage`, folderName, subfolder),
+            path.join(`${d}:\\Lamha-Storage`, folderName, "03_Edicion_Master"),
+            path.join(`${d}:\\Lamha-Storage`, folderName, "03_Édition_Master"),
+            path.join(`${d}:\\Lamha-Storage`, folderName, "03_Edition_Master"),
+          ]
+          for (const c of candidates) {
+            if (fs.existsSync(c)) {
+              resolvedDir = c
+              break
+            }
+          }
+          if (resolvedDir) break
+        }
+
+        if (!resolvedDir) {
+          resolvedDir = path.join("C:\\Lamha-Storage", folderName, subfolder)
+          try {
+            fs.mkdirSync(resolvedDir, { recursive: true })
+          } catch {}
+        }
+
+        try {
+          const entries = fs.existsSync(resolvedDir) ? fs.readdirSync(resolvedDir, { withFileTypes: true }) : []
+          const files = []
+          let totalBytes = 0
+          for (const e of entries) {
+            if (e.isFile() && !e.name.startsWith(".")) {
+              const full = path.join(resolvedDir, e.name)
+              const st = fs.statSync(full)
+              totalBytes += st.size
+              files.push({
+                name: e.name,
+                size: st.size,
+                sizeMb: Number((st.size / (1024 * 1024)).toFixed(2)),
+                modified: st.mtime.toISOString(),
+              })
+            }
+          }
+          res.writeHead(200)
+          res.end(JSON.stringify({
+            ok: true,
+            folderName,
+            subfolder,
+            path: resolvedDir,
+            files,
+            totalFiles: files.length,
+            totalBytes,
+            totalMb: Number((totalBytes / (1024 * 1024)).toFixed(1)),
+          }))
+        } catch (err) {
+          res.writeHead(500)
+          res.end(JSON.stringify({ ok: false, error: err.message }))
+        }
+        return
+      }
+
+      // GET /master-file-content — Leer binario de un archivo local de 03_Edicion_Master para subir a Google Drive
+      if (req.method === "GET" && pathname === "/master-file-content") {
+        const fs = require("fs")
+        const path = require("path")
+        const folderName = parsedUrl.query.folder || ""
+        const subfolder = parsedUrl.query.sub || "03_Edicion_Master"
+        const fileName = path.basename(parsedUrl.query.file || "")
+        if (!folderName || !fileName) {
+          res.writeHead(400)
+          res.end(JSON.stringify({ ok: false, error: "folder and file required" }))
+          return
+        }
+
+        const drives = ["C", "D", "E", "F", "G"]
+        let targetFile = null
+        for (const d of drives) {
+          const candidates = [
+            path.join(`${d}:\\Lamha-Storage`, folderName, subfolder, fileName),
+            path.join(`${d}:\\Lamha-Storage`, folderName, "03_Edicion_Master", fileName),
+            path.join(`${d}:\\Lamha-Storage`, folderName, "03_Édition_Master", fileName),
+            path.join(`${d}:\\Lamha-Storage`, folderName, "03_Edition_Master", fileName),
+          ]
+          for (const c of candidates) {
+            if (fs.existsSync(c)) {
+              targetFile = c
+              break
+            }
+          }
+          if (targetFile) break
+        }
+
+        if (!targetFile || !fs.existsSync(targetFile)) {
+          res.writeHead(404)
+          res.end(JSON.stringify({ ok: false, error: "File not found" }))
+          return
+        }
+
+        try {
+          const st = fs.statSync(targetFile)
+          res.writeHead(200, {
+            "Content-Type": "application/octet-stream",
+            "Content-Length": st.size,
+            "Access-Control-Allow-Origin": "*",
+          })
+          fs.createReadStream(targetFile).pipe(res)
+        } catch (err) {
+          res.writeHead(500)
+          res.end(JSON.stringify({ ok: false, error: err.message }))
+        }
         return
       }
 

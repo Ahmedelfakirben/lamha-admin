@@ -119,21 +119,27 @@ function getSyncDriveStrings(lang: string = "es") {
 export async function POST(req: NextRequest) {
   const encoder = new TextEncoder()
   const body = await req.json()
-  const { sessionId, folderName, clientName = "Cliente", retentionDays = 30, source, lang = "es" } = body
-  const tLogs = getSyncDriveStrings(lang)
+  const { sessionId, folderName, clientName = "Cliente", retentionDays = 30, source, preferredSource, lang, language } = body
+  const effectiveLang = language || lang || "es"
+  const effectiveSource = preferredSource || source || "master"
+  const tLogs = getSyncDriveStrings(effectiveLang)
 
   if (!sessionId || !folderName || folderName === "undefined") {
-    return new Response(JSON.stringify({ error: "Faltan parámetros sessionId o folderName válido." }), {
+    return new Response(JSON.stringify({ type: "error", code: "MISSING_PARAMS", error: "Faltan parámetros sessionId o folderName válido." }) + "\n", {
       status: 400,
       headers: { "Content-Type": "application/json" }
     })
   }
 
   const storage = getStorageConfig()
-  const finalDir = findDeliveriesDirectory(storage.localBasePath, folderName, source || "master")
+  const finalDir = findDeliveriesDirectory(storage.localBasePath, folderName, effectiveSource)
 
   if (!finalDir || !fs.existsSync(finalDir)) {
-    return new Response(JSON.stringify({ error: `No se encontró la carpeta en ${path.join(storage.localBasePath, folderName)}` }), {
+    return new Response(JSON.stringify({
+      type: "error",
+      code: "LOCAL_FOLDER_NOT_ON_SERVER",
+      error: `No se encontró la carpeta en ${path.join(storage.localBasePath, folderName)}`,
+    }) + "\n", {
       status: 404,
       headers: { "Content-Type": "application/json" }
     })
@@ -142,7 +148,11 @@ export async function POST(req: NextRequest) {
   const fileNames = fs.readdirSync(finalDir).filter(f => !f.startsWith(".") && fs.statSync(path.join(finalDir, f)).isFile())
 
   if (fileNames.length === 0) {
-    return new Response(JSON.stringify({ error: `La carpeta ${finalDir} está vacía.` }), {
+    return new Response(JSON.stringify({
+      type: "error",
+      code: "FOLDER_EMPTY",
+      error: `La carpeta ${finalDir} está vacía.`,
+    }) + "\n", {
       status: 400,
       headers: { "Content-Type": "application/json" }
     })

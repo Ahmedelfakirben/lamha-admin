@@ -39,7 +39,6 @@ import {
   ChevronRight,
   X
 } from "lucide-react"
-import { MasterDeliveryUploadModal } from "@/components/master-delivery-upload-modal"
 import { MontageDriveSyncModal } from "@/components/montage-drive-sync-modal"
 import { ProjectStorageHub } from "@/components/project-storage-hub"
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -47,7 +46,7 @@ import { toggleAssetSharedAction, bulkSetAssetsSharedAction, deleteAssetAction }
 import { useLanguage } from "@/context/language-context"
 import { createClient } from "@/lib/supabase"
 import { SessionDeliveryHub } from "./session-delivery-hub"
-import { openLocalFolderOrFile, copySelectedToClientFolder } from "@/lib/desktop-bridge"
+import { openLocalFolderOrFile, copySelectedToClientFolder, openProjectMasterFolder } from "@/lib/desktop-bridge"
 
 interface MediaAsset {
   id: string
@@ -763,22 +762,33 @@ export function SessionMediaManager({ session, initialAssets = [], projectFolder
               </button>
             </div>
 
-            {/* Gestor Dual Estilo Ingesta: Subida y Sincronización NAS */}
-            <MasterDeliveryUploadModal
-              sessionId={session.id}
-              folderName={fName}
-              clientName={session.client_name}
-              defaultTargetFolder="03_Edicion_Master"
-              onSuccess={() => window.location.reload()}
-              triggerButton={
-                <button className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#c69f68] to-[#dfba85] hover:opacity-95 text-[#0b0a09] text-xs font-serif font-bold flex items-center gap-2 transition-all cursor-pointer shadow-md">
-                  <UploadCloud className="w-4 h-4 text-black" />
-                  <span>{t.uploadMasterDualNas}</span>
-                </button>
-              }
-            />
+            {/* Acceso Directo a Carpeta Local C:\Lamha-Storage\...\03_Edicion_Master */}
+            <button
+              type="button"
+              onClick={async () => {
+                const res = await openProjectMasterFolder(fName)
+                if (res.success) {
+                  showNotification(res.message || `Carpeta C:\\Lamha-Storage\\${fName}\\03_Edicion_Master abierta`)
+                } else {
+                  showNotification(`Ruta local: C:\\Lamha-Storage\\${fName}\\03_Edicion_Master`)
+                }
+              }}
+              className="px-4 py-2 rounded-xl bg-[#181613] hover:bg-[#221e19] border border-[#c69f68]/50 text-[#f5f2eb] text-xs font-serif font-bold flex items-center gap-2 transition-all cursor-pointer shadow-md"
+              title={`Abrir C:\\Lamha-Storage\\${fName}\\03_Edicion_Master en el Explorador de Windows`}
+            >
+              <FolderOpen className="w-4 h-4 text-[#c69f68]" />
+              <span>
+                {language === "fr"
+                  ? "Ouvrir Dossier C: (03_Edicion_Master)"
+                  : language === "ar"
+                  ? "فتح مجلد C: (03_Edicion_Master)"
+                  : language === "en"
+                  ? "Open C: Folder (03_Edicion_Master)"
+                  : "Abrir Carpeta C: (03_Edicion_Master)"}
+              </span>
+            </button>
 
-            {/* Exportación y Sincronización a Google Drive desde Montaje */}
+            {/* Exportación Directa a Google Drive desde Carpeta C: */}
             <MontageDriveSyncModal
               sessionId={session.id}
               clientName={session.client_name}

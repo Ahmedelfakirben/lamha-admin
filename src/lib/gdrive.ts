@@ -127,6 +127,59 @@ export function invalidateDriveClientCache() {
 }
 
 /**
+ * Obtiene un Access Token válido de corta duración para subidas directas desde el cliente a Google Drive API
+ */
+export async function getDriveAccessToken(custom?: GDriveCredentials): Promise<{
+  accessToken: string
+  parentFolderId?: string
+  authType: "oauth" | "service_account"
+}> {
+  const creds = await resolveGDriveCredentials(custom)
+
+  if (creds.authType === "oauth" && creds.oauthRefreshToken) {
+    const clientId = (process.env.GOOGLE_CLIENT_ID || "").replace(/"/g, "").trim()
+    const clientSecret = (process.env.GOOGLE_CLIENT_SECRET || "").replace(/"/g, "").trim()
+
+    if (!clientId || !clientSecret) {
+      throw new Error("Credenciales GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET no configuradas.")
+    }
+
+    const oauth2Client = new google.auth.OAuth2(clientId, clientSecret)
+    oauth2Client.setCredentials({ refresh_token: creds.oauthRefreshToken })
+    const tokenRes = await oauth2Client.getAccessToken()
+    if (!tokenRes.token) {
+      throw new Error("No se pudo obtener el Access Token de OAuth para Google Drive.")
+    }
+
+    return {
+      accessToken: tokenRes.token,
+      parentFolderId: creds.parentFolderId,
+      authType: "oauth",
+    }
+  }
+
+  if (creds.clientEmail && creds.privateKey) {
+    const auth = new google.auth.JWT({
+      email: creds.clientEmail,
+      key: creds.privateKey,
+      scopes: ["https://www.googleapis.com/auth/drive"],
+    })
+    const tokenRes = await auth.getAccessToken()
+    if (!tokenRes.token) {
+      throw new Error("No se pudo obtener el Access Token de Service Account para Google Drive.")
+    }
+
+    return {
+      accessToken: tokenRes.token,
+      parentFolderId: creds.parentFolderId,
+      authType: "service_account",
+    }
+  }
+
+  throw new Error("No hay ninguna cuenta de Google Drive configurada. Conecta tu cuenta con OAuth o añade credenciales.")
+}
+
+/**
  * Prueba la conexión con Google Drive
  */
 export async function testGoogleDriveConnection(custom?: GDriveCredentials): Promise<{

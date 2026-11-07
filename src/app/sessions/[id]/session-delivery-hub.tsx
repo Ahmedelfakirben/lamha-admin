@@ -17,8 +17,8 @@ import {
   ShieldCheck
 } from "lucide-react"
 import { createClient } from "@/lib/supabase"
-import { MasterDeliveryUploadModal } from "@/components/master-delivery-upload-modal"
-import { useUpload } from "@/context/upload-context"
+import { MontageDriveSyncModal } from "@/components/montage-drive-sync-modal"
+import { openProjectMasterFolder } from "@/lib/desktop-bridge"
 import { useLanguage } from "@/context/language-context"
 
 interface SessionDeliveryHubProps {
@@ -42,8 +42,7 @@ export function SessionDeliveryHub({ session, projectFolder, onDeliveryUpdated }
   const [copiedLink, setCopiedLink] = useState(false)
   const [actionMessage, setActionMessage] = useState<string | null>(null)
 
-  const { uploadState, startSyncNasToGdrive } = useUpload()
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
 
   const fName = projectFolder || session.tags?.[0] || session.client_name
 
@@ -94,17 +93,13 @@ export function SessionDeliveryHub({ session, projectFolder, onDeliveryUpdated }
 
 
 
-  const handleSyncNas = async () => {
-    await startSyncNasToGdrive({
-      sessionId: session.id,
-      folderName: fName,
-      clientName: session.client_name,
-      retentionDays
-    }, async () => {
-      showMsg(t.driveSyncSuccessMsg)
-      await loadData()
-      if (onDeliveryUpdated) onDeliveryUpdated()
-    })
+  const handleOpenMasterOnC = async () => {
+    const res = await openProjectMasterFolder(fName)
+    if (res.success) {
+      showMsg(res.message || `Carpeta C:\\Lamha-Storage\\${fName}\\03_Edicion_Master abierta`)
+    } else {
+      showMsg(`Ruta local: C:\\Lamha-Storage\\${fName}\\03_Edicion_Master`)
+    }
   }
 
   const activeFinalDelivery = deliveries.find(d => d.delivery_type === "final_link" && d.is_active)
@@ -211,7 +206,7 @@ export function SessionDeliveryHub({ session, projectFolder, onDeliveryUpdated }
         </div>
       )}
 
-      {/* Panel Lanzador de Nueva Entrega (SIMPLIFICADO) */}
+      {/* Panel Lanzador de Nueva Entrega (Directo desde C:\Lamha-Storage\...\03_Edicion_Master a Google Drive) */}
       <div className="rounded-2xl border border-[#26211c] bg-[#141210] p-6 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h3 className="text-sm font-semibold text-[#f5f2eb] font-serif uppercase tracking-wider flex items-center gap-2">
@@ -219,19 +214,48 @@ export function SessionDeliveryHub({ session, projectFolder, onDeliveryUpdated }
             {t.syncAlbumToDrive}
           </h3>
           <p className="text-xs text-[#8c7a6b] mt-1.5">
-            {t.transferPhotosFrom} <span className="text-[#c69f68] font-mono bg-[#1a1714] px-1.5 py-0.5 rounded">{fName}/03_Edicion_Master</span>
+            {t.transferPhotosFrom}{" "}
+            <span className="text-[#c69f68] font-mono bg-[#1a1714] px-1.5 py-0.5 rounded border border-[#2a241d]">
+              C:\Lamha-Storage\{fName}\03_Edicion_Master
+            </span>
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={handleSyncNas}
-          disabled={uploadState.isRunning}
-          className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#c69f68] via-[#dfba85] to-[#c69f68] hover:opacity-95 text-[#0b0a09] font-bold text-xs flex items-center justify-center gap-2 transition-all disabled:opacity-40 cursor-pointer shadow-lg shadow-[#c69f68]/20 whitespace-nowrap"
-        >
-          <HardDrive className="w-4 h-4" />
-          <span>{uploadState.isRunning ? t.syncInProgress : t.syncToDriveBtn}</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            type="button"
+            onClick={handleOpenMasterOnC}
+            className="px-4 py-2.5 rounded-xl bg-[#181613] hover:bg-[#221e19] border border-[#c69f68]/50 text-[#f5f2eb] font-serif font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md whitespace-nowrap"
+          >
+            <FolderOpen className="w-4 h-4 text-[#c69f68]" />
+            <span>
+              {language === "fr"
+                ? "Ouvrir Dossier C:"
+                : language === "ar"
+                ? "فتح مجلد C:"
+                : language === "en"
+                ? "Open C: Folder"
+                : "Abrir Carpeta C:"}
+            </span>
+          </button>
+
+          <MontageDriveSyncModal
+            sessionId={session.id}
+            clientName={session.client_name}
+            clientEmail={session.client_email}
+            portalPin={session.portal_pin}
+            folderName={fName}
+            existingDriveUrl={
+              activeFinalDelivery?.url ||
+              (session.gdrive_folder_id ? `https://drive.google.com/drive/folders/${session.gdrive_folder_id}` : null)
+            }
+            onSuccess={async () => {
+              showMsg(t.driveSyncSuccessMsg)
+              await loadData()
+              if (onDeliveryUpdated) onDeliveryUpdated()
+            }}
+          />
+        </div>
       </div>
     </div>
   )

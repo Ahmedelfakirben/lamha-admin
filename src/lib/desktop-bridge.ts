@@ -52,6 +52,7 @@ export interface DesktopAdminAPI {
   checkLocalPath: (targetPath: string) => Promise<{ exists: boolean; isDirectory?: boolean; sizeBytes?: number }>
   scanProjectStorage?: (folderName: string) => Promise<LocalProjectStorageResult>
   listProjectSubfolder?: (folderName: string, subfolderName?: string) => Promise<LocalBrowseEntry[]>
+  readProjectFile?: (folderName: string, subfolderName: string, fileName: string) => Promise<Uint8Array | ArrayBuffer | null>
   createProjectFolders?: (folderName: string) => Promise<{ success: boolean; path?: string; error?: string }>
   checkNasConnection: (host?: string, port?: number) => Promise<{ reachable: boolean; host: string; port: number; error?: string }>
   launchIngestCompanion: (params?: { sessionId?: string; clientName?: string; folderName?: string; folder?: string }) => Promise<{ success: boolean; error?: string; method?: string }>
@@ -129,24 +130,26 @@ export async function openLocalFolderOrFile(
     }
   }
 
-  // 2. Puente HTTP local del Ingest Companion (:41890) si el usuario tiene el Companion abierto
-  try {
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 1200)
-    const res = await fetch("http://127.0.0.1:41890/open", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ path: targetPath, mode }),
-      signal: controller.signal,
-    })
-    clearTimeout(timeoutId)
-    if (res.ok) {
-      const data = await res.json()
-      if (data.ok) {
-        return { success: true, message: data.message || "Abierto en el Explorador de Windows" }
+  // 2. Puente HTTP local del Ingest Companion (:41890) o Admin Bridge (:41891)
+  for (const port of [41890, 41891]) {
+    try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 1200)
+      const res = await fetch(`http://127.0.0.1:${port}/open`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: targetPath, mode, target }),
+        signal: controller.signal,
+      })
+      clearTimeout(timeoutId)
+      if (res.ok) {
+        const data = await res.json()
+        if (data.ok) {
+          return { success: true, message: data.message || "Abierto en el Explorador de Windows", resolvedPath: data.path }
+        }
       }
-    }
-  } catch {}
+    } catch {}
+  }
 
   // 3. Fallback: Servidor local (si está en desarrollo en localhost)
   try {
@@ -338,5 +341,116 @@ export async function copySelectedToClientFolder(
     return { success: false, error: e.message || "Error al copiar archivos a 02_Seleccion_Cliente" }
   }
 }
+
+/**
+ * Abre directamente la carpeta C:\Lamha-Storage\<folderName>\03_Edicion_Master en el Explorador de Windows,
+ * creándola automáticamente si aún no existiera.
+ */
+export async function openProjectMasterFolder(
+  folderName: string
+): Promise<{ success: boolean; path: string; message?: string }> {
+  const defaultWinPath = `C:\\Lamha-Storage\\${folderName}\\03_Edicion_Master`
+  if (typeof window !== "undefined" && window.desktopAdminAPI?.createProjectFolders) {
+    try {
+      await window.desktopAdminAPI.createProjectFolders(folderName)
+    } catch {}
+  }
+
+  const res = await openLocalFolderOrFile(`${folderName}\\03_Edicion_Master`, "open", "local")
+  return {
+    success: res.success,
+    path: res.resolvedPath || defaultWinPath,
+    message: res.message,
+  }
+}
+
+/**
+ * Obtiene la lista de archivos en C:\Lamha-Storage\<folderName>\03_Edicion_Master
+ * mediante el puente HTTP local (:41890 / :41891) o mediante desktopAdminAPI.
+ */
+export async function getMasterFolderFiles(folderName: string): Promise<{
+  files: Array<{ name: string; size: number }>
+  path: string
+  bridgePort?: number
+  hasNativeBinaryReader: boolean
+}> {
+  const defaultPath = `C:\\Lamha-Storage\\${folderName}\\03_Edicion_Master`
+  if (!folderName) return { files: [], path: defaultPath, hasNativeBinaryReader: false }
+
+  // 1. Probar puentes HTTP locales (:41890 Ingest Companion / :41891 Admin Bridge) que permiten leer el binario directo
+  for (const port of [41890, 41891]) {
+    try {
+      const res = await fetch(
+        `http://127.0.0.1:${port}/master-files?folder=${encodeURIComponent(folderName)}&sub=03_Edicion_Master`,
+        { signal: AbortSignal.timeout(1200), cache: "no-store" }
+      )
+      if (res.ok) {
+        const data = await res.json()
+        if (data.ok && Array.isArray(data.files)) {
+          return {
+            files: data.files.map((f: any) => ({ name: f.name, size: Number(f.size) || 0 })),
+            path: data.path || defaultPath,
+            bridgePort: port,
+            hasNativeBinaryReader: true,
+          }
+        }
+      }
+    } catch {}
+  }
+
+  // 2. Probar desktopAdminAPI (Electron IPC)
+  if (typeof window !== "undefined" && window.desktopAdminAPI?.listProjectSubfolder) {
+    try {
+      const entries = await window.desktopAdminAPI.listProjectSubfolder(folderName, "03_Edicion_Master")
+      if (Array.isArray(entries)) {
+        const files = entries
+          .filter((e) => !e.isDirectory && !e.name.startsWith("."))
+          .map((e) => ({ name: e.name, size: Number(e.size) || 0 }))
+        return {
+          files,
+          path: defaultPath,
+          hasNativeBinaryReader: Boolean(window.desktopAdminAPI.readProjectFile),
+        }
+      }
+    } catch {}
+  }
+
+  return { files: [], path: defaultPath, hasNativeBinaryReader: false }
+}
+
+/**
+ * Lee el contenido binario (Blob) de un archivo dentro de C:\Lamha-Storage\<folderName>\03_Edicion_Master
+ */
+export async function readMasterFileBlob(
+  folderName: string,
+  fileName: string,
+  bridgePort?: number
+): Promise<Blob | null> {
+  // 1. Si tenemos puerto HTTP de bridge local activo
+  const ports = bridgePort ? [bridgePort, 41890, 41891] : [41890, 41891]
+  for (const port of Array.from(new Set(ports))) {
+    try {
+      const res = await fetch(
+        `http://127.0.0.1:${port}/master-file-content?folder=${encodeURIComponent(folderName)}&sub=03_Edicion_Master&file=${encodeURIComponent(fileName)}`
+      )
+      if (res.ok) {
+        return await res.blob()
+      }
+    } catch {}
+  }
+
+  // 2. Si estamos en Electron con readProjectFile IPC
+  if (typeof window !== "undefined" && window.desktopAdminAPI?.readProjectFile) {
+    try {
+      const buf = await window.desktopAdminAPI.readProjectFile(folderName, "03_Edicion_Master", fileName)
+      if (buf) {
+        return new Blob([buf as any])
+      }
+    } catch {}
+  }
+
+  return null
+}
+
 
 

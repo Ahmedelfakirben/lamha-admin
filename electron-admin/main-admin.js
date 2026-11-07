@@ -267,7 +267,20 @@ ipcMain.handle("open-local-path", async (_event, targetPath, target = "local") =
         }
         return { success: true, resolvedPath: candidate }
       }
+    }
 
+    // 3b. Si es una carpeta de proyecto/subcarpeta (ej: <proyecto>\03_Edicion_Master) y no tiene extensión, crearla automáticamente en C:\Lamha-Storage y abrirla
+    if (!path.extname(cleanRel)) {
+      try {
+        const autoDir = path.join("C:\\Lamha-Storage", cleanRel)
+        fs.mkdirSync(autoDir, { recursive: true })
+        await shell.openPath(autoDir)
+        return { success: true, resolvedPath: autoDir }
+      } catch {}
+    }
+
+    for (const drive of drives) {
+      const candidate = path.join(`${drive}:\\Lamha-Storage`, cleanRel)
       // Probar si existe la carpeta contenedora
       const candidateDir = path.dirname(candidate)
       if (fs.existsSync(candidateDir)) {
@@ -701,6 +714,166 @@ ipcMain.on("retry-connect", () => {
   }
 })
 
+// 13. Leer contenido binario de un archivo local del proyecto para subida directa a Google Drive
+ipcMain.handle("read-project-file", async (_event, folderName, subfolderName = "03_Edicion_Master", fileName = "") => {
+  if (!folderName || !fileName) return null
+  try {
+    const root = resolveLocalProjectFolder(folderName)
+    if (!root) return null
+    const cleanFile = path.basename(fileName)
+    const candidates = [
+      path.join(root, subfolderName.replace(/\//g, "\\"), cleanFile),
+      path.join(root, "03_Edicion_Master", cleanFile),
+      path.join(root, "03_Édition_Master", cleanFile),
+      path.join(root, "03_Edition_Master", cleanFile),
+    ]
+    for (const c of candidates) {
+      if (fs.existsSync(c) && fs.statSync(c).isFile()) {
+        return fs.readFileSync(c)
+      }
+    }
+    return null
+  } catch {
+    return null
+  }
+})
+
+// Servidor HTTP local de puente (puertos 41891 y 41890) para que tanto la app como el navegador web lean C:\Lamha-Storage
+function startAdminLocalFileBridge(port) {
+  const url = require("url")
+  const server = http.createServer(async (req, res) => {
+    res.setHeader("Access-Control-Allow-Origin", "*")
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+    if (req.method === "OPTIONS") {
+      res.writeHead(204)
+      res.end()
+      return
+    }
+
+    const parsedUrl = url.parse(req.url, true)
+    const pathname = parsedUrl.pathname
+
+    if (req.method === "GET" && pathname === "/master-files") {
+      const folderName = parsedUrl.query.folder || ""
+      const subfolder = parsedUrl.query.sub || "03_Edicion_Master"
+      res.setHeader("Content-Type", "application/json; charset=utf-8")
+      if (!folderName) {
+        res.writeHead(400)
+        res.end(JSON.stringify({ ok: false, error: "folder required" }))
+        return
+      }
+      const root = resolveLocalProjectFolder(folderName) || path.join("C:\\Lamha-Storage", folderName)
+      const candidates = [
+        path.join(root, subfolder),
+        path.join(root, "03_Edicion_Master"),
+        path.join(root, "03_Édition_Master"),
+        path.join(root, "03_Edition_Master"),
+      ]
+      let resolvedDir = candidates.find(c => fs.existsSync(c))
+      if (!resolvedDir) {
+        resolvedDir = path.join(root, "03_Edicion_Master")
+        try { fs.mkdirSync(resolvedDir, { recursive: true }) } catch {}
+      }
+      try {
+        const entries = fs.existsSync(resolvedDir) ? fs.readdirSync(resolvedDir, { withFileTypes: true }) : []
+        const files = []
+        let totalBytes = 0
+        for (const e of entries) {
+          if (e.isFile() && !e.name.startsWith(".")) {
+            const full = path.join(resolvedDir, e.name)
+            const st = fs.statSync(full)
+            totalBytes += st.size
+            files.push({
+              name: e.name,
+              size: st.size,
+              sizeMb: Number((st.size / (1024 * 1024)).toFixed(2)),
+              modified: st.mtime.toISOString(),
+            })
+          }
+        }
+        res.writeHead(200)
+        res.end(JSON.stringify({
+          ok: true,
+          folderName,
+          subfolder,
+          path: resolvedDir,
+          files,
+          totalFiles: files.length,
+          totalBytes,
+          totalMb: Number((totalBytes / (1024 * 1024)).toFixed(1)),
+        }))
+      } catch (err) {
+        res.writeHead(500)
+        res.end(JSON.stringify({ ok: false, error: err.message }))
+      }
+      return
+    }
+
+    if (req.method === "GET" && pathname === "/master-file-content") {
+      const folderName = parsedUrl.query.folder || ""
+      const subfolder = parsedUrl.query.sub || "03_Edicion_Master"
+      const fileName = path.basename(parsedUrl.query.file || "")
+      if (!folderName || !fileName) {
+        res.writeHead(400)
+        res.end("Missing params")
+        return
+      }
+      const root = resolveLocalProjectFolder(folderName) || path.join("C:\\Lamha-Storage", folderName)
+      const candidates = [
+        path.join(root, subfolder, fileName),
+        path.join(root, "03_Edicion_Master", fileName),
+        path.join(root, "03_Édition_Master", fileName),
+        path.join(root, "03_Edition_Master", fileName),
+      ]
+      const targetFile = candidates.find(c => fs.existsSync(c) && fs.statSync(c).isFile())
+      if (!targetFile) {
+        res.writeHead(404)
+        res.end("Not found")
+        return
+      }
+      const st = fs.statSync(targetFile)
+      res.writeHead(200, {
+        "Content-Type": "application/octet-stream",
+        "Content-Length": st.size,
+        "Access-Control-Allow-Origin": "*",
+      })
+      fs.createReadStream(targetFile).pipe(res)
+      return
+    }
+
+    if (req.method === "POST" && pathname === "/open") {
+      let body = ""
+      req.on("data", chunk => { body += chunk })
+      req.on("end", async () => {
+        res.setHeader("Content-Type", "application/json; charset=utf-8")
+        try {
+          const params = body ? JSON.parse(body) : {}
+          const rel = (params.path || "").replace(/^[\\\/]+/, "").replace(/\//g, "\\")
+          const targetDir = path.isAbsolute(rel) ? rel : path.join("C:\\Lamha-Storage", rel)
+          if (!fs.existsSync(targetDir) && !path.extname(targetDir)) {
+            fs.mkdirSync(targetDir, { recursive: true })
+          }
+          await shell.openPath(targetDir)
+          res.writeHead(200)
+          res.end(JSON.stringify({ ok: true, path: targetDir }))
+        } catch (err) {
+          res.writeHead(500)
+          res.end(JSON.stringify({ ok: false, error: err.message }))
+        }
+      })
+      return
+    }
+
+    res.writeHead(404)
+    res.end("Not found")
+  })
+
+  server.on("error", () => {})
+  server.listen(port, "127.0.0.1")
+}
+
 // Single Instance Lock
 const gotTheLock = app.requestSingleInstanceLock()
 if (!gotTheLock) {
@@ -713,7 +886,11 @@ if (!gotTheLock) {
     }
   })
 
-  app.whenReady().then(createWindow)
+  app.whenReady().then(() => {
+    startAdminLocalFileBridge(41891)
+    startAdminLocalFileBridge(41890)
+    createWindow()
+  })
 }
 
 app.on("window-all-closed", () => {
