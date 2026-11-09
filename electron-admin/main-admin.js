@@ -1037,8 +1037,22 @@ ipcMain.handle("read-project-file", async (_event, folderName, subfolderName = "
 // Servidor HTTP local de puente (puertos 41891 y 41890) para que tanto la app como el navegador web lean C:\Lamha-Storage
 function startAdminLocalFileBridge(port) {
   const url = require("url")
+  const ALLOWED_ORIGINS = new Set([
+    "https://admin.lam7a.ma",
+    "https://lam7a.ma",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+  ])
+
   const server = http.createServer(async (req, res) => {
-    res.setHeader("Access-Control-Allow-Origin", "*")
+    const origin = req.headers.origin || ""
+    if (origin && !ALLOWED_ORIGINS.has(origin)) {
+      res.writeHead(403, { "Content-Type": "application/json" })
+      res.end(JSON.stringify({ ok: false, error: "Forbidden origin" }))
+      return
+    }
+
+    res.setHeader("Access-Control-Allow-Origin", origin || "https://admin.lam7a.ma")
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Access-Control-Request-Private-Network")
     res.setHeader("Access-Control-Allow-Private-Network", "true")
@@ -1148,7 +1162,17 @@ function startAdminLocalFileBridge(port) {
         try {
           const params = body ? JSON.parse(body) : {}
           const rel = (params.path || "").replace(/^[\\\/]+/, "").replace(/\//g, "\\")
-          const targetDir = path.isAbsolute(rel) ? rel : path.join("C:\\Lamha-Storage", rel)
+          const cfg = getConfig()
+          const baseStorage = path.resolve(cfg.ssdPath || "C:\\Lamha-Storage")
+          const targetDir = path.resolve(path.isAbsolute(rel) ? rel : path.join(baseStorage, rel))
+
+          // Validar que la ruta solicitada permanezca dentro del directorio de almacenamiento
+          if (!targetDir.toLowerCase().startsWith(baseStorage.toLowerCase())) {
+            res.writeHead(403)
+            res.end(JSON.stringify({ ok: false, error: "Acceso denegado: ruta fuera del directorio de almacenamiento" }))
+            return
+          }
+
           if (!fs.existsSync(targetDir) && !path.extname(targetDir)) {
             fs.mkdirSync(targetDir, { recursive: true })
           }
@@ -1219,10 +1243,11 @@ ipcMain.handle("create-team-member", async (_event, params = {}) => {
 
     const { createClient } = require("@supabase/supabase-js")
     const cfg = getConfig()
-    const serviceRoleKey =
-      process.env.SUPABASE_SERVICE_ROLE_KEY ||
-      "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJzdXBhYmFzZSIsImlhdCI6MTc4OTkxODUwMCwiZXhwIjo0OTQ1NTkyMTAwLCJyb2xlIjoic2VydmljZV9yb2xlIn0.vShCmR_4b4WTXwDdnc4yIIZI0iD3pssYZZ-YlEObzoE"
-    const sb = createClient(cfg.SUPABASE_URL, serviceRoleKey, {
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || cfg.supabaseServiceKey
+    if (!serviceRoleKey) {
+      return { success: false, error: "Clave de servicio no configurada en las variables de entorno." }
+    }
+    const sb = createClient(cfg.SUPABASE_URL || cfg.supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     })
 

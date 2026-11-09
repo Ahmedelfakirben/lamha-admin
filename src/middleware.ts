@@ -39,16 +39,40 @@ export async function middleware(request: NextRequest) {
   const isApiRoute = pathname.startsWith('/api')
   const isPublicPwa = pathname === '/manifest.json' || pathname === '/sw.js'
 
-  // 1. If not authenticated and attempting to access protected admin pages -> Redirect to /login
+  // Rutas API públicas legítimas (webhooks y callbacks externos)
+  const isPublicApiRoute =
+    pathname.startsWith('/api/webhooks/') ||
+    pathname.startsWith('/api/auth/google/callback') ||
+    pathname.startsWith('/api/auth/google/url') ||
+    pathname === '/api/retention/request' ||
+    pathname === '/api/portal/selection'
+
+  // 1. Proteger rutas API administrativas: denegar acceso a usuarios no autenticados
+  if (isApiRoute && !isPublicApiRoute) {
+    const authHeader = request.headers.get('authorization') || ''
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    const isServiceRole = Boolean(
+      serviceKey &&
+      (authHeader === `Bearer ${serviceKey}` || request.headers.get('x-service-key') === serviceKey)
+    )
+
+    if (!user && !isServiceRole) {
+      return NextResponse.json(
+        { error: 'Unauthorized: Sesión de administrador o clave de servicio requerida' },
+        { status: 401 }
+      )
+    }
+  }
+
+  // 2. Si no está autenticado y accede a páginas protegidas -> Redirigir a /login
   if (!user && !isAuthPage && !isApiRoute && !isPublicPwa) {
     const loginUrl = request.nextUrl.clone()
     loginUrl.pathname = '/login'
-    // Optional: remember redirected path
     loginUrl.searchParams.set('redirectedFrom', pathname)
     return NextResponse.redirect(loginUrl)
   }
 
-  // 2. If authenticated and accessing /login -> Redirect to dashboard /
+  // 3. Si está autenticado e intenta acceder a /login -> Redirigir al dashboard /
   if (user && isAuthPage) {
     const dashboardUrl = request.nextUrl.clone()
     dashboardUrl.pathname = '/'
@@ -62,14 +86,13 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Match all request paths except for:
-     * - api/ (API routes for media uploads and webhooks)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - static public assets (images, svg, webp, json, js)
+     * Interceptar todas las rutas excepto recursos estáticos e imágenes:
+     * - _next/static (ficheros estáticos compilados)
+     * - _next/image (optimización de imágenes)
+     * - favicon.ico
+     * - ficheros públicos (svg, png, jpg, webp, json, js)
      */
-    '/((?!api/|_next/static|_next/image|favicon.ico|manifest\\.json|sw\\.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp|json|js)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|manifest\\.json|sw\\.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp|json|js)$).*)',
   ],
 }
 
