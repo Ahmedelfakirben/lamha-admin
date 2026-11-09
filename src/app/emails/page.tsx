@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase"
+import { createAdminClient } from "@/lib/supabase"
 import { getExistingClients } from "@/app/actions"
 import { getEmailAutomationSettings } from "@/lib/email-settings"
 import { getSmtpConfig, isEmailConfigured } from "@/lib/email"
@@ -7,7 +7,7 @@ import { EmailsClient } from "./emails-client"
 export const dynamic = "force-dynamic"
 
 export default async function EmailsPage() {
-  const supabase = createClient()
+  const supabase = createAdminClient()
 
   const [initialSettings, clientsRes, sessionsRes] = await Promise.all([
     getEmailAutomationSettings(true),

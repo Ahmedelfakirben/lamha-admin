@@ -13,13 +13,6 @@ function resolveServiceRoleKey(): string {
   return envKey || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 }
 
-export function createClient() {
-  return createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
-}
-
 export function createAdminClient() {
   return createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -29,10 +22,18 @@ export function createAdminClient() {
 }
 
 export function createServiceRoleClient() {
-  return createSupabaseClient(
+  return createAdminClient()
+}
+
+export function createClient() {
+  // En entorno servidor (Server Components / SSR), usar cliente administrativo con permisos
+  if (typeof window === 'undefined') {
+    return createAdminClient()
+  }
+  // En entorno navegador ("use client"), usar cliente con sesión de cookies
+  return createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    resolveServiceRoleKey(),
-    { auth: { persistSession: false, autoRefreshToken: false } }
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 }
 

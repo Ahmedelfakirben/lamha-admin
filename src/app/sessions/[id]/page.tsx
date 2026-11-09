@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase"
+import { createAdminClient } from "@/lib/supabase"
 import { notFound } from "next/navigation"
 import { SessionDetailsClient } from "./session-details-client"
 import { generateProjectFolderName } from "@/lib/storage-config"
@@ -40,7 +40,7 @@ export default async function SessionDetailsPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const supabase = createClient()
+  const supabase = createAdminClient()
   
   const { data: session, error } = await supabase
     .from("sessions")

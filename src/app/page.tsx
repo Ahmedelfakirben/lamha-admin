@@ -1,11 +1,11 @@
-import { createClient } from "@/lib/supabase"
+import { createAdminClient } from "@/lib/supabase"
 import { Session, SessionStatus, STATUS_LABELS, CATEGORY_LABELS } from "@/types/database"
 import { DashboardHomeClient } from "@/app/dashboard-home-client"
 
 export const dynamic = "force-dynamic"
 
 export default async function DashboardPage() {
-  const supabase = createClient()
+  const supabase = createAdminClient()
   
   // Fetch real sessions from Supabase
   const { data: rawSessions } = await supabase

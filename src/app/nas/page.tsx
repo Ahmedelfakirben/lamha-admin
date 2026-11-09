@@ -1,10 +1,10 @@
-import { createClient } from "@/lib/supabase"
+import { createAdminClient } from "@/lib/supabase"
 import { NasStorageDashboard } from "@/components/nas-storage-dashboard"
 
 export const dynamic = "force-dynamic"
 
 export default async function NasStoragePage() {
-  const supabase = createClient()
+  const supabase = createAdminClient()
 
   // Obtener sesiones reales de clientes desde la base de datos Supabase
   const { data: sessions } = await supabase

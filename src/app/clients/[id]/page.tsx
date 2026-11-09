@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase"
+import { createAdminClient } from "@/lib/supabase"
 import { notFound } from "next/navigation"
 import { ClientProfileView } from "./client-profile-view"
 
@@ -11,7 +11,7 @@ export default async function ClientDetailPage({
 }) {
   const { id } = await params
   const decodedId = decodeURIComponent(id).trim()
-  const supabase = createClient()
+  const supabase = createAdminClient()
 
   let clientRecord: any = null
   let clientName = decodedId
