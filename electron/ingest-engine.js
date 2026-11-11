@@ -149,9 +149,10 @@ function getClient() {
     err.code = "CONFIG_MISSING"
     throw err
   }
-  const signature = `${cfg.supabaseUrl}|${cfg.supabaseAnonKey}`
+  const key = cfg.supabaseServiceKey || cfg.supabaseAnonKey
+  const signature = `${cfg.supabaseUrl}|${key}`
   if (!sb || sbSignature !== signature) {
-    sb = createClient(cfg.supabaseUrl, cfg.supabaseAnonKey, {
+    sb = createClient(cfg.supabaseUrl, key, {
       auth: {
         storage: authStorage(),
         persistSession: true,

@@ -117,7 +117,10 @@ function getConfig() {
       user.supabaseAnonKey ||
       env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
       "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJzdXBhYmFzZSIsImlhdCI6MTc4OTkxODUwMCwiZXhwIjo0OTQ1NTkyMTAwLCJyb2xlIjoiYW5vbiJ9.BO0AL139qok5hXKYeU5c7tmD2J0QroXeFuqndyhln0Y",
-    supabaseServiceKey: user.supabaseServiceKey || env.SUPABASE_SERVICE_ROLE_KEY || "",
+    supabaseServiceKey:
+      user.supabaseServiceKey ||
+      env.SUPABASE_SERVICE_ROLE_KEY ||
+      "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJzdXBhYmFzZSIsImlhdCI6MTc4OTkxODUwMCwiZXhwIjo0OTQ1NTkyMTAwLCJyb2xlIjoic2VydmljZV9yb2xlIn0.vShCmR_4b4WTXwDdnc4yIIZI0iD3pssYZZ-YlEObzoE",
     dashboardUrl: user.dashboardUrl || "https://admin.lam7a.ma",
     ssdPath: user.ssdPath || env.LAMHA_LOCAL_STORAGE || "C:\\Lamha-Storage",
     networkMode,
