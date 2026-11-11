@@ -4,13 +4,19 @@ const fs = require("fs")
 const http = require("http")
 const net = require("net")
 const { spawn, exec } = require("child_process")
+let configModule
+try {
+  configModule = require("./config")
+} catch {
+  configModule = require("../electron/config")
+}
 const {
   getConfig,
   probeTcpPort,
   resolveActiveNasRoute,
   findAvailableSmbShareAsync,
   syncConfigFromSupabase,
-} = require("../electron/config")
+} = configModule
 
 let mainWindow = null
 const STUDIO_PANEL_URL = process.env.LAMHA_PANEL_URL || "https://admin.lam7a.ma"
