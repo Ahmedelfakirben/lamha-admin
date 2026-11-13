@@ -36,6 +36,7 @@ import { updateSessionNotes } from "@/app/actions"
 interface SessionItem {
   id: string
   session_date: string
+  session_time?: string | null
   client_name: string
   client_phone: string | null
   client_email: string | null
@@ -281,13 +282,18 @@ export function MobileCalendarView({ sessions, onRefresh }: MobileCalendarViewPr
                     <h4 className="text-sm font-bold font-serif text-[#f5f2eb] truncate">
                       {session.client_name}
                     </h4>
-                    <div className="flex items-center gap-2 mt-0.5">
+                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                       <span className="text-[10px] uppercase tracking-wider text-[#c69f68] font-mono font-semibold">
                         {session.category || "Sesión"}
                       </span>
                       <span className="text-[10px] text-[#70665a] uppercase font-mono">
                         • {session.session_type === "photo" ? "Fotografía" : "Vídeo"}
                       </span>
+                      {session.session_time && (
+                        <span className="text-[10px] text-amber-300 font-mono font-bold flex items-center gap-0.5">
+                          • <Clock className="w-2.5 h-2.5" /> {session.session_time}
+                        </span>
+                      )}
                     </div>
                   </div>
 

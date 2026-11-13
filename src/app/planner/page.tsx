@@ -711,12 +711,17 @@ export default function PlannerPage() {
                             {session.client_name}
                           </h4>
 
-                          {/* Session Date */}
-                          <div className="flex items-center gap-1.5 text-[11px] text-[#70665a] mb-2.5">
+                          {/* Session Date & Time */}
+                          <div className="flex items-center gap-1.5 text-[11px] text-[#70665a] mb-2.5 flex-wrap">
                             <CalendarIcon className="w-3 h-3 text-[#5a5247]" />
                             <span>
                               {format(new Date(session.session_date), "dd MMMM yyyy", { locale: dateLocale })}
                             </span>
+                            {session.session_time && (
+                              <span className="inline-flex items-center gap-1 text-[#c69f68] font-mono font-medium ml-1">
+                                • <Clock className="w-2.5 h-2.5" /> {session.session_time}
+                              </span>
+                            )}
                           </div>
 
                           {/* Badges Row: Media + Selection + Comments */}
@@ -782,12 +787,20 @@ export default function PlannerPage() {
                   <h3 className="text-base font-bold text-[#f5f2eb] leading-tight">
                     {activeTicket.client_name}
                   </h3>
-                  <div className="flex items-center gap-2 mt-0.5 text-xs text-[#a89f91]">
+                  <div className="flex items-center gap-2 mt-0.5 text-xs text-[#a89f91] flex-wrap">
                     <span className="capitalize">{activeTicket.category || "Projet"}</span>
                     <span>•</span>
                     <span>
                       {format(new Date(activeTicket.session_date), "dd MMMM yyyy", { locale: dateLocale })}
                     </span>
+                    {activeTicket.session_time && (
+                      <>
+                        <span>•</span>
+                        <span className="text-[#c69f68] font-mono font-medium flex items-center gap-1">
+                          <Clock className="w-3 h-3" /> {activeTicket.session_time}
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>

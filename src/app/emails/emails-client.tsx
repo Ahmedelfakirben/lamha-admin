@@ -22,9 +22,12 @@ import {
   Sliders,
   Check,
   Loader2,
+  MessageSquare,
 } from "lucide-react"
 import type { EmailAutomationSettings } from "@/lib/email-settings"
 import { getDefaultEmailAutomationSettings } from "@/lib/email-settings"
+import type { WhatsAppAutomationSettings } from "@/lib/whatsapp-templates-config"
+import { WhatsAppTemplatesManager } from "@/components/whatsapp-templates-manager"
 import {
   DEFAULT_TEMPLATES_I18N,
   EmailLanguage,
@@ -47,6 +50,7 @@ import { EMAIL_UI_I18N } from "@/lib/email-ui-i18n"
 
 interface EmailsClientProps {
   initialSettings: EmailAutomationSettings
+  initialWhatsAppSettings: WhatsAppAutomationSettings
   clients: ExistingClientOption[]
   sessions: any[]
   smtpReady: boolean
@@ -257,6 +261,7 @@ const QUICK_MESSAGE_PRESETS: Record<
 
 export function EmailsClient({
   initialSettings,
+  initialWhatsAppSettings,
   clients,
   sessions,
   smtpReady,
@@ -267,8 +272,8 @@ export function EmailsClient({
     uiLang === "ar" || uiLang === "en" || uiLang === "es" || uiLang === "fr" ? uiLang : "fr"
   const dict = EMAIL_UI_I18N[activeUiLang] || EMAIL_UI_I18N.fr
 
-  // Pestaña activa: "automations" (Correos automáticos) vs "composer" (Enviar correo libre)
-  const [activeTab, setActiveTab] = useState<"automations" | "composer">("automations")
+  // Pestaña activa: "automations" (Emails automáticos) vs "whatsapp" (WhatsApp automático) vs "composer" (Enviar email libre)
+  const [activeTab, setActiveTab] = useState<"automations" | "whatsapp" | "composer">("automations")
 
   // --- Estado de Automatizaciones y Plantillas ---
   const [settings, setSettings] = useState<EmailAutomationSettings>(initialSettings)
@@ -654,30 +659,42 @@ export function EmailsClient({
             <span>{dict.exchangeLabel} {smtpFromEmail}</span>
           </div>
 
-          <div className="flex bg-[#151210] p-1 rounded-xl border border-[#2b241d]">
+          <div className="flex bg-[#151210] p-1 rounded-xl border border-[#2b241d] flex-wrap gap-1">
             <button
               type="button"
               onClick={() => setActiveTab("automations")}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all ${
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 activeTab === "automations"
-                  ? "bg-[#c69f68] text-[#0f0d0b] shadow"
+                  ? "bg-[#c69f68] text-[#0f0d0b] shadow font-bold"
                   : "text-[#a89f91] hover:text-[#f5f2eb]"
               }`}
             >
-              <Sliders className="w-3.5 h-3.5" />
-              <span>{dict.tabAutomations}</span>
+              <Mail className="w-3.5 h-3.5" />
+              <span>{dict.tabAutomations || "Emails Automatiques"}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("whatsapp")}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                activeTab === "whatsapp"
+                  ? "bg-[#25D366] text-[#0b0a09] shadow font-bold"
+                  : "text-[#a89f91] hover:text-[#f5f2eb]"
+              }`}
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              <span>WhatsApp Automatique</span>
             </button>
             <button
               type="button"
               onClick={() => setActiveTab("composer")}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all ${
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 activeTab === "composer"
-                  ? "bg-[#c69f68] text-[#0f0d0b] shadow"
+                  ? "bg-[#c69f68] text-[#0f0d0b] shadow font-bold"
                   : "text-[#a89f91] hover:text-[#f5f2eb]"
               }`}
             >
               <PenSquare className="w-3.5 h-3.5" />
-              <span>{dict.tabComposer}</span>
+              <span>{dict.tabComposer || "Rédiger un Email"}</span>
             </button>
           </div>
         </div>
@@ -1003,7 +1020,14 @@ export function EmailsClient({
       )}
 
       {/* =====================================================================
-          PESTAÑA 2: ENVIAR CORREO A PLACER (REDACTOR LIBRE CON PRESET HTML)
+          PESTAÑA: MODÈLES ET AUTOMATISATIONS WHATSAPP
+         ===================================================================== */}
+      {activeTab === "whatsapp" && (
+        <WhatsAppTemplatesManager initialSettings={initialWhatsAppSettings} />
+      )}
+
+      {/* =====================================================================
+          PESTAÑA 3: ENVIAR CORREO A PLACER (REDACTOR LIBRE CON PRESET HTML)
          ===================================================================== */}
       {activeTab === "composer" && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">

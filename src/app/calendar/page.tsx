@@ -46,6 +46,8 @@ import Link from "next/link"
 interface SessionItem {
   id: string
   session_date: string
+  session_time?: string | null
+  language?: string | null
   client_name: string
   client_phone: string | null
   client_email: string | null
@@ -167,13 +169,22 @@ export default function CalendarPage() {
     try {
       setLoading(true)
       const supabase = createClient()
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from("sessions")
-        .select("id, session_date, client_name, client_phone, client_email, session_type, category, status, comments, internal_notes, tags, portal_pin")
+        .select("id, session_date, session_time, language, client_name, client_phone, client_email, session_type, category, status, comments, internal_notes, tags, portal_pin")
         .order("session_date", { ascending: true })
 
+      if (error && (error.message?.includes('session_time') || error.details?.includes('session_time') || error.code === 'PGRST204')) {
+        const fallbackRes = await supabase
+          .from("sessions")
+          .select("id, session_date, client_name, client_phone, client_email, session_type, category, status, comments, internal_notes, tags, portal_pin")
+          .order("session_date", { ascending: true })
+        data = fallbackRes.data as any
+        error = fallbackRes.error
+      }
+
       if (error) throw error
-      setSessions((data as SessionItem[]) || [])
+      setSessions((data as unknown as SessionItem[]) || [])
     } catch (err) {
       console.error("Erreur chargement séances calendrier:", err)
     } finally {
@@ -216,7 +227,7 @@ export default function CalendarPage() {
     })
   }, [sessions, typeFilter, statusFilter, categoryFilter, hasNotesFilter, search])
 
-  // Group filtered sessions by date (YYYY-MM-DD)
+  // Group filtered sessions by date (YYYY-MM-DD) and sort chronologically by session_time
   const sessionsByDate = useMemo(() => {
     const map: Record<string, SessionItem[]> = {}
     filteredSessions.forEach((s) => {
@@ -224,6 +235,15 @@ export default function CalendarPage() {
       const dateKey = s.session_date.slice(0, 10)
       if (!map[dateKey]) map[dateKey] = []
       map[dateKey].push(s)
+    })
+    // Sort each day's sessions by time if available
+    Object.values(map).forEach((list) => {
+      list.sort((a, b) => {
+        if (!a.session_time && !b.session_time) return 0
+        if (!a.session_time) return 1
+        if (!b.session_time) return -1
+        return a.session_time.localeCompare(b.session_time)
+      })
     })
     return map
   }, [filteredSessions])
@@ -668,6 +688,11 @@ export default function CalendarPage() {
                             >
                               <span className="text-[9px] shrink-0">{icon}</span>
                               <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusStyle.dot}`} />
+                              {session.session_time && (
+                                <span className="font-mono text-[9px] font-semibold text-[#c69f68] shrink-0">
+                                  {session.session_time}
+                                </span>
+                              )}
                               <span className="truncate font-medium">{session.client_name}</span>
                               {session.comments && (
                                 <span className="text-[8px] text-[#c69f68] shrink-0 ml-auto">✎</span>
@@ -767,9 +792,14 @@ export default function CalendarPage() {
                                   <span className="text-base">{icon}</span>
                                   <div>
                                     <h4 className="text-xs font-bold text-[#f5f2eb]">{session.client_name}</h4>
-                                    <span className="text-[10px] text-[#8c7a6b] capitalize">
-                                      {session.session_type === "photo" ? "📸 Photo" : "🎬 Vidéo"} • {FR_CATEGORY_LABELS[session.category] || session.category}
-                                    </span>
+                                    <div className="text-[10px] text-[#8c7a6b] capitalize flex items-center gap-1.5 flex-wrap">
+                                      <span>{session.session_type === "photo" ? "📸 Photo" : "🎬 Vidéo"} • {FR_CATEGORY_LABELS[session.category] || session.category}</span>
+                                      {session.session_time && (
+                                        <span className="text-[#c69f68] font-mono font-bold inline-flex items-center gap-1">
+                                          • <Clock className="w-2.5 h-2.5" /> {session.session_time}
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
 
@@ -864,9 +894,14 @@ export default function CalendarPage() {
                     <div className="p-4 rounded-xl bg-[#0b0a09] border border-[#26211c] space-y-3">
                       <div className="flex items-start justify-between">
                         <div>
-                          <span className="text-[10px] uppercase tracking-wider text-[#c69f68] font-bold block">
-                            {(FR_CATEGORY_LABELS[activeSession.category] || activeSession.category).toUpperCase()} • {activeSession.session_type === "photo" ? "📸 Photo" : "🎬 Vidéo"}
-                          </span>
+                          <div className="text-[10px] uppercase tracking-wider text-[#c69f68] font-bold flex items-center gap-2 flex-wrap">
+                            <span>{(FR_CATEGORY_LABELS[activeSession.category] || activeSession.category).toUpperCase()} • {activeSession.session_type === "photo" ? "📸 Photo" : "🎬 Vidéo"}</span>
+                            {activeSession.session_time && (
+                              <span className="text-amber-300 font-mono inline-flex items-center gap-1 font-semibold">
+                                • <Clock className="w-3 h-3" /> {activeSession.session_time}
+                              </span>
+                            )}
+                          </div>
                           <h4 className="text-base font-serif font-bold text-[#f5f2eb] mt-0.5">
                             {activeSession.client_name}
                           </h4>

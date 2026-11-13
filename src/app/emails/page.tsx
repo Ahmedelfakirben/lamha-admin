@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase"
 import { getExistingClients } from "@/app/actions"
 import { getEmailAutomationSettings } from "@/lib/email-settings"
+import { getWhatsAppAutomationSettings } from "@/lib/whatsapp-settings"
 import { getSmtpConfig, isEmailConfigured } from "@/lib/email"
 import { EmailsClient } from "./emails-client"
 
@@ -9,8 +10,9 @@ export const dynamic = "force-dynamic"
 export default async function EmailsPage() {
   const supabase = createAdminClient()
 
-  const [initialSettings, clientsRes, sessionsRes] = await Promise.all([
+  const [initialSettings, initialWhatsAppSettings, clientsRes, sessionsRes] = await Promise.all([
     getEmailAutomationSettings(true),
+    getWhatsAppAutomationSettings(true),
     getExistingClients(),
     supabase
       .from("sessions")
@@ -25,6 +27,7 @@ export default async function EmailsPage() {
   return (
     <EmailsClient
       initialSettings={initialSettings}
+      initialWhatsAppSettings={initialWhatsAppSettings}
       clients={clientsRes.clients || []}
       sessions={(sessionsRes.data as any[]) || []}
       smtpReady={smtpReady}

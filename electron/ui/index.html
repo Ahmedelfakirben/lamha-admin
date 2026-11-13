@@ -1107,11 +1107,15 @@
           </div>
         </div>
 
-        <!-- Fecha, Categoría Principal y Subcategoría -->
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <!-- Fecha, Hora, Categoría Principal y Subcategoría -->
+        <div style="display: grid; grid-template-columns: 1.2fr 1fr 1.2fr; gap: 10px;">
           <div class="form-group">
             <label id="txt-new-sess-date">Date de la séance *</label>
             <input type="date" id="inp-new-date" class="text-input">
+          </div>
+          <div class="form-group">
+            <label id="txt-new-sess-time">Heure (optionnelle)</label>
+            <input type="time" id="inp-new-time" class="text-input">
           </div>
           <div class="form-group">
             <label id="txt-new-sess-cat">Catégorie Principale *</label>
@@ -2505,11 +2509,12 @@
         const opt = document.createElement("option");
         opt.value = s.id;
         const date = s.session_date || "";
+        const timeStr = s.session_time ? ` ${s.session_time}` : "";
         const stLabel = formatSessionStatusLabel(s.status);
         const catLabel = getCategoryLabel(s.category);
         const subLabel = s.subcategory ? ` › ${getSubcategoryLabel(s.subcategory)}` : "";
         const typeIcon = s.session_type === "video" ? "[Vidéo]" : "[Photo]";
-        opt.textContent = `${typeIcon} ${s.client_name || "Client"} — ${catLabel}${subLabel} (${date}) [${stLabel}]`;
+        opt.textContent = `${typeIcon} ${s.client_name || "Client"} — ${catLabel}${subLabel} (${date}${timeStr}) [${stLabel}]`;
         sessionSelect.appendChild(opt);
       });
 
@@ -2560,7 +2565,7 @@
                   ${typeIcon} ${escapeHtml(s.client_name || "Client")}
                 </div>
                 <div style="font-size:10px; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                  ${escapeHtml(catLabel)}${escapeHtml(subLabel)} • ${escapeHtml(s.session_date || "-")} ${s.client_phone ? `• Tel: ${escapeHtml(s.client_phone)}` : ""}
+                  ${escapeHtml(catLabel)}${escapeHtml(subLabel)} • ${escapeHtml(s.session_date || "-")}${s.session_time ? ' ' + escapeHtml(s.session_time) : ''} ${s.client_phone ? `• Tel: ${escapeHtml(s.client_phone)}` : ""}
                 </div>
               </div>
               <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
@@ -2886,6 +2891,7 @@
       if (inpSearchExistingClient) inpSearchExistingClient.value = "";
       if (existingClientsDropdown) existingClientsDropdown.style.display = "none";
       document.getElementById("inp-new-date").value = new Date().toISOString().split("T")[0];
+      if (document.getElementById("inp-new-time")) document.getElementById("inp-new-time").value = "";
       document.getElementById("inp-new-status").value = "shooting";
       document.getElementById("inp-new-pin").value = generateRandomPin();
       document.getElementById("inp-new-tags").value = "";
@@ -2908,6 +2914,7 @@
       const clientPhone = document.getElementById("inp-new-phone").value.trim();
       const clientEmail = document.getElementById("inp-new-email").value.trim();
       const sessionDate = document.getElementById("inp-new-date").value;
+      const sessionTime = document.getElementById("inp-new-time") ? document.getElementById("inp-new-time").value.trim() : "";
       const category = document.getElementById("inp-new-category").value;
       const subcategory = document.getElementById("inp-new-subcategory").value;
       const status = document.getElementById("inp-new-status").value || "shooting";
@@ -2935,6 +2942,7 @@
           clientPhone,
           clientEmail,
           sessionDate,
+          sessionTime,
           shootingType: newSessionShootingType,
           sessionType: newSessionMediaType,
           category,

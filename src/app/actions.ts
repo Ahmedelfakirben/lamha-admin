@@ -24,6 +24,15 @@ import {
   getSelectionReceivedClientWhatsApp, 
   getStudioSelectionAlertWhatsApp 
 } from '@/lib/whatsapp-templates';
+import {
+  getWhatsAppAutomationSettings,
+  saveWhatsAppAutomationSettings,
+  WhatsAppAutomationSettings,
+  WhatsAppTemplateKey,
+  WhatsAppLanguage,
+  renderWhatsAppMessageTemplate,
+  DEFAULT_WHATSAPP_TEMPLATES_I18N,
+} from '@/lib/whatsapp-settings';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -116,7 +125,12 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 
 export async function createSession(data: any, userContext?: UserAuditContext) {
   try {
-    const { folder_link, final_link, sendWelcomeEmail, language, ...sessionData } = data;
+    const { folder_link, final_link, sendWelcomeEmail, language: inputLanguage, ...sessionData } = data;
+    const projectLanguage = inputLanguage || data.language || 'fr';
+    sessionData.language = projectLanguage;
+    if (sessionData.session_time !== undefined) {
+      sessionData.session_time = sessionData.session_time ? String(sessionData.session_time).trim() : null;
+    }
     
     // Parse tags if provided as string
     if (typeof sessionData.tags === 'string') {
@@ -197,9 +211,25 @@ export async function createSession(data: any, userContext?: UserAuditContext) {
       .select()
       .single();
 
-    if (error && (error.message?.includes('shooting_type') || error.details?.includes('shooting_type') || error.code === 'PGRST204')) {
-      // Supabase migration might be pending; fallback without column while tags retain place info
-      const { shooting_type, ...fallbackData } = sessionData;
+    if (error && (
+      error.message?.includes('shooting_type') || 
+      error.message?.includes('session_time') || 
+      error.message?.includes('language') || 
+      error.details?.includes('shooting_type') || 
+      error.details?.includes('session_time') || 
+      error.details?.includes('language') || 
+      error.code === 'PGRST204'
+    )) {
+      const fallbackData = { ...sessionData };
+      if (error.message?.includes('shooting_type') || error.details?.includes('shooting_type') || error.code === 'PGRST204') {
+        delete fallbackData.shooting_type;
+      }
+      if (error.message?.includes('session_time') || error.details?.includes('session_time')) {
+        delete fallbackData.session_time;
+      }
+      if (error.message?.includes('language') || error.details?.includes('language')) {
+        delete fallbackData.language;
+      }
       const retryRes = await supabase
         .from('sessions')
         .insert({ ...fallbackData })
@@ -213,6 +243,8 @@ export async function createSession(data: any, userContext?: UserAuditContext) {
       insertedSession = insData;
     }
 
+    const effectiveNotifLang = insertedSession.language || projectLanguage || 'fr';
+
     // Registrar en auditoría estricta la creación del proyecto
     await recordAuditLog({
       action: 'SESSION_CREATED',
@@ -222,6 +254,8 @@ export async function createSession(data: any, userContext?: UserAuditContext) {
       details: {
         category: insertedSession.category,
         date: insertedSession.session_date,
+        time: insertedSession.session_time || null,
+        language: effectiveNotifLang,
         type: insertedSession.session_type,
         status: insertedSession.status,
       },
@@ -238,7 +272,7 @@ export async function createSession(data: any, userContext?: UserAuditContext) {
           category: insertedSession.category,
           sessionType: insertedSession.session_type,
           notes: insertedSession.comments,
-          language: language || 'fr',
+          language: effectiveNotifLang,
         });
 
         if (emailRes.success) {
@@ -250,6 +284,7 @@ export async function createSession(data: any, userContext?: UserAuditContext) {
             details: {
               email: insertedSession.client_email,
               date: insertedSession.session_date,
+              language: effectiveNotifLang,
               messageId: emailRes.messageId,
             },
             ...userContext,
@@ -263,34 +298,45 @@ export async function createSession(data: any, userContext?: UserAuditContext) {
     // Enviar WhatsApp automático de confirmación al cliente si tiene teléfono
     if (insertedSession.client_phone) {
       try {
-        const text = getWelcomeWhatsApp({
-          clientName: insertedSession.client_name,
-          sessionDate: insertedSession.session_date,
-          category: insertedSession.category,
-          portalPin: insertedSession.portal_pin,
-          clientEmail: insertedSession.client_email,
-          language: language || 'fr',
-        });
+        const waSettings = await getWhatsAppAutomationSettings();
+        if (waSettings.templates.welcome.enabled) {
+          const tplText = waSettings.templates.welcome.translations[effectiveNotifLang as WhatsAppLanguage] ||
+            DEFAULT_WHATSAPP_TEMPLATES_I18N.welcome[effectiveNotifLang as WhatsAppLanguage] ||
+            DEFAULT_WHATSAPP_TEMPLATES_I18N.welcome.fr;
 
-        await sendWhatsAppMessage({
-          phone: insertedSession.client_phone,
-          text,
-          clientId: insertedSession.client_id || null,
-          sessionId: insertedSession.id,
-        });
+          const text = renderWhatsAppMessageTemplate({
+            templateText: tplText,
+            language: effectiveNotifLang as WhatsAppLanguage,
+            data: {
+              clientName: insertedSession.client_name,
+              sessionDate: insertedSession.session_date,
+              sessionTime: insertedSession.session_time,
+              category: insertedSession.category,
+              portalPin: insertedSession.portal_pin,
+              clientEmail: insertedSession.client_email,
+            },
+          });
 
-        await recordAuditLog({
-          action: 'WHATSAPP_WELCOME_SENT',
-          entityType: 'session',
-          entityId: insertedSession.id,
-          entityTitle: insertedSession.client_name,
-          details: {
+          await sendWhatsAppMessage({
             phone: insertedSession.client_phone,
-            category: insertedSession.category,
-            language: language || 'fr',
-          },
-          ...userContext,
-        });
+            text,
+            clientId: insertedSession.client_id || null,
+            sessionId: insertedSession.id,
+          });
+
+          await recordAuditLog({
+            action: 'WHATSAPP_WELCOME_SENT',
+            entityType: 'session',
+            entityId: insertedSession.id,
+            entityTitle: insertedSession.client_name,
+            details: {
+              phone: insertedSession.client_phone,
+              category: insertedSession.category,
+              language: effectiveNotifLang,
+            },
+            ...userContext,
+          });
+        }
       } catch (waErr) {
         console.warn('Fallo no bloqueante al enviar WhatsApp de bienvenida:', waErr);
       }
@@ -340,7 +386,13 @@ export async function createSession(data: any, userContext?: UserAuditContext) {
 
 export async function updateSession(id: string, data: any, userContext?: UserAuditContext) {
   try {
-    const { folder_link, final_link, sendWelcomeEmail, language, ...sessionData } = data;
+    const { folder_link, final_link, sendWelcomeEmail, language: inputLanguage, ...sessionData } = data;
+    if (inputLanguage || data.language) {
+      sessionData.language = inputLanguage || data.language;
+    }
+    if (sessionData.session_time !== undefined) {
+      sessionData.session_time = sessionData.session_time ? String(sessionData.session_time).trim() : null;
+    }
     
     if (typeof sessionData.tags === 'string') {
       sessionData.tags = sessionData.tags.split(',').map((t: string) => t.trim()).filter(Boolean);
@@ -372,8 +424,25 @@ export async function updateSession(id: string, data: any, userContext?: UserAud
       .update({ ...sessionData })
       .eq('id', id);
 
-    if (error && (error.message?.includes('shooting_type') || error.details?.includes('shooting_type') || error.code === 'PGRST204')) {
-      const { shooting_type, ...fallbackData } = sessionData;
+    if (error && (
+      error.message?.includes('shooting_type') || 
+      error.message?.includes('session_time') || 
+      error.message?.includes('language') || 
+      error.details?.includes('shooting_type') || 
+      error.details?.includes('session_time') || 
+      error.details?.includes('language') || 
+      error.code === 'PGRST204'
+    )) {
+      const fallbackData = { ...sessionData };
+      if (error.message?.includes('shooting_type') || error.details?.includes('shooting_type') || error.code === 'PGRST204') {
+        delete fallbackData.shooting_type;
+      }
+      if (error.message?.includes('session_time') || error.details?.includes('session_time')) {
+        delete fallbackData.session_time;
+      }
+      if (error.message?.includes('language') || error.details?.includes('language')) {
+        delete fallbackData.language;
+      }
       const retry = await supabase
         .from('sessions')
         .update({ ...fallbackData })
@@ -440,7 +509,7 @@ export async function updateSession(id: string, data: any, userContext?: UserAud
     // Trigger Automático: Si el proyecto pasa a "ready_delivery" o "edited", notificar al cliente (Email + WhatsApp)
     if (sessionData.status === 'ready_delivery' || sessionData.status === 'edited' || sessionData.pipeline_stage === 'ready_delivery') {
       try {
-        await notifyReadyForDeliveryAction(id, userContext, language);
+        await notifyReadyForDeliveryAction(id, userContext, sessionData.language || inputLanguage);
       } catch (notifyErr) {
         console.warn('Fallo no bloqueante al enviar notificación de Ready for Delivery:', notifyErr);
       }
@@ -947,7 +1016,7 @@ export async function sendPhotosReadyEmailAction(
     // 1. Obtener datos del proyecto
     const { data: session, error: sErr } = await supabase
       .from('sessions')
-      .select('id, client_name, client_email, client_phone, client_id, portal_pin, comments, tags')
+      .select('id, client_name, client_email, client_phone, client_id, portal_pin, comments, tags, language')
       .eq('id', sessionId)
       .single();
 
@@ -1001,7 +1070,7 @@ export async function sendPhotosReadyEmailAction(
       driveFolderUrl = `https://drive.google.com/drive/folders/${delivery.gdrive_folder_id}`;
     }
 
-    const emailLang = language || 'fr';
+    const emailLang = (session.language as string) || language || 'fr';
 
     // 4. Enviar mediante el motor Microsoft Exchange si tiene email
     if (session.client_email) {
@@ -1035,35 +1104,45 @@ export async function sendPhotosReadyEmailAction(
     // 5. Enviar mensaje de WhatsApp si tiene teléfono
     if (clientPhone) {
       try {
-        const waText = getPhotosReadyWhatsApp({
-          clientName: session.client_name,
-          portalPin: session.portal_pin,
-          clientEmail: session.client_email,
-          driveUrl: driveFolderUrl,
-          photosCount: photosCount || undefined,
-          language: emailLang,
-        });
+        const waSettings = await getWhatsAppAutomationSettings();
+        if (waSettings.templates.photos_ready.enabled) {
+          const tplText = waSettings.templates.photos_ready.translations[emailLang as WhatsAppLanguage] ||
+            DEFAULT_WHATSAPP_TEMPLATES_I18N.photos_ready[emailLang as WhatsAppLanguage] ||
+            DEFAULT_WHATSAPP_TEMPLATES_I18N.photos_ready.fr;
 
-        await sendWhatsAppMessage({
-          phone: clientPhone,
-          text: waText,
-          clientId: session.client_id || null,
-          sessionId: session.id,
-        });
+          const waText = renderWhatsAppMessageTemplate({
+            templateText: tplText,
+            language: emailLang as WhatsAppLanguage,
+            data: {
+              clientName: session.client_name,
+              portalPin: session.portal_pin,
+              clientEmail: session.client_email,
+              driveUrl: driveFolderUrl,
+              photosCount: photosCount || undefined,
+            },
+          });
 
-        await recordAuditLog({
-          action: 'WHATSAPP_PHOTOS_READY_SENT',
-          entityType: 'session',
-          entityId: sessionId,
-          entityTitle: session.client_name,
-          details: {
+          await sendWhatsAppMessage({
             phone: clientPhone,
-            portal_pin: session.portal_pin,
-            photos_count: photosCount || 0,
-            language: emailLang,
-          },
-          ...userContext,
-        });
+            text: waText,
+            clientId: session.client_id || null,
+            sessionId: session.id,
+          });
+
+          await recordAuditLog({
+            action: 'WHATSAPP_PHOTOS_READY_SENT',
+            entityType: 'session',
+            entityId: sessionId,
+            entityTitle: session.client_name,
+            details: {
+              phone: clientPhone,
+              portal_pin: session.portal_pin,
+              photos_count: photosCount || 0,
+              language: emailLang,
+            },
+            ...userContext,
+          });
+        }
       } catch (waErr) {
         console.warn('Fallo no bloqueante al enviar WhatsApp de fotos listas:', waErr);
       }
@@ -1107,7 +1186,7 @@ export async function notifyReadyForDeliveryAction(
   try {
     const { data: session, error: sErr } = await supabase
       .from('sessions')
-      .select('id, client_name, client_email, client_phone, client_id, portal_pin, category')
+      .select('id, client_name, client_email, client_phone, client_id, portal_pin, category, language')
       .eq('id', sessionId)
       .single();
 
@@ -1146,7 +1225,7 @@ export async function notifyReadyForDeliveryAction(
       driveFolderUrl = `https://drive.google.com/drive/folders/${delivery.gdrive_folder_id}`;
     }
 
-    const emailLang = language || 'fr';
+    const emailLang = (session.language as string) || language || 'fr';
 
     // 1. Enviar Email
     if (session.client_email) {
@@ -1182,34 +1261,44 @@ export async function notifyReadyForDeliveryAction(
     // 2. Enviar WhatsApp
     if (clientPhone) {
       try {
-        const text = getReadyForDeliveryWhatsApp({
-          clientName: session.client_name,
-          category: session.category,
-          portalPin: session.portal_pin,
-          clientEmail: session.client_email,
-          driveUrl: driveFolderUrl,
-          language: emailLang,
-        });
+        const waSettings = await getWhatsAppAutomationSettings();
+        if (waSettings.templates.ready_delivery.enabled) {
+          const tplText = waSettings.templates.ready_delivery.translations[emailLang as WhatsAppLanguage] ||
+            DEFAULT_WHATSAPP_TEMPLATES_I18N.ready_delivery[emailLang as WhatsAppLanguage] ||
+            DEFAULT_WHATSAPP_TEMPLATES_I18N.ready_delivery.fr;
 
-        await sendWhatsAppMessage({
-          phone: clientPhone,
-          text,
-          clientId: session.client_id || null,
-          sessionId: session.id,
-        });
+          const text = renderWhatsAppMessageTemplate({
+            templateText: tplText,
+            language: emailLang as WhatsAppLanguage,
+            data: {
+              clientName: session.client_name,
+              category: session.category,
+              portalPin: session.portal_pin,
+              clientEmail: session.client_email,
+              driveUrl: driveFolderUrl,
+            },
+          });
 
-        await recordAuditLog({
-          action: 'WHATSAPP_READY_FOR_DELIVERY_SENT',
-          entityType: 'session',
-          entityId: sessionId,
-          entityTitle: session.client_name,
-          details: {
+          await sendWhatsAppMessage({
             phone: clientPhone,
-            category: session.category,
-            language: emailLang,
-          },
-          ...userContext,
-        });
+            text,
+            clientId: session.client_id || null,
+            sessionId: session.id,
+          });
+
+          await recordAuditLog({
+            action: 'WHATSAPP_READY_FOR_DELIVERY_SENT',
+            entityType: 'session',
+            entityId: sessionId,
+            entityTitle: session.client_name,
+            details: {
+              phone: clientPhone,
+              category: session.category,
+              language: emailLang,
+            },
+            ...userContext,
+          });
+        }
       } catch (wErr) {
         console.warn('Error enviando WhatsApp de Ready for Delivery:', wErr);
       }
@@ -1253,13 +1342,15 @@ export async function submitClientSelectionAction(params: {
 
     const { data: session, error: sErr } = await supabase
       .from('sessions')
-      .select('id, client_name, client_email, client_phone, client_id, portal_pin, comments, tags')
+      .select('id, client_name, client_email, client_phone, client_id, portal_pin, comments, tags, language')
       .eq('id', sessionId)
       .single();
 
     if (sErr || !session) {
       return { success: false, error: 'Sesión no encontrada' };
     }
+
+    const notifLang = (session.language as string) || language || 'fr';
 
     const currentTags = Array.isArray(session.tags) ? session.tags : [];
     const filteredTags = currentTags.filter((t: string) => !t.startsWith('stage:'));
@@ -1311,7 +1402,7 @@ export async function submitClientSelectionAction(params: {
           photosCount: selectedAssets.length,
           notesCount,
           portalPin: session.portal_pin,
-          language,
+          language: notifLang,
         });
       } catch (eErr) {
         console.warn('Error enviando email confirmación cliente:', eErr);
@@ -1321,18 +1412,28 @@ export async function submitClientSelectionAction(params: {
     // 2. WhatsApp de confirmación al cliente
     if (session.client_phone) {
       try {
-        const clientWaText = getSelectionReceivedClientWhatsApp({
-          clientName: session.client_name,
-          photosCount: selectedAssets.length,
-          language,
-        });
+        const waSettings = await getWhatsAppAutomationSettings();
+        if (waSettings.templates.selection_confirmed.enabled) {
+          const tplText = waSettings.templates.selection_confirmed.translations[notifLang as WhatsAppLanguage] ||
+            DEFAULT_WHATSAPP_TEMPLATES_I18N.selection_confirmed[notifLang as WhatsAppLanguage] ||
+            DEFAULT_WHATSAPP_TEMPLATES_I18N.selection_confirmed.fr;
 
-        await sendWhatsAppMessage({
-          phone: session.client_phone,
-          text: clientWaText,
-          clientId: session.client_id || null,
-          sessionId,
-        });
+          const clientWaText = renderWhatsAppMessageTemplate({
+            templateText: tplText,
+            language: notifLang as WhatsAppLanguage,
+            data: {
+              clientName: session.client_name,
+              photosCount: selectedAssets.length,
+            },
+          });
+
+          await sendWhatsAppMessage({
+            phone: session.client_phone,
+            text: clientWaText,
+            clientId: session.client_id || null,
+            sessionId,
+          });
+        }
       } catch (cWaErr) {
         console.warn('Error enviando WhatsApp confirmación cliente:', cWaErr);
       }
@@ -1682,5 +1783,73 @@ export async function resolveClientRetentionRequestAction(
   } catch (err: any) {
     console.error('Resolve client retention request error:', err);
     return { success: false, error: err?.message || 'Error actualizando solicitud de retención' };
+  }
+}
+
+export async function saveWhatsAppAutomationSettingsAction(
+  settings: WhatsAppAutomationSettings,
+  userContext?: UserAuditContext
+) {
+  try {
+    const res = await saveWhatsAppAutomationSettings(settings, userContext);
+    revalidatePath('/emails');
+    return { success: res.success, settings: res.settings, error: res.error };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function sendTestWhatsAppAction(params: {
+  phone: string;
+  templateKey: WhatsAppTemplateKey;
+  language: WhatsAppLanguage;
+  customText?: string;
+  userContext?: UserAuditContext;
+}) {
+  try {
+    const { phone, templateKey, language, customText } = params;
+    let textToSend = customText;
+    if (!textToSend) {
+      const waSettings = await getWhatsAppAutomationSettings();
+      const rawTpl = waSettings.templates[templateKey]?.translations[language] || DEFAULT_WHATSAPP_TEMPLATES_I18N[templateKey][language];
+      textToSend = renderWhatsAppMessageTemplate({
+        templateText: rawTpl,
+        language,
+        data: {
+          clientName: 'Sarah Benali (Test)',
+          sessionDate: '2026-11-20',
+          sessionTime: '15:30',
+          category: 'Portrait & Studio Editorial',
+          portalPin: '4829',
+          clientEmail: 'sarah.benali@example.com',
+          driveUrl: 'https://drive.google.com/drive/folders/sample-preview',
+          photosCount: 120,
+        },
+      });
+    }
+
+    const waRes = await sendWhatsAppMessage({
+      phone,
+      text: textToSend,
+    });
+
+    if (waRes.success) {
+      await recordAuditLog({
+        action: 'WHATSAPP_TEST_SENT',
+        entityType: 'whatsapp_settings',
+        entityId: 'global_whatsapp_config',
+        entityTitle: `Test WhatsApp (${templateKey} - ${language})`,
+        details: {
+          phone,
+          templateKey,
+          language,
+        },
+        ...params.userContext,
+      });
+    }
+
+    return waRes;
+  } catch (error: any) {
+    return { success: false, error: error?.message || 'Error enviando WhatsApp de prueba' };
   }
 }

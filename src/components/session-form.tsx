@@ -23,7 +23,9 @@ import {
   Tag, 
   MessageSquare,
   Building2,
-  PartyPopper
+  PartyPopper,
+  Clock,
+  Languages
 } from 'lucide-react';
 
 import {
@@ -52,7 +54,9 @@ const formSchema = z.object({
   client_name: z.string().min(2, "Le nom du client doit comporter au moins 2 caractères."),
   client_phone: z.string().optional(),
   client_email: z.string().email("Adresse email invalide").optional().or(z.literal('')),
+  language: z.enum(['fr', 'ar', 'es', 'en']),
   session_date: z.string(),
+  session_time: z.string().optional().or(z.literal('')),
   shooting_type: z.enum(['shooting', 'party']),
   session_type: z.enum(['photo', 'video']),
   category: z.string().min(1, "Veuillez sélectionner une catégorie"),
@@ -145,7 +149,9 @@ export function SessionForm({ initialData, onSuccess, theme = 'light' }: Session
       client_name: initialData?.client_name || "",
       client_phone: initialData?.client_phone || "",
       client_email: initialData?.client_email || "",
+      language: (initialData?.language as any) || "fr",
       session_date: initialData?.session_date || new Date().toISOString().split('T')[0],
+      session_time: initialData?.session_time || "",
       shooting_type: initialData?.shooting_type || getSessionShootingType(initialData) || "shooting",
       session_type: initialData?.session_type || "photo",
       category: initialData?.category || "portrait",
@@ -167,7 +173,9 @@ export function SessionForm({ initialData, onSuccess, theme = 'light' }: Session
         client_name: initialData.client_name || "",
         client_phone: initialData.client_phone || "",
         client_email: initialData.client_email || "",
+        language: (initialData.language as any) || "fr",
         session_date: initialData.session_date ? String(initialData.session_date).split('T')[0] : new Date().toISOString().split('T')[0],
+        session_time: initialData.session_time || "",
         shooting_type: initialData.shooting_type || getSessionShootingType(initialData) || "shooting",
         session_type: initialData.session_type || "photo",
         category: initialData.category || "portrait",
@@ -370,9 +378,17 @@ export function SessionForm({ initialData, onSuccess, theme = 'light' }: Session
       else delete payload.final_link;
     }
 
+    if (!payload.session_time) {
+      if (initialData?.id) payload.session_time = null;
+      else delete payload.session_time;
+    } else {
+      payload.session_time = String(payload.session_time).trim();
+    }
+
+    payload.language = values.language || 'fr';
+
     if (!initialData?.id) {
       payload.sendWelcomeEmail = sendWelcomeEmail;
-      payload.language = language;
     }
 
     if (initialData?.id) {
@@ -775,37 +791,84 @@ export function SessionForm({ initialData, onSuccess, theme = 'light' }: Session
                 />
               </div>
 
-              <FormField
-                control={form.control}
-                name="client_email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className={cn(
-                      "text-xs font-semibold",
-                      isLight ? "text-[#382f26]" : "text-[#a89f91]"
-                    )}>
-                      Adresse Email (optionnelle)
-                    </FormLabel>
-                    <FormControl>
-                      <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#c69f68]" />
-                        <Input 
-                          type="email" 
-                          placeholder="client@exemple.com" 
-                          className={cn(
-                            "pl-9 text-xs focus:border-[#c69f68]",
-                            isLight 
-                              ? "bg-[#fcfbf9] border-[#d4cbba] text-[#1c1815] placeholder:text-[#998f82] focus:bg-white" 
-                              : "bg-[#110f0d] border-[#2e261f] text-[#f5f2eb] placeholder:text-[#5c5348]"
-                          )} 
-                          {...field} 
-                        />
-                      </div>
-                    </FormControl>
-                    <FormMessage className="text-xs text-rose-500" />
-                  </FormItem>
-                )}
-              />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                <FormField
+                  control={form.control}
+                  name="client_email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className={cn(
+                        "text-xs font-semibold",
+                        isLight ? "text-[#382f26]" : "text-[#a89f91]"
+                      )}>
+                        Adresse Email (optionnelle)
+                      </FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#c69f68]" />
+                          <Input 
+                            type="email" 
+                            placeholder="client@exemple.com" 
+                            className={cn(
+                              "pl-9 text-xs focus:border-[#c69f68]",
+                              isLight 
+                                ? "bg-[#fcfbf9] border-[#d4cbba] text-[#1c1815] placeholder:text-[#998f82] focus:bg-white" 
+                                : "bg-[#110f0d] border-[#2e261f] text-[#f5f2eb] placeholder:text-[#5c5348]"
+                            )} 
+                            {...field} 
+                          />
+                        </div>
+                      </FormControl>
+                      <FormMessage className="text-xs text-rose-500" />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="language"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className={cn(
+                        "text-xs font-semibold flex items-center justify-between",
+                        isLight ? "text-[#382f26]" : "text-[#a89f91]"
+                      )}>
+                        <span>Langue des Notifications *</span>
+                        <span className="text-[10px] text-[#c69f68] font-normal">WhatsApp & Email</span>
+                      </FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                          <Languages className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#c69f68]" />
+                          <select
+                            value={field.value}
+                            onChange={field.onChange}
+                            className={cn(
+                              "w-full h-9 pl-9 pr-3 rounded-xl border text-xs outline-none transition-colors",
+                              isLight 
+                                ? "bg-[#fcfbf9] border-[#d4cbba] text-[#1c1815] focus:border-[#c69f68] focus:bg-white" 
+                                : "bg-[#110f0d] border-[#2e261f] text-[#f5f2eb] focus:border-[#c69f68]"
+                            )}
+                          >
+                            <option value="fr" className={isLight ? "bg-white text-[#1c1815]" : "bg-[#141210] text-[#f5f2eb]"}>
+                              🇫🇷 Français (Défaut)
+                            </option>
+                            <option value="ar" className={isLight ? "bg-white text-[#1c1815]" : "bg-[#141210] text-[#f5f2eb]"}>
+                              🇲🇦 Arabe (العربية)
+                            </option>
+                            <option value="es" className={isLight ? "bg-white text-[#1c1815]" : "bg-[#141210] text-[#f5f2eb]"}>
+                              🇪🇸 Espagnol (Español)
+                            </option>
+                            <option value="en" className={isLight ? "bg-white text-[#1c1815]" : "bg-[#141210] text-[#f5f2eb]"}>
+                              🇬🇧 Anglais (English)
+                            </option>
+                          </select>
+                        </div>
+                      </FormControl>
+                      <FormMessage className="text-xs text-rose-500" />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
               {!isEditing && form.watch('client_email') && (
                 <div className={cn(
@@ -976,7 +1039,7 @@ export function SessionForm({ initialData, onSuccess, theme = 'light' }: Session
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
             {/* Session Date */}
             <FormField
               control={form.control}
@@ -994,6 +1057,39 @@ export function SessionForm({ initialData, onSuccess, theme = 'light' }: Session
                       <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#c69f68]" />
                       <Input 
                         type="date" 
+                        className={cn(
+                          "pl-9 text-xs focus:border-[#c69f68]",
+                          isLight 
+                            ? "bg-[#fcfbf9] border-[#d4cbba] text-[#1c1815] focus:bg-white" 
+                            : "bg-[#110f0d] border-[#2e261f] text-[#f5f2eb]"
+                        )} 
+                        {...field} 
+                      />
+                    </div>
+                  </FormControl>
+                  <FormMessage className="text-xs text-rose-500" />
+                </FormItem>
+              )}
+            />
+
+            {/* Session Time */}
+            <FormField
+              control={form.control}
+              name="session_time"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className={cn(
+                    "text-xs font-semibold flex items-center justify-between",
+                    isLight ? "text-[#382f26]" : "text-[#a89f91]"
+                  )}>
+                    <span>Heure du Rendez-vous</span>
+                    <span className="text-[10px] text-[#8c7a6b] font-normal">(Optionnelle)</span>
+                  </FormLabel>
+                  <FormControl>
+                    <div className="relative">
+                      <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#c69f68]" />
+                      <Input 
+                        type="time" 
                         className={cn(
                           "pl-9 text-xs focus:border-[#c69f68]",
                           isLight 

@@ -52,6 +52,8 @@ export interface Session {
   created_at: string
   updated_at: string
   session_date: string
+  session_time?: string | null
+  language?: string | null
   client_id: string | null
   client_name: string
   client_phone: string | null

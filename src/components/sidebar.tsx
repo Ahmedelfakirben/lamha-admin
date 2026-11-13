@@ -137,7 +137,7 @@ export function Sidebar() {
     },
     {
       href: "/emails",
-      label: language === "ar" ? "البريد والقوالب" : language === "es" ? "Correos & Plantillas" : language === "en" ? "Emails & Templates" : "Emails & Modèles",
+      label: language === "ar" ? "البريد وواتساب" : language === "es" ? "Emails & WhatsApp" : language === "en" ? "Emails & WhatsApp" : "Emails & WhatsApp",
       icon: Mail
     },
     { href: "/categories", label: t.categoriesMenu, icon: FolderTree },

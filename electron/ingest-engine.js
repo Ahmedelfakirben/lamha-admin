@@ -627,12 +627,18 @@ async function createQuickSession(payload = {}) {
       } catch {}
     }
 
+    const rawTime = payload.session_time || payload.sessionTime
+    const sessionTime = rawTime ? String(rawTime).trim() : null
+    const notifyLang = payload.notifyLanguage || payload.language || cfg.language || "fr"
+
     const sessionRow = {
       client_id: clientId,
       client_name: clientName,
       client_phone: clientPhone,
       client_email: clientEmail,
       session_date: sessionDate,
+      session_time: sessionTime,
+      language: notifyLang,
       shooting_type: shootingType,
       session_type: sessionType,
       category,
@@ -649,8 +655,25 @@ async function createQuickSession(payload = {}) {
       .select("*")
       .single()
 
-    if (error && (error.message?.includes("shooting_type") || error.details?.includes("shooting_type") || error.code === "PGRST204")) {
-      const { shooting_type, ...fallbackRow } = sessionRow
+    if (error && (
+      error.message?.includes("shooting_type") || 
+      error.message?.includes("session_time") || 
+      error.message?.includes("language") || 
+      error.details?.includes("shooting_type") || 
+      error.details?.includes("session_time") || 
+      error.details?.includes("language") || 
+      error.code === "PGRST204"
+    )) {
+      const fallbackRow = { ...sessionRow }
+      if (error.message?.includes("shooting_type") || error.details?.includes("shooting_type") || error.code === "PGRST204") {
+        delete fallbackRow.shooting_type
+      }
+      if (error.message?.includes("session_time") || error.details?.includes("session_time")) {
+        delete fallbackRow.session_time
+      }
+      if (error.message?.includes("language") || error.details?.includes("language")) {
+        delete fallbackRow.language
+      }
       const retry = await supabase.from("sessions").insert([fallbackRow]).select("*").single()
       data = retry.data
       error = retry.error
