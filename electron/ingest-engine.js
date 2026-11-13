@@ -1687,27 +1687,51 @@ async function resolveSessionForFolder(supabase, projectFolder) {
   }
   let sessionId = null
   let clientName = ""
+  // Normaliza igual que generateProjectFolderName (espacios y símbolos -> "_")
+  const toToken = (v) => String(v || "").trim().replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ_-]/g, "_").toLowerCase()
+  const folderLower = String(projectFolder || "").toLowerCase()
   try {
-    const { data: matchedAsset } = await supabase
-      .from("media_assets")
-      .select("session_id")
-      .ilike("nas_path", `${projectFolder}/%`)
-      .not("session_id", "is", null)
-      .limit(1)
+    const parts = projectFolder.split("_")
+    const dateCandidate = parts.find((p) => /^\d{4}-\d{2}-\d{2}$/.test(p))
 
-    if (matchedAsset && matchedAsset.length > 0 && matchedAsset[0].session_id) {
-      sessionId = matchedAsset[0].session_id
-    } else {
-      const parts = projectFolder.split("_")
-      const dateCandidate = parts.find((p) => /^\d{4}-\d{2}-\d{2}$/.test(p))
-      let query = supabase.from("sessions").select("id, client_name")
-      if (dateCandidate) query = query.eq("session_date", dateCandidate)
-      const { data: sessList } = await query.limit(20)
-      if (sessList && sessList.length > 0) {
-        const found = sessList.find((s) => s.client_name && projectFolder.toLowerCase().includes(s.client_name.toLowerCase()))
-        sessionId = found ? found.id : sessList[0].id
-        clientName = found ? found.client_name : sessList[0].client_name
+    // 1. Coincidencia ESTRICTA por fecha + nombre de cliente normalizado (fuente de verdad)
+    if (dateCandidate) {
+      const { data: sessList } = await supabase
+        .from("sessions")
+        .select("id, client_name, created_at")
+        .eq("session_date", dateCandidate)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false })
+        .limit(50)
+      const candidates = (sessList || []).filter((s) => {
+        const tok = toToken(s.client_name)
+        return tok && folderLower.startsWith(`${dateCandidate}_${tok}_`)
+      })
+      if (candidates.length > 0) {
+        sessionId = candidates[0].id
+        clientName = candidates[0].client_name
       }
+    }
+
+    // 2. Respaldo: archivos ya registrados en esa misma carpeta, solo si el cliente coincide con la carpeta
+    if (!sessionId) {
+      const likeSafe = projectFolder.replace(/[\\%_]/g, (c) => `\\${c}`)
+      const { data: matchedAsset } = await supabase
+        .from("media_assets")
+        .select("session_id, sessions(client_name)")
+        .ilike("nas_path", `${likeSafe}/%`)
+        .not("session_id", "is", null)
+        .limit(1)
+      const hit = matchedAsset && matchedAsset[0]
+      const hitClient = hit && hit.sessions ? hit.sessions.client_name : ""
+      if (hit && hit.session_id && hitClient && folderLower.includes(`_${toToken(hitClient)}_`)) {
+        sessionId = hit.session_id
+        clientName = hitClient
+      }
+    }
+    // Sin coincidencia segura -> se deja sin asignar (nunca se adivina con otra sesión del mismo día)
+    if (!sessionId) {
+      console.warn(`[MASTER] Carpeta sin proyecto coincidente, se registra sin asignar: ${projectFolder}`)
     }
 
     if (sessionId && !clientName) {
