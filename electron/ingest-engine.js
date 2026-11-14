@@ -863,17 +863,28 @@ function copyWithProgress(src, dest, onBytes, isCancelled) {
 }
 
 function createTracker(emit, enabled) {
-  const weights = { copy: enabled.copy ? 35 : 0, cloud: enabled.cloud ? 40 : 0, nas: enabled.nas ? 25 : 0 }
+  const weights = {
+    copy: enabled.copy ? 35 : 0,
+    cloud: enabled.cloud ? 40 : 0,
+    nas: enabled.nas ? 25 : 0,
+    extra: enabled.extra ? 25 : 0,
+  }
   const stages = {
     copy: { state: enabled.copy ? "active" : "off", percent: enabled.copy ? 0 : 100 },
     cloud: { state: enabled.cloud ? "pending" : "off", percent: 0 },
     nas: { state: enabled.nas ? "pending" : "off", percent: 0 },
+    extra: { state: enabled.extra ? "pending" : "off", percent: 0 },
   }
   const startedAt = Date.now()
   const samples = []
   let bytes = 0
   let lastEmit = 0
-  const state = { phase: enabled.copy ? "copy" : (enabled.cloud ? "cloud" : "nas"), currentFile: "", processed: 0, total: 0 }
+  const state = {
+    phase: enabled.copy ? "copy" : enabled.cloud ? "cloud" : enabled.nas ? "nas" : "extra",
+    currentFile: "",
+    processed: 0,
+    total: 0,
+  }
 
   const overall = () => {
     let sum = 0
@@ -1035,7 +1046,7 @@ async function runIngest(params, emit) {
   const useNas = params.syncNas !== false
   const useExtra = Boolean(params.copyExtra && params.extraPath && typeof params.extraPath === "string" && params.extraPath.trim())
   const extraBasePath = useExtra ? params.extraPath.trim() : null
-  const tracker = createTracker(emit, { copy: useLocal, cloud: useCloud, nas: useNas })
+  const tracker = createTracker(emit, { copy: useLocal, cloud: useCloud, nas: useNas, extra: useExtra })
 
   try {
     const supabase = getClient()
@@ -1213,6 +1224,8 @@ async function runIngest(params, emit) {
       tracker.setPhase("cloud")
     } else if (useNas) {
       tracker.setPhase("nas")
+    } else if (useExtra) {
+      tracker.setPhase("extra")
     }
 
     const runCloudPhase = async () => {
@@ -1581,8 +1594,15 @@ async function runIngest(params, emit) {
     const runExtraPhase = async () => {
       if (!useExtra || !extraBasePath) return
       if (isCancelled()) throw new Error("CANCELLED")
+
+      tracker.setStage("extra", { state: "active", percent: 0 }, true)
+      try {
+        await fs.promises.mkdir(extraBasePath, { recursive: true })
+      } catch {}
+
       if (!fs.existsSync(extraBasePath)) {
         tracker.log("warn", `[Copie Supplémentaire] Le dossier cible est introuvable ou inaccessible : ${extraBasePath}`)
+        tracker.setStage("extra", { state: "error", percent: 100 }, true)
         return
       }
 
@@ -1596,31 +1616,49 @@ async function runIngest(params, emit) {
         path.join(extraRootDir, "04_Entregas_Finales"),
       ]) {
         try {
-          fs.mkdirSync(d, { recursive: true })
+          await fs.promises.mkdir(d, { recursive: true })
         } catch {}
       }
 
       let extraOk = 0
       let extraFail = 0
+      let extraProcessed = 0
       for (const it of okItems) {
         if (isCancelled()) break
         const sourceFile = it.dest || it.src
         const targetDir = path.join(extraRootDir, "01_RAW", it.sub || "")
         const targetFile = path.join(targetDir, it.name)
         try {
-          if (fs.existsSync(targetFile) && fs.statSync(targetFile).size === it.size) {
+          let already = false
+          try {
+            const st = await fs.promises.stat(targetFile)
+            already = st.size === it.size
+          } catch {}
+          if (already) {
             extraOk++
+            if (!useLocal && !useNas) tracker.addBytes(it.size)
           } else {
-            fs.copyFileSync(sourceFile, targetFile)
-            fs.utimesSync(targetFile, it.atime, it.mtime)
+            await fs.promises.copyFile(sourceFile, targetFile)
+            try {
+              await fs.promises.utimes(targetFile, it.atime, it.mtime)
+            } catch {}
             extraOk++
+            if (!useLocal && !useNas) tracker.addBytes(it.size)
           }
         } catch (err) {
           extraFail++
           tracker.log("warn", `[Copie Supplémentaire] Échec pour ${it.name}: ${err.message}`)
         }
+        extraProcessed++
+        tracker.stages.extra.percent = Math.min(100, (extraProcessed / Math.max(1, okItems.length)) * 100)
+        if (!useCloud && !useNas) {
+          tracker.setFile(it.name, extraProcessed, okItems.length)
+        } else {
+          tracker.push()
+        }
       }
 
+      tracker.setStage("extra", { state: extraFail && !extraOk ? "error" : "done", percent: 100 }, true)
       if (extraOk > 0 || extraFail > 0) {
         tracker.log(
           extraFail ? "warn" : "success",

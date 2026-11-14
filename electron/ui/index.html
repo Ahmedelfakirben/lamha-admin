@@ -1428,6 +1428,8 @@
         btnBrowseFiles: "Photos / Fichiers",
         dropHint: "Glisser-déposer un dossier ou des photos ici",
         filesSelected: "photos/fichiers sélectionnés",
+        filesDetected: "fichiers détectés",
+        connectedBadge: "Connecté",
         selectionBadge: "Sélection",
         btnResetSource: "Réinitialiser",
         loginOk: "Connecté :",
@@ -1517,6 +1519,8 @@
         btnBrowseFiles: "Fotos / Archivos",
         dropHint: "Arrastra una carpeta o fotos aquí",
         filesSelected: "fotos/archivos seleccionados",
+        filesDetected: "archivos detectados",
+        connectedBadge: "Conectado",
         selectionBadge: "Selección",
         btnResetSource: "Restablecer",
         loginOk: "Conectado:",
@@ -1606,6 +1610,8 @@
         btnBrowseFiles: "Photos / Files",
         dropHint: "Drag & drop a folder or photos here",
         filesSelected: "photos/files selected",
+        filesDetected: "files detected",
+        connectedBadge: "Connected",
         selectionBadge: "Selection",
         btnResetSource: "Reset",
         loginOk: "Connected:",
@@ -1695,6 +1701,8 @@
         btnBrowseFiles: "صور / ملفات",
         dropHint: "اسحب مجلداً أو صوراً إلى هنا",
         filesSelected: "صور/ملفات محددة",
+        filesDetected: "ملفات مكتشفة",
+        connectedBadge: "متصل",
         selectionBadge: "تحديد",
         btnResetSource: "إعادة ضبط",
         loginOk: "متصل:",
@@ -2380,6 +2388,11 @@
       renderRecycleProjects();
       refreshSystemHealth();
       loadHistory();
+      if (selectedFiles && selectedFiles.length > 0) {
+        scanSelectedFiles(selectedFiles);
+      } else if (selectedDrive) {
+        scanTarget(selectedDrive);
+      }
     }
 
     // Toggle Theme
@@ -3022,13 +3035,13 @@
       const btnReset = document.getElementById("btn-reset-source");
       if (btnReset) btnReset.style.display = "none";
       document.getElementById("drive-title").textContent = selectedDrive;
-      const t = I18N[currentLanguage] || I18N.fr;
-      document.getElementById("drive-badge").textContent = "Connecté";
+      const t = I18N[currentLang] || I18N.fr;
+      document.getElementById("drive-badge").textContent = t.connectedBadge || "Connecté";
       document.getElementById("drive-badge").style.borderColor = "";
       document.getElementById("drive-badge").style.color = "";
       if (window.electronAPI && window.electronAPI.scanSource) {
         const info = await window.electronAPI.scanSource(selectedDrive);
-        document.getElementById("drive-subtitle").textContent = `${info.count} fichiers détectés (${info.gb} Go)`;
+        document.getElementById("drive-subtitle").textContent = `${info.count} ${t.filesDetected || "fichiers détectés"} (${info.gb} GB)`;
       }
     }
 
@@ -3037,7 +3050,7 @@
       if (!Array.isArray(fileList) || fileList.length === 0) return;
       selectedFiles = fileList;
       selectedDrive = "";
-      const t = I18N[currentLanguage] || I18N.fr;
+      const t = I18N[currentLang] || I18N.fr;
       const btnReset = document.getElementById("btn-reset-source");
       if (btnReset) btnReset.style.display = "inline-flex";
 
@@ -3049,9 +3062,9 @@
 
       if (window.electronAPI && window.electronAPI.scanFiles) {
         const info = await window.electronAPI.scanFiles(fileList);
-        document.getElementById("drive-subtitle").textContent = `${info.count} ${t.filesDetected || "fichiers valides"} (${info.gb} Go)`;
+        document.getElementById("drive-subtitle").textContent = `${info.count} ${t.filesDetected || "fichiers détectés"} (${info.gb} GB)`;
       } else {
-        document.getElementById("drive-subtitle").textContent = `${fileList.length} fichiers prêts pour l'ingestion`;
+        document.getElementById("drive-subtitle").textContent = `${fileList.length} ${t.filesDetected || "fichiers détectés"}`;
       }
     }
 
@@ -3295,9 +3308,45 @@
     btnStart.onclick = async () => {
       const sessId = sessionSelect.value;
       if (!sessId) {
-        alert("Veuillez sélectionner une séance de destination.");
+        const msgNoSess = {
+          fr: "Veuillez sélectionner une séance de destination.",
+          es: "Por favor, selecciona un proyecto / sesión de destino.",
+          en: "Please select a destination project / session.",
+          ar: "يرجى اختيار جلسة / مشروع الوجهة.",
+        };
+        alert(msgNoSess[currentLang] || msgNoSess.fr);
         return;
       }
+
+      const isLocalChecked = document.getElementById("chk-local").checked;
+      const isCloudChecked = document.getElementById("chk-supabase").checked;
+      const isNasChecked = document.getElementById("chk-nas").checked;
+      const isExtraChecked = Boolean(chkExtra && chkExtra.checked);
+      const customExtraPath = inputExtraPath ? inputExtraPath.value.trim() : "";
+
+      if (isExtraChecked && !customExtraPath) {
+        const msgNoExtra = {
+          fr: "Veuillez choisir un dossier de destination pour l'option 4 (Copie Supplémentaire).",
+          es: "Por favor, selecciona una carpeta de destino para la opción 4 (Copia Adicional).",
+          en: "Please select a destination folder for option 4 (Additional Copy).",
+          ar: "يرجى اختيار مجلد الوجهة للخيار ٤ (نسخة إضافية).",
+        };
+        alert(msgNoExtra[currentLang] || msgNoExtra.fr);
+        if (inputExtraPath) inputExtraPath.focus();
+        return;
+      }
+
+      if (!isLocalChecked && !isCloudChecked && !isNasChecked && !isExtraChecked) {
+        const msgNoPipe = {
+          fr: "Veuillez cocher au moins une étape du pipeline d'ingestion (1, 2, 3 ou 4).",
+          es: "Por favor, marca al menos una opción del pipeline de ingesta (1, 2, 3 o 4).",
+          en: "Please check at least one ingestion pipeline option (1, 2, 3, or 4).",
+          ar: "يرجى تحديد خيار واحد على الأقل من مسار التفريغ (١ أو ٢ أو ٣ أو ٤).",
+        };
+        alert(msgNoPipe[currentLang] || msgNoPipe.fr);
+        return;
+      }
+
       btnStart.disabled = true;
       btnCancel.style.display = "inline-block";
       postIngestActions.style.display = "none";
@@ -3305,16 +3354,13 @@
       barFill.style.width = "0%";
       txtPct.textContent = "0%";
 
-      const isExtraChecked = chkExtra && chkExtra.checked;
-      const customExtraPath = inputExtraPath ? inputExtraPath.value.trim() : "";
-
       await window.electronAPI.startIngest({
         sourcePath: selectedDrive,
         sourceFiles: selectedFiles,
         sessionId: sessId,
-        copyLocal: document.getElementById("chk-local").checked,
-        uploadSupabase: document.getElementById("chk-supabase").checked,
-        syncNas: document.getElementById("chk-nas").checked,
+        copyLocal: isLocalChecked,
+        uploadSupabase: isCloudChecked,
+        syncNas: isNasChecked,
         copyExtra: isExtraChecked,
         extraPath: customExtraPath,
       });
@@ -3422,7 +3468,9 @@
               ? "Cloud + NAS"
               : ev.phase === "cloud"
               ? "Supabase WebP"
-              : "NAS FTP";
+              : ev.phase === "extra"
+              ? "Copie Extra"
+              : "NAS / Sync";
         } else if (ev.type === "done") {
           barFill.style.width = "100%";
           txtPct.textContent = "100%";
