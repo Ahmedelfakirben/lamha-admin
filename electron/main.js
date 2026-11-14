@@ -539,6 +539,23 @@ app.whenReady().then(async () => {
     const res = await dialog.showOpenDialog(mainWindow, { properties: ["openDirectory"] })
     return !res.canceled && res.filePaths.length ? res.filePaths[0] : null
   })
+  ipcMain.handle("select-files", async () => {
+    const res = await dialog.showOpenDialog(mainWindow, {
+      properties: ["openFile", "multiSelections"],
+      filters: [
+        {
+          name: "Médias (Photos & Vidéos)",
+          extensions: [
+            "jpg", "jpeg", "png", "webp", "tif", "tiff",
+            "cr2", "cr3", "arw", "nef", "nrw", "dng", "raw", "raf", "rw2", "orf", "pef",
+            "mp4", "mov", "m4v", "avi", "mkv"
+          ],
+        },
+        { name: "Tous les fichiers", extensions: ["*"] },
+      ],
+    })
+    return !res.canceled && res.filePaths.length ? res.filePaths : null
+  })
   ipcMain.handle("scan-source", async (_e, p) => {
     try {
       const files = engine.scanSource(p)
@@ -549,6 +566,26 @@ app.whenReady().then(async () => {
         } catch {}
       }
       return { count: files.length, gb: Number((bytes / 1024 ** 3).toFixed(2)) }
+    } catch {
+      return { count: 0, gb: 0 }
+    }
+  })
+  ipcMain.handle("scan-files", async (_e, fileList) => {
+    try {
+      if (!Array.isArray(fileList) || fileList.length === 0) {
+        return { count: 0, gb: 0 }
+      }
+      let bytes = 0
+      let validCount = 0
+      for (const f of fileList) {
+        try {
+          if (engine.classify(f) !== "other") {
+            validCount++
+            bytes += fs.statSync(f).size
+          }
+        } catch {}
+      }
+      return { count: validCount, gb: Number((bytes / 1024 ** 3).toFixed(2)) }
     } catch {
       return { count: 0, gb: 0 }
     }
@@ -802,8 +839,9 @@ async function triggerIngestWorkflow(params) {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.minimize()
   showMini()
 
-  // Si no se proporcionó tarjeta fuente, intentar seleccionar la activa detectada
-  if (!params.sourcePath && driveWatcher) {
+  // Si no se proporcionó tarjeta fuente ni archivos, intentar seleccionar la activa detectada
+  const hasFiles = Array.isArray(params.sourceFiles) && params.sourceFiles.length > 0
+  if (!params.sourcePath && !hasFiles && driveWatcher) {
     const cards = driveWatcher.getActiveCards()
     if (cards && cards.length > 0) {
       params.sourcePath = cards[0].dcimPath || cards[0].drive

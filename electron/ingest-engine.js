@@ -1062,7 +1062,19 @@ async function runIngest(params, emit) {
 
     // --- Escaneo y nombres semánticos (misma lógica que el dashboard) -------
     tracker.log("info", t.scanning)
-    const sources = scanSource(params.sourcePath).sort((a, b) => path.basename(a).localeCompare(path.basename(b)))
+    let sources = []
+    if (Array.isArray(params.sourceFiles) && params.sourceFiles.length > 0) {
+      sources = params.sourceFiles.filter((f) => {
+        try {
+          return fs.existsSync(f) && fs.statSync(f).isFile() && classify(f) !== "other"
+        } catch {
+          return false
+        }
+      })
+    } else if (params.sourcePath) {
+      sources = scanSource(params.sourcePath)
+    }
+    sources.sort((a, b) => path.basename(a).localeCompare(path.basename(b)))
     if (sources.length === 0) {
       tracker.log("warn", t.noMedia)
       emit({ type: "done", empty: true, summary: { files: 0 } })
