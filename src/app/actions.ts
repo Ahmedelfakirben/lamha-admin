@@ -634,6 +634,8 @@ export async function updateSessionPin(sessionId: string, pin: string) {
 
     if (error) throw error;
     revalidatePath(`/sessions/${sessionId}`);
+    revalidatePath('/planner');
+    revalidatePath('/projects');
     revalidatePath('/photos');
     revalidatePath('/videos');
     return { success: true };
@@ -664,6 +666,8 @@ export async function updateSessionQuota(sessionId: string, quota: number) {
 
     if (error) throw error;
     revalidatePath(`/sessions/${sessionId}`);
+    revalidatePath('/planner');
+    revalidatePath('/projects');
     revalidatePath('/photos');
     revalidatePath('/videos');
     return { success: true };
@@ -1342,7 +1346,7 @@ export async function submitClientSelectionAction(params: {
 
     const { data: session, error: sErr } = await supabase
       .from('sessions')
-      .select('id, client_name, client_email, client_phone, client_id, portal_pin, comments, tags, language')
+      .select('id, client_name, client_email, client_phone, client_id, portal_pin, status, comments, tags, language')
       .eq('id', sessionId)
       .single();
 
@@ -1356,25 +1360,46 @@ export async function submitClientSelectionAction(params: {
     const filteredTags = currentTags.filter((t: string) => !t.startsWith('stage:'));
     const updatedTags = [...filteredTags, 'stage:client_selected'];
 
-    const timestamp = new Date().toLocaleString();
+    const now = new Date();
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    const timestamp = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
     const clientNoteEntry = `[${timestamp}] Sélection client: ${selectedAssets.length} photos.${
       generalNotes ? ` Note: "${generalNotes}"` : ''
     }`;
-    const updatedComments = session.comments ? `${session.comments}\n${clientNoteEntry}` : clientNoteEntry;
+    const existingCommentsStr = session.comments ? session.comments.trim() : '';
+    const alreadyLoggedByRpc =
+      existingCommentsStr.includes(`Selección portal: ${selectedAssets.length} fotos`) ||
+      existingCommentsStr.includes(`Sélection client: ${selectedAssets.length} photos`);
+    const updatedComments = alreadyLoggedByRpc
+      ? existingCommentsStr
+      : existingCommentsStr
+      ? `${clientNoteEntry}\n\n${existingCommentsStr}`
+      : clientNoteEntry;
 
-    // Actualizar sesión a client_selected en tags, status y pipeline_stage
-    await supabase
+    const validNextStatus =
+      session.status === 'edited' || session.status === 'delivered' ? session.status : 'editing';
+
+    // Actualizar sesión a stage:client_selected en tags y status compatible con el enum session_status
+    const { error: updateSessErr } = await supabase
       .from('sessions')
       .update({
         selected_assets: selectedAssets,
         comments: updatedComments,
-        status: 'client_selected',
-        pipeline_stage: 'client_selected',
+        status: validNextStatus,
         tags: updatedTags,
       })
       .eq('id', sessionId);
 
+    if (updateSessErr) {
+      console.error('Error actualizando sesión en submitClientSelectionAction:', updateSessErr);
+    }
+
     // Actualizar assets individuales
+    await supabase
+      .from('media_assets')
+      .update({ client_selected: false })
+      .eq('session_id', sessionId);
+
     if (selectedAssets.length > 0) {
       await supabase
         .from('media_assets')

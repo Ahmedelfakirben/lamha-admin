@@ -344,6 +344,26 @@ export default function PlannerPage() {
 
   useEffect(() => {
     loadSessions()
+
+    const supabase = createClient()
+    const channel = supabase
+      .channel("planner-sessions-live")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "sessions" },
+        () => {
+          loadSessions()
+        }
+      )
+      .subscribe()
+
+    const onWindowFocus = () => loadSessions()
+    window.addEventListener("focus", onWindowFocus)
+
+    return () => {
+      supabase.removeChannel(channel)
+      window.removeEventListener("focus", onWindowFocus)
+    }
   }, [])
 
   // Synchronize activeTicket if session list updates

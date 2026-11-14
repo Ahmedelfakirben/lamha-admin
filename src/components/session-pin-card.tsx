@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Key, Copy, Check, RefreshCw, ExternalLink, MessageSquare, Sparkles, Mail, SlidersHorizontal, Send, Smartphone, Loader2, AlertCircle } from "lucide-react"
 import { updateSessionPin, updateSessionQuota, updateSessionPhone } from "@/app/actions"
 import { useLanguage } from "@/context/language-context"
@@ -92,11 +92,17 @@ export function SessionPinCard({
   const strings = ACCESS_WHATSAPP_I18N[language as keyof typeof ACCESS_WHATSAPP_I18N] || ACCESS_WHATSAPP_I18N.fr
   const [pin, setPin] = useState(currentPin || "")
   const [currentQuota, setCurrentQuota] = useState(quota)
+  const [customQuotaInput, setCustomQuotaInput] = useState(String(quota))
   const [isCopied, setIsCopied] = useState(false)
   const [isCopiedMsg, setIsCopiedMsg] = useState(false)
   const [isUpdating, setIsUpdating] = useState(false)
   const [isSavingQuota, setIsSavingQuota] = useState(false)
   const [quotaSaved, setQuotaSaved] = useState(false)
+
+  useEffect(() => {
+    setCurrentQuota(quota)
+    setCustomQuotaInput(String(quota))
+  }, [quota])
 
   // Estados de WhatsApp
   const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false)
@@ -114,15 +120,21 @@ export function SessionPinCard({
   }
 
   const handleUpdateQuota = async (newVal: number) => {
-    if (newVal <= 0 || newVal === currentQuota) return
-    setCurrentQuota(newVal)
+    if (isNaN(newVal) || newVal <= 0) {
+      setCustomQuotaInput(String(currentQuota))
+      return
+    }
+    const clamped = Math.min(500, Math.max(1, Math.round(newVal)))
+    setCustomQuotaInput(String(clamped))
+    if (clamped === currentQuota) return
+    setCurrentQuota(clamped)
     setIsSavingQuota(true)
-    const res = await updateSessionQuota(sessionId, newVal)
+    const res = await updateSessionQuota(sessionId, clamped)
     setIsSavingQuota(false)
     if (res.success) {
-      onQuotaChange?.(newVal)
+      onQuotaChange?.(clamped)
       setQuotaSaved(true)
-      setTimeout(() => setQuotaSaved(false), 2000)
+      setTimeout(() => setQuotaSaved(false), 2500)
     } else {
       alert("Error guardando cupo: " + res.error)
     }
@@ -347,23 +359,48 @@ export function SessionPinCard({
             ))}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <span className="text-[11px] text-[#70665a]">{t.customQuotaLabel}</span>
             <input
               type="number"
               min={1}
               max={500}
-              value={currentQuota}
+              value={customQuotaInput}
               disabled={isSavingQuota}
               onChange={(e) => {
-                const val = parseInt(e.target.value, 10)
-                if (!isNaN(val) && val > 0) {
-                  setCurrentQuota(val)
+                setCustomQuotaInput(e.target.value)
+              }}
+              onBlur={() => {
+                const parsed = parseInt(customQuotaInput, 10)
+                handleUpdateQuota(parsed)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault()
+                  const parsed = parseInt(customQuotaInput, 10)
+                  handleUpdateQuota(parsed)
+                  ;(e.target as HTMLInputElement).blur()
                 }
               }}
-              onBlur={() => handleUpdateQuota(currentQuota)}
               className="w-16 px-2 py-1 text-center font-mono text-xs font-bold text-[#e5c38e] bg-[#12100e] border border-[#382d20] rounded-lg focus:border-[#c69f68] focus:outline-none"
             />
+            {(() => {
+              const parsed = parseInt(customQuotaInput, 10)
+              if (!isNaN(parsed) && parsed > 0 && parsed !== currentQuota) {
+                return (
+                  <button
+                    type="button"
+                    disabled={isSavingQuota}
+                    onClick={() => handleUpdateQuota(parsed)}
+                    title={t.savedIndicator || "Enregistrer"}
+                    className="p-1.5 rounded-lg bg-[#c69f68] hover:bg-[#d8b078] text-[#12100e] transition-colors shadow-sm"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                  </button>
+                )
+              }
+              return null
+            })()}
           </div>
         </div>
         <p className="text-[10px] text-[#70665a] italic">
