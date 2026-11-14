@@ -26,6 +26,14 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   output: "standalone",
   poweredByHeader: false,
+  outputFileTracingExcludes: {
+    '*': [
+      './dist/**',
+      './dist-admin/**',
+      './electron/**',
+      './electron-admin/**',
+    ],
+  },
   async headers() {
     return [
       {
