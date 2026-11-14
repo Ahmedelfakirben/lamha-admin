@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useMemo } from "react"
+import React, { useState, useMemo, useEffect } from "react"
 import {
   MessageSquare,
   Send,
@@ -33,6 +33,7 @@ import { useLanguage } from "@/context/language-context"
 
 interface WhatsAppTemplatesManagerProps {
   initialSettings: WhatsAppAutomationSettings
+  onSettingsChange?: (next: WhatsAppAutomationSettings) => void
 }
 
 const TEMPLATE_META: {
@@ -138,7 +139,7 @@ const VARIABLE_PILLS: { token: string; label: string; desc: string }[] = [
   { token: "{{photos_count}}", label: "Nombre de photos", desc: "Ex: 145 photos" },
 ]
 
-export function WhatsAppTemplatesManager({ initialSettings }: WhatsAppTemplatesManagerProps) {
+export function WhatsAppTemplatesManager({ initialSettings, onSettingsChange }: WhatsAppTemplatesManagerProps) {
   const { language: uiLang } = useLanguage()
   const activeUiLang = (uiLang === "ar" || uiLang === "en" || uiLang === "es" || uiLang === "fr" ? uiLang : "fr") as WhatsAppLanguage
 
@@ -147,6 +148,33 @@ export function WhatsAppTemplatesManager({ initialSettings }: WhatsAppTemplatesM
   const [selectedLang, setSelectedLang] = useState<WhatsAppLanguage>(activeUiLang)
   const [isSaving, setIsSaving] = useState(false)
   const [saveFeedback, setSaveFeedback] = useState<{ type: "ok" | "err"; msg: string } | null>(null)
+  const [hasRestoredWaState, setHasRestoredWaState] = useState(false)
+
+  useEffect(() => {
+    setSettings(initialSettings)
+  }, [initialSettings])
+
+  useEffect(() => {
+    try {
+      const savedKey = sessionStorage.getItem("lamha_wa_tpl_key") as WhatsAppTemplateKey | null
+      if (savedKey && ["welcome", "photos_ready", "selection_confirmed", "ready_delivery"].includes(savedKey)) {
+        setSelectedKey(savedKey)
+      }
+      const savedLang = sessionStorage.getItem("lamha_wa_edit_lang") as WhatsAppLanguage | null
+      if (savedLang && ["fr", "ar", "es", "en"].includes(savedLang)) {
+        setSelectedLang(savedLang)
+      }
+    } catch {}
+    setHasRestoredWaState(true)
+  }, [])
+
+  useEffect(() => {
+    if (!hasRestoredWaState) return
+    try {
+      sessionStorage.setItem("lamha_wa_tpl_key", selectedKey)
+      sessionStorage.setItem("lamha_wa_edit_lang", selectedLang)
+    } catch {}
+  }, [selectedKey, selectedLang, hasRestoredWaState])
 
   // Estado para envío de prueba
   const [testPhone, setTestPhone] = useState("")
@@ -161,26 +189,48 @@ export function WhatsAppTemplatesManager({ initialSettings }: WhatsAppTemplatesM
 
   const currentText = currentTemplate.translations[selectedLang] || DEFAULT_WHATSAPP_TEMPLATES_I18N[selectedKey][selectedLang] || ""
 
-  // Toggle Enabled
-  const handleToggleEnabled = () => {
-    setSettings((prev) => ({
-      ...prev,
+  // Toggle Enabled (and auto-save immediately)
+  const handleToggleEnabled = async () => {
+    const nextEnabled = !currentTemplate.enabled
+    const nextSettings: WhatsAppAutomationSettings = {
+      ...settings,
+      updatedAt: new Date().toISOString(),
       templates: {
-        ...prev.templates,
+        ...settings.templates,
         [selectedKey]: {
           ...currentTemplate,
-          enabled: !currentTemplate.enabled,
+          enabled: nextEnabled,
         },
       },
-    }))
+    }
+    setSettings(nextSettings)
+    onSettingsChange?.(nextSettings)
+    setIsSaving(true)
+    setSaveFeedback(null)
+    try {
+      const res = await saveWhatsAppAutomationSettingsAction(nextSettings)
+      if (res.success && res.settings) {
+        setSettings(res.settings)
+        onSettingsChange?.(res.settings)
+        setSaveFeedback({
+          type: "ok",
+          msg: nextEnabled ? "Modèle WhatsApp activé et enregistré." : "Modèle WhatsApp désactivé et enregistré.",
+        })
+        setTimeout(() => setSaveFeedback(null), 3500)
+      } else if (!res.success) {
+        setSaveFeedback({ type: "err", msg: res.error || "Erreur lors de l'enregistrement." })
+      }
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   // Update text
   const handleTextChange = (text: string) => {
-    setSettings((prev) => ({
-      ...prev,
+    const nextSettings: WhatsAppAutomationSettings = {
+      ...settings,
       templates: {
-        ...prev.templates,
+        ...settings.templates,
         [selectedKey]: {
           ...currentTemplate,
           translations: {
@@ -189,7 +239,9 @@ export function WhatsAppTemplatesManager({ initialSettings }: WhatsAppTemplatesM
           },
         },
       },
-    }))
+    }
+    setSettings(nextSettings)
+    onSettingsChange?.(nextSettings)
   }
 
   // Insert variable at cursor / end
@@ -226,6 +278,10 @@ export function WhatsAppTemplatesManager({ initialSettings }: WhatsAppTemplatesM
     try {
       const res = await saveWhatsAppAutomationSettingsAction(settings)
       if (res.success) {
+        if (res.settings) {
+          setSettings(res.settings)
+          onSettingsChange?.(res.settings)
+        }
         setSaveFeedback({ type: "ok", msg: "Modèles WhatsApp enregistrés avec succès." })
         setTimeout(() => setSaveFeedback(null), 4000)
       } else {
@@ -248,6 +304,7 @@ export function WhatsAppTemplatesManager({ initialSettings }: WhatsAppTemplatesM
     setIsSendingTest(true)
     setTestFeedback(null)
     try {
+      await saveWhatsAppAutomationSettingsAction(settings)
       const res = await sendTestWhatsAppAction({
         phone: testPhone.trim(),
         templateKey: selectedKey,

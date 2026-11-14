@@ -449,19 +449,39 @@ async function triggerSessionWelcomeNotifications({
   let welcomeEmailEnabled = true
   let customWelcomeCopy = null
   try {
-    const { data: settingsRow } = await supabase
-      .from("audit_logs")
-      .select("details")
-      .eq("entity_type", "email_settings")
-      .eq("entity_id", "global_email_config")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle()
-    const tmpl = settingsRow?.details?.templates?.welcome
+    const { data: emailDetails } = await supabase.rpc("get_automation_settings", {
+      p_entity_type: "email_settings",
+      p_entity_id: "global_email_config",
+    })
+    const tmpl = emailDetails?.templates?.welcome
     if (tmpl) {
       if (typeof tmpl.enabled === "boolean") welcomeEmailEnabled = tmpl.enabled
-      if (tmpl.languages && tmpl.languages[language]) {
-        customWelcomeCopy = tmpl.languages[language]
+      const langCopy = (tmpl.translations && tmpl.translations[language]) || (tmpl.languages && tmpl.languages[language])
+      if (langCopy) {
+        customWelcomeCopy = {
+          subject: langCopy.subject,
+          title: langCopy.greeting || langCopy.title,
+          intro: langCopy.intro,
+          body: langCopy.bodyText || langCopy.body,
+          cta: langCopy.ctaBtn || langCopy.cta,
+          footer: langCopy.closing || langCopy.footer,
+        }
+      }
+    }
+  } catch {}
+
+  let welcomeWaEnabled = true
+  let customWelcomeWaTpl = null
+  try {
+    const { data: waDetails } = await supabase.rpc("get_automation_settings", {
+      p_entity_type: "whatsapp_settings",
+      p_entity_id: "global_whatsapp_config",
+    })
+    const waTmpl = waDetails?.templates?.welcome
+    if (waTmpl) {
+      if (typeof waTmpl.enabled === "boolean") welcomeWaEnabled = waTmpl.enabled
+      if (waTmpl.translations && typeof waTmpl.translations[language] === "string") {
+        customWelcomeWaTpl = waTmpl.translations[language]
       }
     }
   } catch {}
@@ -510,15 +530,32 @@ async function triggerSessionWelcomeNotifications({
 
   // Envío directo de WhatsApp de Bienvenida via Evolution API
   const cleanPhone = normalizePhoneForWhatsApp(session.client_phone)
-  if (sendWhatsApp && cleanPhone && cfg.evolutionUrl && cfg.evolutionKey) {
+  if (sendWhatsApp && welcomeWaEnabled && cleanPhone && cfg.evolutionUrl && cfg.evolutionKey) {
     try {
-      const text = buildDirectWelcomeWhatsAppText({
-        clientName: session.client_name,
-        sessionDate: sessionDateFormatted,
-        category: session.category || "Séance Photo",
-        portalPin: session.portal_pin,
-        language,
-      })
+      const portalUrl =
+        session.client_email && session.portal_pin
+          ? `https://lam7a.ma/portal?pin=${encodeURIComponent(session.portal_pin)}&email=${encodeURIComponent(session.client_email)}`
+          : "https://lam7a.ma/portal"
+      const text = customWelcomeWaTpl
+        ? interpolateTemplateVars(customWelcomeWaTpl, {
+            client_name: session.client_name || "Client",
+            clientName: session.client_name || "Client",
+            session_date: sessionDateFormatted,
+            sessionDate: sessionDateFormatted,
+            session_time: session.session_time || "",
+            category: session.category || "Séance Photo",
+            portal_pin: session.portal_pin || "----",
+            portalPin: session.portal_pin || "----",
+            portal_url: portalUrl,
+            portalUrl: portalUrl,
+          })
+        : buildDirectWelcomeWhatsAppText({
+            clientName: session.client_name,
+            sessionDate: sessionDateFormatted,
+            category: session.category || "Séance Photo",
+            portalPin: session.portal_pin,
+            language,
+          })
       const waResp = await fetch(`${cfg.evolutionUrl}/message/sendText/${cfg.evolutionInstance || "lam7astudio"}`, {
         method: "POST",
         headers: {

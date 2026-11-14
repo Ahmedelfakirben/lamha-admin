@@ -1694,39 +1694,51 @@ export async function triggerWelcomeNotificationsForSessionAction(params: {
 
     if (session.client_phone && params.sendWhatsApp !== false) {
       try {
-        const text = getWelcomeWhatsApp({
-          clientName: session.client_name,
-          sessionDate: session.session_date,
-          category: session.category,
-          portalPin: session.portal_pin,
-          clientEmail: session.client_email,
-          language: lang,
-        });
+        const waSettings = await getWhatsAppAutomationSettings();
+        if (waSettings.templates.welcome.enabled) {
+          const tplText =
+            waSettings.templates.welcome.translations[lang as WhatsAppLanguage] ||
+            DEFAULT_WHATSAPP_TEMPLATES_I18N.welcome[lang as WhatsAppLanguage] ||
+            DEFAULT_WHATSAPP_TEMPLATES_I18N.welcome.fr;
 
-        const waRes = await sendWhatsAppMessage({
-          phone: session.client_phone,
-          text,
-          clientId: session.client_id || null,
-          sessionId: session.id,
-        });
-
-        if (waRes.success) {
-          whatsappSent = true;
-          await recordAuditLog({
-            action: 'WHATSAPP_WELCOME_SENT',
-            entityType: 'session',
-            entityId: session.id,
-            entityTitle: session.client_name,
-            details: {
-              phone: session.client_phone,
+          const text = renderWhatsAppMessageTemplate({
+            templateText: tplText,
+            language: lang as WhatsAppLanguage,
+            data: {
+              clientName: session.client_name,
+              sessionDate: session.session_date,
+              sessionTime: session.session_time,
               category: session.category,
-              language: lang,
-              source: 'ingest_or_admin',
+              portalPin: session.portal_pin,
+              clientEmail: session.client_email,
             },
-            ...(params.userContext || {}),
           });
-        } else {
-          whatsappError = waRes.error;
+
+          const waRes = await sendWhatsAppMessage({
+            phone: session.client_phone,
+            text,
+            clientId: session.client_id || null,
+            sessionId: session.id,
+          });
+
+          if (waRes.success) {
+            whatsappSent = true;
+            await recordAuditLog({
+              action: 'WHATSAPP_WELCOME_SENT',
+              entityType: 'session',
+              entityId: session.id,
+              entityTitle: session.client_name,
+              details: {
+                phone: session.client_phone,
+                category: session.category,
+                language: lang,
+                source: 'ingest_or_admin',
+              },
+              ...(params.userContext || {}),
+            });
+          } else {
+            whatsappError = waRes.error;
+          }
         }
       } catch (e: any) {
         whatsappError = e?.message;

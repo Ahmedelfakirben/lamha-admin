@@ -59,9 +59,20 @@ export async function getWhatsAppAutomationSettings(forceRefresh = false): Promi
     return cachedSettings.data
   }
 
-  // 1. Intentar leer desde Supabase (audit_logs con entity_type = 'whatsapp_settings')
+  // 1. Intentar leer desde Supabase mediante RPC SECURITY DEFINER (funciona con anon y service_role) o consulta directa
   try {
     const supabase = createAdminClient()
+    const { data: rpcDetails, error: rpcErr } = await supabase.rpc("get_automation_settings", {
+      p_entity_type: SETTINGS_ENTITY_TYPE,
+      p_entity_id: SETTINGS_ENTITY_ID,
+    })
+
+    if (!rpcErr && rpcDetails && typeof rpcDetails === "object") {
+      const merged = mergeWithDefaults(rpcDetails)
+      cachedSettings = { data: merged, ts: Date.now() }
+      return merged
+    }
+
     const { data, error } = await supabase
       .from("audit_logs")
       .select("details, created_at")
@@ -112,20 +123,39 @@ export async function saveWhatsAppAutomationSettings(
   // Persistir en Supabase
   try {
     const supabase = createAdminClient()
-    await supabase.from("audit_logs").insert({
+    const { error: rpcErr } = await supabase.rpc("save_automation_settings", {
+      p_action: "WHATSAPP_SETTINGS_UPDATED",
+      p_entity_type: SETTINGS_ENTITY_TYPE,
+      p_entity_id: SETTINGS_ENTITY_ID,
+      p_entity_title: "Configuration Globale des Modèles WhatsApp",
+      p_details: merged,
+      p_user_name: userContext?.userName || "Admin Studio",
+      p_user_email: userContext?.userEmail || "admin@lam7a.ma",
+      p_user_role: userContext?.userRole || "super_admin",
+    })
+
+    if (!rpcErr) {
+      return { success: true, settings: merged }
+    }
+
+    const { error } = await supabase.from("audit_logs").insert({
       action: "WHATSAPP_SETTINGS_UPDATED",
       entity_type: SETTINGS_ENTITY_TYPE,
       entity_id: SETTINGS_ENTITY_ID,
       entity_title: "Configuration Globale des Modèles WhatsApp",
       user_id: userContext?.userId || null,
-      user_name: userContext?.userName || "Admin",
-      user_email: userContext?.userEmail || null,
-      user_role: userContext?.userRole || "admin",
+      user_name: userContext?.userName || "Admin Studio",
+      user_email: userContext?.userEmail || "admin@lam7a.ma",
+      user_role: userContext?.userRole || "super_admin",
       details: merged,
     })
+
+    if (error) {
+      return { success: false, settings: merged, error: error.message }
+    }
     return { success: true, settings: merged }
   } catch (err: any) {
     console.error("saveWhatsAppAutomationSettings error:", err)
-    return { success: true, settings: merged }
+    return { success: false, settings: merged, error: err?.message || "Error al guardar en Supabase" }
   }
 }

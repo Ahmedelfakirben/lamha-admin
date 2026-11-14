@@ -47,6 +47,8 @@ gen_jwt.mjs
 *.jpg
 .ingest-progress.json
 .worker-progress.json
+.email-automation-settings.json
+.whatsapp-automation-settings.json
 .system_generated
 dist/
 dist-admin/

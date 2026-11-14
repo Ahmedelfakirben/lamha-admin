@@ -96,9 +96,20 @@ export async function getEmailAutomationSettings(forceRefresh = false): Promise<
     return cachedSettings.data
   }
 
-  // 1. Intentar leer desde Supabase (audit_logs con entity_type = 'email_settings')
+  // 1. Intentar leer desde Supabase mediante RPC SECURITY DEFINER (funciona con anon y service_role) o consulta directa
   try {
     const supabase = createAdminClient()
+    const { data: rpcDetails, error: rpcErr } = await supabase.rpc("get_automation_settings", {
+      p_entity_type: SETTINGS_ENTITY_TYPE,
+      p_entity_id: SETTINGS_ENTITY_ID,
+    })
+
+    if (!rpcErr && rpcDetails && typeof rpcDetails === "object") {
+      const merged = mergeWithDefaults(rpcDetails)
+      cachedSettings = { data: merged, ts: Date.now() }
+      return merged
+    }
+
     const { data, error } = await supabase
       .from("audit_logs")
       .select("details, created_at")
@@ -150,6 +161,22 @@ export async function saveEmailAutomationSettings(
 
   // Guardar en Supabase (audit_logs) para sincronización global entre todas las instancias y PCs
   try {
+    const admin = createAdminClient()
+    const { error: rpcErr } = await admin.rpc("save_automation_settings", {
+      p_action: "EMAIL_SETTINGS_UPDATED",
+      p_entity_type: SETTINGS_ENTITY_TYPE,
+      p_entity_id: SETTINGS_ENTITY_ID,
+      p_entity_title: "Configuración de Correos Automáticos y Plantillas",
+      p_details: merged,
+      p_user_name: userContext?.userName || "Admin Studio",
+      p_user_email: userContext?.userEmail || "admin@lam7a.ma",
+      p_user_role: userContext?.userRole || "super_admin",
+    })
+
+    if (!rpcErr) {
+      return { success: true, settings: merged }
+    }
+
     const payload = {
       user_id: userContext?.userId || null,
       user_name: userContext?.userName || "Admin Studio",
@@ -162,19 +189,13 @@ export async function saveEmailAutomationSettings(
       details: merged,
     }
 
-    const client = createClient()
-    let { error } = await client.from("audit_logs").insert(payload)
-    if (error) {
-      const admin = createAdminClient()
-      const retry = await admin.from("audit_logs").insert(payload)
-      error = retry.error
-    }
+    const { error } = await admin.from("audit_logs").insert(payload)
     if (error) {
       return { success: false, settings: merged, error: error.message }
     }
     return { success: true, settings: merged }
   } catch (err: any) {
-    return { success: true, settings: merged }
+    return { success: false, settings: merged, error: err?.message || "Error al guardar en Supabase" }
   }
 }
 

@@ -277,6 +277,7 @@ export function EmailsClient({
 
   // --- Estado de Automatizaciones y Plantillas ---
   const [settings, setSettings] = useState<EmailAutomationSettings>(initialSettings)
+  const [whatsAppSettings, setWhatsAppSettings] = useState<WhatsAppAutomationSettings>(initialWhatsAppSettings)
   const [selectedTemplateKey, setSelectedTemplateKey] = useState<EmailTemplateKey>("welcome")
   const [selectedEditLang, setSelectedEditLang] = useState<EmailLanguage>(activeUiLang)
   const [previewViewport, setPreviewViewport] = useState<"desktop" | "mobile">("desktop")
@@ -285,11 +286,48 @@ export function EmailsClient({
   const [testEmailTarget, setTestEmailTarget] = useState("")
   const [isSendingTest, setIsSendingTest] = useState(false)
 
-  // Sincronizar el idioma de edición con el idioma del panel cuando el usuario cambia de idioma
   useEffect(() => {
-    setSelectedEditLang(activeUiLang)
+    setSettings(initialSettings)
+  }, [initialSettings])
+
+  useEffect(() => {
+    setWhatsAppSettings(initialWhatsAppSettings)
+  }, [initialWhatsAppSettings])
+
+  // Sincronizar el idioma de edición inicial o recuperar la pestaña/plantilla/idioma activos tras refrescar (F5)
+  const [hasRestoredSessionState, setHasRestoredSessionState] = useState(false)
+
+  useEffect(() => {
+    try {
+      const savedTab = sessionStorage.getItem("lamha_emails_active_tab")
+      if (savedTab === "automations" || savedTab === "whatsapp" || savedTab === "composer") {
+        setActiveTab(savedTab)
+      }
+      const savedTpl = sessionStorage.getItem("lamha_emails_tpl_key") as EmailTemplateKey | null
+      if (savedTpl && ["welcome", "photos_ready", "selection_confirmed", "ready_delivery"].includes(savedTpl)) {
+        setSelectedTemplateKey(savedTpl)
+      }
+      const savedLang = sessionStorage.getItem("lamha_emails_edit_lang") as EmailLanguage | null
+      if (savedLang && ["fr", "ar", "es", "en"].includes(savedLang)) {
+        setSelectedEditLang(savedLang)
+      } else {
+        setSelectedEditLang(activeUiLang)
+      }
+    } catch {
+      setSelectedEditLang(activeUiLang)
+    }
     setComposerLang(activeUiLang)
-  }, [activeUiLang])
+    setHasRestoredSessionState(true)
+  }, [])
+
+  useEffect(() => {
+    if (!hasRestoredSessionState) return
+    try {
+      sessionStorage.setItem("lamha_emails_active_tab", activeTab)
+      sessionStorage.setItem("lamha_emails_tpl_key", selectedTemplateKey)
+      sessionStorage.setItem("lamha_emails_edit_lang", selectedEditLang)
+    } catch {}
+  }, [activeTab, selectedTemplateKey, selectedEditLang, hasRestoredSessionState])
 
   // --- Estado del Redactor de Correos a Placer (Composer) ---
   const [clientSearch, setClientSearch] = useState("")
@@ -353,10 +391,13 @@ export function EmailsClient({
     try {
       const res = await saveEmailAutomationSettingsAction(nextSettings)
       if (res.success) {
+        if ("settings" in res && res.settings) setSettings(res.settings)
         setSaveFeedback({
           type: "ok",
           msg: nextEnabled ? dict.msgToggledOn : dict.msgToggledOff,
         })
+      } else {
+        setSaveFeedback({ type: "err", msg: res.error || dict.msgSettingsSaveError })
       }
     } finally {
       setIsSavingSettings(false)
@@ -370,6 +411,7 @@ export function EmailsClient({
     try {
       const res = await saveEmailAutomationSettingsAction(settings)
       if (res.success) {
+        if ("settings" in res && res.settings) setSettings(res.settings)
         setSaveFeedback({ type: "ok", msg: dict.msgSettingsSaved })
       } else {
         setSaveFeedback({ type: "err", msg: res.error || dict.msgSettingsSaveError })
@@ -1023,7 +1065,10 @@ export function EmailsClient({
           PESTAÑA: MODÈLES ET AUTOMATISATIONS WHATSAPP
          ===================================================================== */}
       {activeTab === "whatsapp" && (
-        <WhatsAppTemplatesManager initialSettings={initialWhatsAppSettings} />
+        <WhatsAppTemplatesManager
+          initialSettings={whatsAppSettings}
+          onSettingsChange={(next) => setWhatsAppSettings(next)}
+        />
       )}
 
       {/* =====================================================================
