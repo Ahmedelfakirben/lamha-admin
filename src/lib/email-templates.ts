@@ -40,10 +40,12 @@ export function interpolateEmailVars(
   vars: Record<string, string | number | undefined | null>
 ): string {
   if (!templateStr) return ""
-  return templateStr.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_match, key) => {
-    const val = vars[key]
-    return val !== undefined && val !== null ? String(val) : ""
-  })
+  return templateStr
+    .replace(/https?:\/\/client\.lam7a\.ma\/?/gi, PORTAL_URL)
+    .replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_match, key) => {
+      const val = vars[key]
+      return val !== undefined && val !== null ? String(val) : ""
+    })
 }
 
 function formatTextParagraphsToHtml(rawText: string): string {
@@ -305,6 +307,8 @@ export const DEFAULT_TEMPLATES_I18N: Record<EmailTemplateKey, Record<EmailLangua
 
 export interface WelcomeEmailParams {
   clientName: string
+  clientEmail?: string | null
+  portalPin?: string | null
   sessionDate?: string | null
   category?: string | null
   sessionType?: string | null
@@ -512,6 +516,8 @@ export function renderWelcomeEmail(params: WelcomeEmailParams): { subject: strin
 
   const {
     clientName,
+    clientEmail = "",
+    portalPin = "",
     sessionDate,
     category = "Studio Photography",
     sessionType,
@@ -519,6 +525,11 @@ export function renderWelcomeEmail(params: WelcomeEmailParams): { subject: strin
     studioEmail = "contact@lam7a.ma",
     studioPhone = "+212 600-000000",
   } = params
+
+  const targetPortalUrl =
+    clientEmail && portalPin
+      ? `${PORTAL_URL}?pin=${encodeURIComponent(String(portalPin))}&email=${encodeURIComponent(String(clientEmail))}`
+      : PORTAL_URL
 
   const localeCode = lang === "ar" ? "ar-MA" : lang === "es" ? "es-ES" : lang === "en" ? "en-US" : "fr-FR"
   let formattedDate = labels.noDate
@@ -537,6 +548,8 @@ export function renderWelcomeEmail(params: WelcomeEmailParams): { subject: strin
 
   const vars = {
     clientName,
+    clientEmail: clientEmail || "",
+    portalPin: portalPin || "",
     sessionDate: formattedDate,
     category: category || "Atelier",
   }
@@ -548,6 +561,7 @@ export function renderWelcomeEmail(params: WelcomeEmailParams): { subject: strin
   })
   const introHtml = interpolateEmailVars(copy.intro, vars)
   const bodyHtml = formatTextParagraphsToHtml(interpolateEmailVars(copy.bodyText, vars))
+  const ctaBtnText = interpolateEmailVars(copy.ctaBtn, vars)
   const closingHtml = interpolateEmailVars(copy.closing, vars)
 
   const html = `
@@ -603,13 +617,25 @@ export function renderWelcomeEmail(params: WelcomeEmailParams): { subject: strin
 
               ${bodyHtml}
 
+              ${
+                ctaBtnText
+                  ? `
+              <div style="text-align: center; margin: 26px 0 18px;">
+                <a href="${targetPortalUrl}" target="_blank" style="display: inline-block; background: linear-gradient(135deg, #c69f68 0%, #9e753b 100%); color: #0f0d0b; text-decoration: none; font-size: 14px; font-weight: bold; letter-spacing: 0.5px; padding: 14px 28px; border-radius: 10px; box-shadow: 0 4px 14px rgba(198, 159, 104, 0.3);">
+                  ${ctaBtnText}
+                </a>
+              </div>
+              `
+                  : ""
+              }
+
               <p style="margin: 20px 0 0; font-size: 13px; color: #9c8e7f; line-height: 1.6;">
                 ${closingHtml}
               </p>
             </td>
           </tr>
 
-          ${renderFooter(PORTAL_URL, studioEmail, studioPhone, copy.footerText)}
+          ${renderFooter(targetPortalUrl, studioEmail, studioPhone, copy.footerText)}
         </table>
       </td>
     </tr>

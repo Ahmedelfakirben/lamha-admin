@@ -275,8 +275,11 @@ function normalizePhoneForWhatsApp(phone) {
   return cleaned
 }
 
-function buildDirectWelcomeWhatsAppText({ clientName, sessionDate, category, portalPin, language = "fr" }) {
-  const portalUrl = "https://client.lam7a.ma"
+function buildDirectWelcomeWhatsAppText({ clientName, clientEmail, sessionDate, category, portalPin, language = "fr" }) {
+  const portalUrl =
+    clientEmail && portalPin
+      ? `https://lam7a.ma/portal?pin=${encodeURIComponent(portalPin)}&email=${encodeURIComponent(clientEmail)}`
+      : "https://lam7a.ma/portal"
   const pinLine = portalPin ? `\n🔑 *Code PIN:* ${portalPin}` : ""
   const pinLineAr = portalPin ? `\n🔑 *الرمز السري (PIN):* ${portalPin}` : ""
 
@@ -289,18 +292,21 @@ function buildDirectWelcomeWhatsAppText({ clientName, sessionDate, category, por
   return templates[language] || templates.fr
 }
 
-function interpolateTemplateVars(str, vars) {
+function interpolateTemplateVars(str, vars = {}) {
   if (!str) return ""
   return String(str)
-    .replace(/\{\{\s*clientName\s*\}\}/gi, vars.clientName || "")
-    .replace(/\{\{\s*sessionDate\s*\}\}/gi, vars.sessionDate || "")
-    .replace(/\{\{\s*category\s*\}\}/gi, vars.category || "")
-    .replace(/\{\{\s*portalPin\s*\}\}/gi, vars.portalPin || "")
-    .replace(/\{\{\s*clientEmail\s*\}\}/gi, vars.clientEmail || "")
+    .replace(/https?:\/\/client\.lam7a\.ma\/?/gi, "https://lam7a.ma/portal")
+    .replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_m, k) => {
+      if (vars[k] !== undefined && vars[k] !== null) return String(vars[k])
+      return ""
+    })
 }
 
 function buildDirectWelcomeEmailHtml({ clientName, clientEmail, sessionDate, category, portalPin, language = "fr", customCopy = null }) {
-  const portalUrl = "https://client.lam7a.ma"
+  const portalUrl =
+    clientEmail && portalPin
+      ? `https://lam7a.ma/portal?pin=${encodeURIComponent(portalPin)}&email=${encodeURIComponent(clientEmail)}`
+      : "https://lam7a.ma/portal"
   const logoUrl = "https://admin.lam7a.ma/assets/logo/admin-brand-logo.png"
   const defaults = {
     fr: {
@@ -536,13 +542,46 @@ async function triggerSessionWelcomeNotifications({
         session.client_email && session.portal_pin
           ? `https://lam7a.ma/portal?pin=${encodeURIComponent(session.portal_pin)}&email=${encodeURIComponent(session.client_email)}`
           : "https://lam7a.ma/portal"
+      const timeStr = session.session_time ? String(session.session_time).trim() : ""
+      const sessionTimeLine = timeStr
+        ? language === "ar"
+          ? ` على الساعة *${timeStr}*`
+          : language === "es"
+          ? ` a las *${timeStr}*`
+          : language === "en"
+          ? ` at *${timeStr}*`
+          : ` à *${timeStr}*`
+        : ""
+      const clientEmailLine = session.client_email
+        ? language === "ar"
+          ? `البريد الإلكتروني: ${session.client_email}\n`
+          : language === "es"
+          ? `Correo de acceso: ${session.client_email}\n`
+          : language === "en"
+          ? `Login Email: ${session.client_email}\n`
+          : `Identifiant Email : ${session.client_email}\n`
+        : ""
+      const portalPinLine = session.portal_pin
+        ? language === "ar"
+          ? `رمز الأمان السري (PIN): *${session.portal_pin}*\n`
+          : language === "es"
+          ? `Código PIN de seguridad: *${session.portal_pin}*\n`
+          : language === "en"
+          ? `Security PIN: *${session.portal_pin}*\n`
+          : `Code PIN de sécurité : *${session.portal_pin}*\n`
+        : ""
       const text = customWelcomeWaTpl
         ? interpolateTemplateVars(customWelcomeWaTpl, {
             client_name: session.client_name || "Client",
             clientName: session.client_name || "Client",
+            client_email: session.client_email || "",
+            clientEmail: session.client_email || "",
             session_date: sessionDateFormatted,
             sessionDate: sessionDateFormatted,
-            session_time: session.session_time || "",
+            session_time: timeStr,
+            session_time_line: sessionTimeLine,
+            client_email_line: clientEmailLine,
+            portal_pin_line: portalPinLine,
             category: session.category || "Séance Photo",
             portal_pin: session.portal_pin || "----",
             portalPin: session.portal_pin || "----",
@@ -551,6 +590,7 @@ async function triggerSessionWelcomeNotifications({
           })
         : buildDirectWelcomeWhatsAppText({
             clientName: session.client_name,
+            clientEmail: session.client_email,
             sessionDate: sessionDateFormatted,
             category: session.category || "Séance Photo",
             portalPin: session.portal_pin,

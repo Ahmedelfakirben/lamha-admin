@@ -28,8 +28,6 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   outputFileTracingExcludes: {
     '*': [
-      './dist/**',
-      './dist-admin/**',
       './electron/**',
       './electron-admin/**',
     ],

@@ -15,6 +15,13 @@ import {
   Webhook
 } from "lucide-react"
 import { useLanguage } from "@/context/language-context"
+import {
+  getWhatsAppGatewayStatusAction,
+  connectWhatsAppGatewayQRAction,
+  logoutWhatsAppGatewayAction,
+  setupWhatsAppWebhookAction,
+  sendDirectWhatsAppTestAction,
+} from "@/app/actions"
 
 const GATEWAY_I18N = {
   fr: {
@@ -217,13 +224,12 @@ export function WhatsAppGatewayCard() {
     setTestText(strings.defaultTestText)
   }, [language, strings.defaultTestText])
 
-  // Consultar estado de la instancia
+  // Consultar estado de la instancia mediante Server Action
   const checkStatus = useCallback(async () => {
     try {
-      const res = await fetch("/api/whatsapp/status", { cache: "no-store" })
-      const data = await res.json()
+      const data = await getWhatsAppGatewayStatusAction()
       if (data?.state) {
-        setState(data.state)
+        setState(data.state as any)
         setInstanceName(data.instanceName || "lam7astudio")
         if (data.state === "open") {
           setQrBase64(null)
@@ -259,14 +265,13 @@ export function WhatsAppGatewayCard() {
     setIsGeneratingQr(true)
     setFeedback(null)
     try {
-      const res = await fetch("/api/whatsapp/status", { method: "POST" })
-      const data = await res.json()
+      const data = await connectWhatsAppGatewayQRAction()
       if (data?.base64) {
         setQrBase64(data.base64)
-        setPairingCode(data.pairingCode || null)
+        setPairingCode(("pairingCode" in data && data.pairingCode) || null)
         setState("connecting")
         setFeedback({ type: "info", text: strings.scanPrompt })
-      } else if (data?.state === "open") {
+      } else if ("state" in data && data.state === "open") {
         setState("open")
         setQrBase64(null)
         setFeedback({ type: "success", text: strings.alreadyConnected })
@@ -274,7 +279,7 @@ export function WhatsAppGatewayCard() {
         setFeedback({ type: "error", text: data?.error || strings.generateQrError })
       }
     } catch (err: any) {
-      setFeedback({ type: "error", text: err.message || strings.connectionError })
+      setFeedback({ type: "error", text: err?.message || strings.connectionError })
     } finally {
       setIsGeneratingQr(false)
     }
@@ -286,8 +291,7 @@ export function WhatsAppGatewayCard() {
     setLoading(true)
     setFeedback(null)
     try {
-      const res = await fetch("/api/whatsapp/status", { method: "DELETE" })
-      const data = await res.json()
+      const data = await logoutWhatsAppGatewayAction()
       if (data?.success) {
         setState("close")
         setQrBase64(null)
@@ -296,7 +300,7 @@ export function WhatsAppGatewayCard() {
         setFeedback({ type: "error", text: data?.error || strings.logoutError })
       }
     } catch (err: any) {
-      setFeedback({ type: "error", text: err.message })
+      setFeedback({ type: "error", text: err?.message || strings.logoutError })
     } finally {
       setLoading(false)
       checkStatus()
@@ -308,8 +312,8 @@ export function WhatsAppGatewayCard() {
     setIsConfiguringWebhook(true)
     setFeedback(null)
     try {
-      const res = await fetch("/api/whatsapp/webhook-setup", { method: "POST" })
-      const data = await res.json()
+      const origin = typeof window !== "undefined" ? window.location.origin : "https://admin.lam7a.ma"
+      const data = await setupWhatsAppWebhookAction(origin)
       if (data?.success) {
         setFeedback({ 
           type: "success", 
@@ -319,7 +323,7 @@ export function WhatsAppGatewayCard() {
         setFeedback({ type: "error", text: data?.error || strings.webhookError })
       }
     } catch (err: any) {
-      setFeedback({ type: "error", text: err.message })
+      setFeedback({ type: "error", text: err?.message || strings.webhookError })
     } finally {
       setIsConfiguringWebhook(false)
     }
@@ -336,19 +340,18 @@ export function WhatsAppGatewayCard() {
     setIsSendingTest(true)
     setFeedback(null)
     try {
-      const res = await fetch("/api/whatsapp/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: testPhone.trim(), text: testText.trim() })
+      const data = await sendDirectWhatsAppTestAction({
+        phone: testPhone.trim(),
+        text: testText.trim(),
       })
-      const data = await res.json()
-      if (res.ok && data?.success) {
-        setFeedback({ type: "success", text: strings.testSuccess(testPhone, data.messageId || "OK") })
+      if (data?.success) {
+        const msgId = ("messageId" in data && data.messageId) ? data.messageId : "OK"
+        setFeedback({ type: "success", text: strings.testSuccess(testPhone, msgId) })
       } else {
         setFeedback({ type: "error", text: data?.error || strings.testError })
       }
     } catch (err: any) {
-      setFeedback({ type: "error", text: err.message })
+      setFeedback({ type: "error", text: err?.message || strings.testError })
     } finally {
       setIsSendingTest(false)
     }

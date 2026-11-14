@@ -44,6 +44,16 @@ function getEvolutionConfig() {
   return { url, apiKey, instance }
 }
 
+async function safeParseJson(res: Response): Promise<any> {
+  const text = await res.text()
+  if (!text) return {}
+  try {
+    return JSON.parse(text)
+  } catch {
+    return { message: text.slice(0, 200), rawText: text.slice(0, 200) }
+  }
+}
+
 /**
  * Normaliza cualquier número de teléfono dejando solo dígitos internacionales.
  * Si es un número local de Marruecos (06... o 07...), le asigna el prefijo 212.
@@ -112,7 +122,7 @@ export async function getInstanceStatus(): Promise<InstanceStatusResponse> {
         })
       })
 
-      const createData = await createRes.json()
+      const createData = await safeParseJson(createRes)
       return {
         instanceName: instance,
         state: "connecting",
@@ -122,12 +132,12 @@ export async function getInstanceStatus(): Promise<InstanceStatusResponse> {
       }
     }
 
-    const data = await res.json()
+    const data = await safeParseJson(res)
     const state = data?.instance?.state || data?.state || "close"
 
     return {
       instanceName: instance,
-      state: state.toLowerCase() as any,
+      state: String(state).toLowerCase() as any,
       raw: data
     }
   } catch (err: any) {
@@ -143,8 +153,15 @@ export async function getInstanceStatus(): Promise<InstanceStatusResponse> {
 /**
  * Solicita el código QR en Base64 para escanear y vincular WhatsApp.
  */
-export async function connectAndGetQR(): Promise<ConnectQRResponse> {
+export async function connectAndGetQR(): Promise<ConnectQRResponse & { error?: string }> {
   const { url, apiKey, instance } = getEvolutionConfig()
+
+  if (!apiKey) {
+    return {
+      base64: null,
+      error: "EVOLUTION_API_KEY no configurada en el servidor."
+    }
+  }
 
   try {
     const res = await fetch(`${url}/instance/connect/${instance}`, {
@@ -156,17 +173,49 @@ export async function connectAndGetQR(): Promise<ConnectQRResponse> {
       cache: "no-store"
     })
 
-    const data = await res.json()
+    if (res.status === 404) {
+      const createRes = await fetch(`${url}/instance/create`, {
+        method: "POST",
+        headers: {
+          apikey: apiKey,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          instanceName: instance,
+          qrcode: true,
+          integration: "WHATSAPP-BAILEYS"
+        })
+      })
+      const createData = await safeParseJson(createRes)
+      return {
+        base64: createData?.qrcode?.base64 || createData?.base64 || null,
+        code: createData?.qrcode?.code || createData?.code || null,
+        pairingCode: createData?.qrcode?.pairingCode || createData?.pairingCode || null,
+        state: "connecting"
+      }
+    }
+
+    const data = await safeParseJson(res)
+    if (!res.ok) {
+      return {
+        base64: null,
+        error: data?.response?.message || data?.message || `Evolution API HTTP ${res.status}`
+      }
+    }
+
     return {
       base64: data?.base64 || data?.qrcode?.base64 || null,
       code: data?.code || data?.qrcode?.code || null,
       pairingCode: data?.pairingCode || data?.qrcode?.pairingCode || null,
       count: data?.count,
-      state: data?.state
+      state: data?.instance?.state || data?.state
     }
   } catch (err: any) {
     console.error("[WhatsApp] Error en connectAndGetQR:", err)
-    throw new Error(err.message || "Error al solicitar código QR a Evolution API")
+    return {
+      base64: null,
+      error: err.message || "Error al solicitar código QR a Evolution API"
+    }
   }
 }
 
@@ -221,7 +270,7 @@ export async function setupWebhook(webhookUrl: string): Promise<{ success: boole
       })
     })
 
-    const data = await res.json()
+    const data = await safeParseJson(res)
     if (!res.ok) {
       return { success: false, error: data?.message || "No se pudo configurar el webhook" }
     }
@@ -269,7 +318,7 @@ export async function sendWhatsAppMessage({
       })
     })
 
-    rawPayload = await res.json()
+    rawPayload = await safeParseJson(res)
 
     if (!res.ok) {
       console.warn("[WhatsApp] Envío fallido en Evolution API:", rawPayload)

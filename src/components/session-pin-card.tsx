@@ -141,7 +141,8 @@ export function SessionPinCard({
   }
 
   const buildAccessMessage = () => {
-    const basePortalUrl = process.env.NEXT_PUBLIC_PORTAL_URL || "https://lam7a.ma/portal"
+    const rawPortal = process.env.NEXT_PUBLIC_PORTAL_URL || "https://lam7a.ma/portal"
+    const basePortalUrl = rawPortal.includes("client.lam7a.ma") ? "https://lam7a.ma/portal" : rawPortal
     const emailParam = clientEmail ? `&email=${encodeURIComponent(clientEmail)}` : ""
     const portalUrl = pin
       ? `${basePortalUrl}?pin=${pin}${emailParam}`
@@ -254,7 +255,8 @@ export function SessionPinCard({
     }
   }
 
-  const basePortalUrl = process.env.NEXT_PUBLIC_PORTAL_URL || "https://lam7a.ma/portal"
+  const rawPortal = process.env.NEXT_PUBLIC_PORTAL_URL || "https://lam7a.ma/portal"
+  const basePortalUrl = rawPortal.includes("client.lam7a.ma") ? "https://lam7a.ma/portal" : rawPortal
   const portalHref = pin
     ? `${basePortalUrl}?pin=${pin}${clientEmail ? `&email=${encodeURIComponent(clientEmail)}` : ""}`
     : basePortalUrl

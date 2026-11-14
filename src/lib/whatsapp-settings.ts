@@ -25,7 +25,7 @@ export {
 
 const SETTINGS_ENTITY_TYPE = "whatsapp_settings"
 const SETTINGS_ENTITY_ID = "global_whatsapp_config"
-const LOCAL_FALLBACK_FILE = path.join(process.cwd(), ".whatsapp-automation-settings.json")
+const getLocalFallbackFile = () => path.join(/*turbopackIgnore: true*/ process.cwd(), ".whatsapp-automation-settings.json")
 
 let cachedSettings: { data: WhatsAppAutomationSettings; ts: number } | null = null
 
@@ -91,8 +91,9 @@ export async function getWhatsAppAutomationSettings(forceRefresh = false): Promi
 
   // 2. Fallback archivo local en servidor
   try {
-    if (fs.existsSync(LOCAL_FALLBACK_FILE)) {
-      const raw = JSON.parse(fs.readFileSync(LOCAL_FALLBACK_FILE, "utf-8"))
+    const fallbackFile = getLocalFallbackFile()
+    if (fs.existsSync(/*turbopackIgnore: true*/ fallbackFile)) {
+      const raw = JSON.parse(fs.readFileSync(/*turbopackIgnore: true*/ fallbackFile, "utf-8"))
       const merged = mergeWithDefaults(raw)
       cachedSettings = { data: merged, ts: Date.now() }
       return merged
@@ -117,7 +118,7 @@ export async function saveWhatsAppAutomationSettings(
 
   // Guardar copia local inmediata
   try {
-    fs.writeFileSync(LOCAL_FALLBACK_FILE, JSON.stringify(merged, null, 2), "utf-8")
+    fs.writeFileSync(/*turbopackIgnore: true*/ getLocalFallbackFile(), JSON.stringify(merged, null, 2), "utf-8")
   } catch {}
 
   // Persistir en Supabase

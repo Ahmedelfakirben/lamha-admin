@@ -336,6 +336,7 @@ export function renderWhatsAppMessageTemplate({
   }
 
   let text = templateText
+    .replace(/https?:\/\/client\.lam7a\.ma\/?/gi, portalBaseUrl)
     .replace(/\{\{client_name\}\}/g, data.clientName || "")
     .replace(/\{\{session_date\}\}/g, data.sessionDate || (isAr ? "يحدد لاحقاً" : isEn ? "TBD" : isEs ? "A convenir" : "à convenir"))
     .replace(/\{\{session_time\}\}/g, data.sessionTime || "")

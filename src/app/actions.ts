@@ -16,7 +16,13 @@ import {
   EmailAutomationSettings
 } from '@/lib/email-settings';
 import type { CustomAtelierEmailParams, EmailTemplateKey } from '@/lib/email-templates';
-import { sendWhatsAppMessage } from '@/lib/whatsapp';
+import {
+  sendWhatsAppMessage,
+  getInstanceStatus,
+  connectAndGetQR,
+  logoutInstance,
+  setupWebhook,
+} from '@/lib/whatsapp';
 import { 
   getWelcomeWhatsApp, 
   getPhotosReadyWhatsApp, 
@@ -268,6 +274,7 @@ export async function createSession(data: any, userContext?: UserAuditContext) {
         const emailRes = await sendWelcomeEmailNotification({
           clientName: insertedSession.client_name,
           clientEmail: insertedSession.client_email,
+          portalPin: insertedSession.portal_pin,
           sessionDate: insertedSession.session_date,
           category: insertedSession.category,
           sessionType: insertedSession.session_type,
@@ -1663,6 +1670,7 @@ export async function triggerWelcomeNotificationsForSessionAction(params: {
         const emailRes = await sendWelcomeEmailNotification({
           clientName: session.client_name,
           clientEmail: session.client_email,
+          portalPin: session.portal_pin,
           sessionDate: session.session_date,
           category: session.category,
           sessionType: session.session_type,
@@ -1888,5 +1896,68 @@ export async function sendTestWhatsAppAction(params: {
     return waRes;
   } catch (error: any) {
     return { success: false, error: error?.message || 'Error enviando WhatsApp de prueba' };
+  }
+}
+
+export async function getWhatsAppGatewayStatusAction() {
+  try {
+    return await getInstanceStatus();
+  } catch (error: any) {
+    return {
+      instanceName: 'lam7astudio',
+      state: 'unknown' as const,
+      raw: { error: error?.message || 'Error consultando estado de WhatsApp' },
+    };
+  }
+}
+
+export async function connectWhatsAppGatewayQRAction() {
+  try {
+    return await connectAndGetQR();
+  } catch (error: any) {
+    return {
+      base64: null,
+      error: error?.message || 'Error al generar código QR en Evolution API',
+    };
+  }
+}
+
+export async function logoutWhatsAppGatewayAction() {
+  try {
+    return await logoutInstance();
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error?.message || 'Error al cerrar sesión de WhatsApp',
+    };
+  }
+}
+
+export async function setupWhatsAppWebhookAction(originUrl?: string) {
+  try {
+    const base = (originUrl || process.env.NEXT_PUBLIC_APP_URL || 'https://admin.lam7a.ma').replace(/\/+$/, '');
+    const webhookUrl = `${base}/api/webhooks/whatsapp`;
+    const res = await setupWebhook(webhookUrl);
+    return { ...res, configuredUrl: webhookUrl };
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error?.message || 'Error al configurar webhook de WhatsApp',
+      configuredUrl: 'https://admin.lam7a.ma/api/webhooks/whatsapp',
+    };
+  }
+}
+
+export async function sendDirectWhatsAppTestAction(params: { phone: string; text: string }) {
+  try {
+    return await sendWhatsAppMessage({
+      phone: params.phone,
+      text: params.text,
+    });
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error?.message || 'Error al enviar mensaje de prueba',
+    };
   }
 }

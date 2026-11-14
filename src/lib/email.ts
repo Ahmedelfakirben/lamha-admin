@@ -36,6 +36,14 @@ export function isEmailConfigured(): boolean {
   return Boolean(config.user && config.pass)
 }
 
+function getOfficialPortalBaseUrl(): string {
+  const raw = (process.env.NEXT_PUBLIC_CLIENT_PORTAL_URL || "https://lam7a.ma/portal").trim()
+  if (!raw || raw.includes("client.lam7a.ma")) {
+    return "https://lam7a.ma/portal"
+  }
+  return raw
+}
+
 function createTransporter() {
   const config = getSmtpConfig()
   return nodemailer.createTransport({
@@ -59,6 +67,7 @@ function createTransporter() {
 export async function sendWelcomeEmailNotification(params: {
   clientName: string
   clientEmail: string
+  portalPin?: string | null
   sessionDate?: string | null
   category?: string | null
   sessionType?: string | null
@@ -88,6 +97,8 @@ export async function sendWelcomeEmailNotification(params: {
     const config = getSmtpConfig()
     const { subject, html, text } = renderWelcomeEmail({
       clientName: params.clientName,
+      clientEmail: params.clientEmail,
+      portalPin: params.portalPin,
       sessionDate: params.sessionDate,
       category: params.category,
       sessionType: params.sessionType,
@@ -150,7 +161,7 @@ export async function sendPhotosReadyNotification(params: {
     }
 
     const config = getSmtpConfig()
-    const portalBaseUrl = process.env.NEXT_PUBLIC_CLIENT_PORTAL_URL || "https://lam7a.ma/portal"
+    const portalBaseUrl = getOfficialPortalBaseUrl()
 
     const { subject, html, text } = renderPhotosReadyEmail({
       clientName: params.clientName,
@@ -213,7 +224,7 @@ export async function sendReadyForDeliveryNotification(params: {
     }
 
     const config = getSmtpConfig()
-    const portalBaseUrl = process.env.NEXT_PUBLIC_CLIENT_PORTAL_URL || "https://lam7a.ma/portal"
+    const portalBaseUrl = getOfficialPortalBaseUrl()
 
     const { subject, html, text } = renderReadyForDeliveryEmail({
       clientName: params.clientName,
@@ -276,7 +287,7 @@ export async function sendSelectionConfirmedNotification(params: {
     }
 
     const config = getSmtpConfig()
-    const portalBaseUrl = process.env.NEXT_PUBLIC_CLIENT_PORTAL_URL || "https://lam7a.ma/portal"
+    const portalBaseUrl = getOfficialPortalBaseUrl()
 
     const { subject, html, text } = renderSelectionConfirmedEmail({
       clientName: params.clientName,

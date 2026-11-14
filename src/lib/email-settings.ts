@@ -23,7 +23,7 @@ export interface EmailAutomationSettings {
 
 const SETTINGS_ENTITY_TYPE = "email_settings"
 const SETTINGS_ENTITY_ID = "global_email_config"
-const LOCAL_FALLBACK_FILE = path.join(process.cwd(), ".email-automation-settings.json")
+const getLocalFallbackFile = () => path.join(/*turbopackIgnore: true*/ process.cwd(), ".email-automation-settings.json")
 
 let cachedSettings: { data: EmailAutomationSettings; ts: number } | null = null
 
@@ -130,8 +130,9 @@ export async function getEmailAutomationSettings(forceRefresh = false): Promise<
 
   // 2. Fallback archivo local en servidor
   try {
-    if (fs.existsSync(LOCAL_FALLBACK_FILE)) {
-      const raw = JSON.parse(fs.readFileSync(LOCAL_FALLBACK_FILE, "utf-8"))
+    const fallbackFile = getLocalFallbackFile()
+    if (fs.existsSync(/*turbopackIgnore: true*/ fallbackFile)) {
+      const raw = JSON.parse(fs.readFileSync(/*turbopackIgnore: true*/ fallbackFile, "utf-8"))
       const merged = mergeWithDefaults(raw)
       cachedSettings = { data: merged, ts: Date.now() }
       return merged
@@ -156,7 +157,7 @@ export async function saveEmailAutomationSettings(
 
   // Guardar copia local inmediata
   try {
-    fs.writeFileSync(LOCAL_FALLBACK_FILE, JSON.stringify(merged, null, 2), "utf-8")
+    fs.writeFileSync(/*turbopackIgnore: true*/ getLocalFallbackFile(), JSON.stringify(merged, null, 2), "utf-8")
   } catch {}
 
   // Guardar en Supabase (audit_logs) para sincronización global entre todas las instancias y PCs
