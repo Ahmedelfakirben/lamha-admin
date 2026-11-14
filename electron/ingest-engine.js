@@ -706,7 +706,6 @@ async function createQuickSession(payload = {}) {
 
     // Disparar automáticamente Email de Bienvenida + WhatsApp de Bienvenida si está habilitado
     const shouldNotify = payload.sendWelcomeNotifications !== false
-    const notifyLang = payload.notifyLanguage || cfg.language || "fr"
     let notifications = { emailSent: false, whatsappSent: false }
     if (shouldNotify && data && (data.client_email || data.client_phone)) {
       try {
